@@ -1,166 +1,212 @@
-# PROJECT SPEC — đặc tả và đối chiếu quyết định phê duyệt
+# PROJECT SPEC — quyết định đã phê duyệt và chi tiết chờ chốt
 
-Ngày chuẩn bị và đối chiếu: 2026-10-21 (Asia/Saigon). Phạm vi đồ án: cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Phạm vi lượt này: đối chiếu A1–A7, cập nhật riêng tài liệu này trên nhánh riêng và tạo Pull Request. **Không triển khai code cost model, training, baseline hoặc optimization trong nhiệm vụ này.**
+Ngày cập nhật: 2026-10-21 (Asia/Saigon). Đồ án cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Lượt hiện tại chỉ cập nhật spec và tạo PR. **Không code cost model, train ML, chạy baseline/optimization hoặc đánh giá test trong nhiệm vụ này.**
 
-### Bằng chứng và cách đọc trạng thái
+## 0. Bằng chứng phê duyệt và phạm vi
 
-- Chủ dự án đã đổi nhãn A1–A6 thành “Phê duyệt” tại commit [72b3d67526ca56e81900e301cbfcb310de916557](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/commit/72b3d67526ca56e81900e301cbfcb310de916557). Diff của commit này chỉ đổi sáu nhãn trạng thái, không bổ sung giá trị tham số hay lựa chọn giữa các phương án.
-- Nguồn đối chiếu là báo cáo W1-G1-C trong chat ngày 2026-10-21 và hai bản review local `docs/problem_formulation.md` (§2–§9), `docs/cost_model_review.md` (§1–§7). Các bản này nêu khuyến nghị, trường trống và phương án chờ chọn; chưa có bản ghi điền các giá trị còn thiếu. Hai file review chưa được commit vào nhánh nguồn của PR; PR này chỉ sửa spec.
-- Chỉ dẫn tiếp theo trong cùng chat cho phép sửa toàn bộ `docs/PROJECT_SPEC.md`, tạo nhánh/PR và yêu cầu không tự suy diễn những mục thiếu hoặc mâu thuẫn. Đây là bằng chứng cho phép sửa file chung ở lượt này, không cấp quyền sửa config/board hay tự tích hợp vào main.
-- Việc chủ dự án đánh dấu phê duyệt được giữ trong lịch sử và ghi nhận ở §10. Một hàng chỉ có trạng thái **Đã phê duyệt** khi quyết định cụ thể đủ để chốt toàn bộ nội dung của hàng đó. Hiện A1–A6 đều còn phần thiếu; trạng thái đối chiếu là **Cần bổ sung quyết định**. Điều này không phủ nhận việc chủ dự án đã đánh dấu, nhưng không biến ô trống thành giá trị mặc định.
-- Các công thức và lựa chọn có nhãn **đề xuất** dưới đây được giữ để chủ dự án hoàn thiện quyết định; không phải cấu hình được phép chạy. Các quy tắc chống leakage, phân quyền, lưu bằng chứng và không dùng test để tuning theo `AGENTS.md` vẫn bắt buộc.
+- Commit [72b3d67526ca56e81900e301cbfcb310de916557](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/commit/72b3d67526ca56e81900e301cbfcb310de916557) đã đổi nhãn A1–A6 thành “Phê duyệt”. Chủ dự án sau đó cung cấp quyết định cụ thể A1–A7 trong câu trả lời cùng chat ngày 2026-10-21, mở đầu “Tôi là chủ dự án và xác nhận phê duyệt A1–A6 với các thông số cụ thể sau”. Quyết định chi tiết này là nguồn của các giá trị được ghi là đã phê duyệt bên dưới.
+- Chủ dự án yêu cầu cập nhật toàn bộ `docs/PROJECT_SPEC.md`, bảo toàn hai tài liệu review, tạo nhánh/PR và không tự merge main. Đây là quyền sửa riêng file chung này; không bao gồm config, task board hay tài liệu của Antigravity.
+- A7 đã kích hoạt riêng **W1-G1-C** (review, Codex) và **W1-G2-A** (kiểm tra dữ liệu, Antigravity). Không tự kích hoạt AI khác hoặc nhận thêm giai đoạn. Lượt Codex hiện tại không thực hiện task dữ liệu của Antigravity.
+- Hai bản W1-G1-C `docs/problem_formulation.md` và `docs/cost_model_review.md` được giữ nguyên như bản review lịch sử. Chúng còn ghi “chờ duyệt” và đề xuất cũ; các quyết định mới trong spec này thay thế phần chờ duyệt tương ứng, không sửa ngầm bản review. Hai file còn untracked từ lượt trước, không nằm trong PR chỉ sửa spec.
+- Chỉ dùng trạng thái **Đã phê duyệt** cho một mục đã đủ quyết định trong phạm vi được ghi. **Phê duyệt một phần** nghĩa là các lựa chọn/giá trị cụ thể đã được chấp nhận, nhưng còn quy tắc chi tiết cần chốt; không được suy diễn rằng phần chưa chốt cũng đã được duyệt. Chi tiết tại §10.
 
-## 1. Problem statement
+## 1. Problem statement và đơn vị quan sát — A1
 
-Từ đặc trưng vận hành của mỗi quan sát, ước lượng xác suất hỏng hóc và chọn chính sách đề xuất bảo trì có tổng chi phí mô phỏng nhỏ, đáp ứng nguồn lực. Đơn vị phân tích là quan sát, không mặc nhiên là một máy độc lập hoặc một lịch bảo trì theo thời gian. Đánh giá bằng cùng dữ liệu, kịch bản và constraints cho mọi baseline/phương pháp.
+Từ đặc trưng vận hành, ước lượng nguy cơ hỏng và chọn chính sách bảo trì có tổng chi phí mô phỏng nhỏ, đáp ứng nguồn lực. So sánh cùng dữ liệu, kịch bản và constraints cho mọi baseline/phương pháp.
 
-**Đề xuất A1:** mỗi hàng là một trạng thái vận hành được chấm trong một kỳ giả lập; cost cộng theo hàng. Không có horizon trước lỗi, lịch bảo trì, phụ tùng hoặc constraint từng máy trong formulation này. Cần xác nhận không cộng trùng cùng một hành động/tổn thất khi các hàng liên quan cùng máy, tên đơn vị chi phí và ranh giới khoản PM/failure. Chưa đủ thông tin để khóa A1 chỉ từ nhãn phê duyệt.
+**Đã phê duyệt:** một dòng AI4I là một quan sát vận hành; mô hình cost một kỳ; đơn vị **cost units**, không phải VND. Chi phí được cộng theo quan sát bằng công thức A2. Không suy ra mỗi hàng là một máy độc lập hoặc một lịch theo thời gian; không khẳng định tiết kiệm tiền thật. Công thức hiện tại không mô hình hóa horizon trước lỗi, phụ tùng, chi phí theo đợt hoặc constraint từng máy. Thay đổi đơn vị phân tích/giả định cần quyết định mới.
 
-## 2. Dataset và nguồn
+## 2. Dataset, target và features — A5
 
-[AI4I 2020 — UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), DOI [10.24432/C5HS5C](https://doi.org/10.24432/C5HS5C). Theo metadata UCI kiểm tra ngày 2026-10-21: dữ liệu tổng hợp, 10.000 quan sát, 6 feature, giấy phép CC BY 4.0; metadata báo không có missing. Đây là thông tin nguồn, chưa phải kiểm tra bản CSV local.
+**Đã phê duyệt nguồn:** [AI4I 2020 — UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), DOI [10.24432/C5HS5C](https://doi.org/10.24432/C5HS5C). Metadata UCI: dữ liệu tổng hợp, 10.000 quan sát, 6 feature, CC BY 4.0, metadata báo không missing. Đây là thông tin nguồn được xem ngày 2026-10-21, chưa phải kiểm tra CSV local. Theo mô tả UCI, nhiệt độ được sinh bằng random walk; cần kiểm tra phụ thuộc dữ liệu trước split.
 
-Target dự kiến `Machine failure`. Feature dự kiến cho A5: `Type`, `Air temperature [K]`, `Process temperature [K]`, `Rotational speed [rpm]`, `Torque [Nm]`, `Tool wear [min]`. Xác minh tên cột thực tế khi nhiệm vụ dữ liệu được giao; không coi metadata là kiểm tra CSV. Loại target, ID `UID`/`UDI`, `Product ID` và nhãn phụ `TWF`, `HDF`, `PWF`, `OSF`, `RNF` khỏi feature. ID chỉ phục vụ truy vết/split. Xem [hướng dẫn dữ liệu](../data/README.md) để ghi provenance.
+**Đã phê duyệt target:** `Machine failure`. Sáu feature vận hành:
 
-A5 còn cần xác nhận danh sách feature, cách xử lý duplicate/nhóm/thứ tự và phạm vi EDA trước khi tạo split. Đồ án không mặc nhiên chứng minh dự báo lỗi tương lai hoặc hiệu quả can thiệp ngoài đời thực.
+| Feature | Đơn vị/kiểu dự kiến |
+|---|---|
+| `Type` | Categorical |
+| `Air temperature [K]` | K |
+| `Process temperature [K]` | K |
+| `Rotational speed [rpm]` | rpm |
+| `Torque [Nm]` | Nm |
+| `Tool wear [min]` | min |
 
-## 3. Decision variables
+Loại target, ID `UID`/`UDI`, `Product ID` và năm nhãn phụ `TWF`, `HDF`, `PWF`, `OSF`, `RNF` khỏi features. ID chỉ phục vụ truy vết/split, không suy ra timestamp hoặc machine ID. Xác minh tên cột thực tế trong task dữ liệu; ghi provenance theo [data/README](../data/README.md).
 
-**Đề xuất nguồn cho A4:** `x=(h, τ)`, trong đó `h ∈ H` là hyperparameter của pipeline mô hình, `τ ∈ [0,1]`. Với xác suất lớp lỗi `p_i(h) ∈ [0,1]` hữu hạn từ mô hình fit trên train:
+Chưa có quyền dùng EDA toàn bộ dữ liệu để lựa chọn mô hình. Quy tắc duplicate/nhóm/thứ tự, phân biệt kiểm tra integrity và EDA định hướng mô hình, cùng các điều kiện trước split còn cần chốt ở §9. Không ghi kiểm tra dữ liệu là đã chạy chỉ từ metadata.
+
+## 3. Decision variables và policy — A3/A4
+
+**Đã phê duyệt:** tối ưu `x=(h,τ)`, mô hình chính Random Forest. Giữ công thức policy/miền nguồn:
 
 ```text
-a_i(h, τ) = 1[p_i(h) >= τ]
+h ∈ H, τ ∈ [0,1], p_i(h) ∈ [0,1]
+a_i(h,τ) = 1[p_i(h) >= τ]
 ```
 
-`a_i=1` nghĩa là đề xuất bảo trì cho quan sát i. `a_i` được suy ra từ p và τ, không phải biến nhị phân được chọn độc lập bằng nhãn y. Seed/split/kịch bản là điều kiện thí nghiệm, không phải biến để chọn kết quả tốt.
+`h` là hyperparameter của pipeline fit trên train; `a_i=1` nghĩa là đề xuất bảo trì. Actions được suy ra từ p, không phải N biến nhị phân tự chọn theo nhãn y. H và quy tắc threshold cụ thể vẫn chờ duyệt ở §5/§7. Seed, split và kịch bản chi phí là điều kiện thí nghiệm, không phải biến để chọn kết quả đẹp. τ-only có thể làm ablation theo review nhưng chưa được giao chạy.
 
-Review khuyến nghị tìm đồng thời h,τ làm phương pháp chính, τ-only với h cố định làm mốc/ablation. Chủ dự án còn cần chọn phạm vi, H cụ thể và các tham số giữ cố định. Không tạo search space thực thi từ các ví dụ của roadmap. Comparator `>=` và miền `[0,1]` vẫn là công thức nguồn được giữ để đối chiếu; đề xuất xử lý candidate/ties ở §5 chưa tự trở thành quyết định đầy đủ A3/A4.
+## 4. Objective, tham số và sensitivity — A2
 
-## 4. Objective function
-
-**Công thức nguồn giữ để đối chiếu A2; chưa đủ quyết định cụ thể để triển khai:**
+**Công thức đã phê duyệt**, giữ nguyên từ roadmap; hậu tố `obs` chỉ phân biệt cách chấm bằng nhãn:
 
 ```text
-min C_obs(h, τ) = Σ_i [C_PM * a_i + C_F * y_i * (1 - η * a_i)]
-C_exp(h, τ) = Σ_i [C_PM * a_i + C_F * p_i * (1 - η * a_i)]
+min C_obs(h,τ) = Σ_i [C_PM*a_i + C_F*y_i*(1-η*a_i)]
 ```
 
-Hậu tố `obs` chỉ phân biệt cách chấm, không đổi hàm mục tiêu nguồn. `C_PM` là chi phí mỗi hành động, kể cả hành động trên hàng không lỗi; `C_F` là tổn thất mỗi sự cố; `η` là phần tổn thất giả định được tránh trên hàng lỗi được chọn. Chi phí PM cộng phần tổn thất còn lại, cùng đơn vị chi phí mô phỏng: `y=1,a=1` tốn `C_PM+(1-η)*C_F`. Cần xác nhận ranh giới hai khoản để tránh cộng trùng; η không đổi nhãn y sau can thiệp.
-
-| Tham số A1/A2 | Miền đề xuất | Giá trị/quyết định cụ thể hiện có |
+| Đại lượng | Quyết định đã phê duyệt | Ý nghĩa |
 |---|---|---|
-| `C_PM` | Hữu hạn, `>=0` | Chưa cung cấp |
-| `C_F` | Hữu hạn, `>=0` | Chưa cung cấp |
-| `η` | Hữu hạn, `[0,1]` | Chưa cung cấp |
-| Đơn vị chi phí | Cùng đơn vị cho PM, failure và tổng cost | Chưa đặt tên; không tự chọn VND hoặc đơn vị chuẩn hóa |
-| Kịch bản chính/sensitivity | Liệt kê mỗi bộ tham số và cách đánh giá | Chưa có bảng giá trị hoặc lựa chọn fixed-policy/reoptimization |
+| `C_PM` | 1 cost unit/hành động | Trả cho mọi action, kể cả hàng không lỗi |
+| `C_F` | 20 cost units/sự cố | Tổn thất đầy đủ khi không can thiệp |
+| `η` | 0.8 | Phần tổn thất giả định được tránh trên hàng lỗi được chọn |
+| Đơn vị tổng cost | cost units | Chi phí mô phỏng, không phải VND |
+| Sensitivity `C_F` | `{5,10,20,40}` | Giả định nghiên cứu được chủ dự án chọn |
+| Sensitivity `η` | `{0.7,0.8,1.0}` | Giả định nghiên cứu được chủ dự án chọn |
 
-Dùng `y_i` của validation để chấm/chọn chính sách theo objective nguồn; không dùng nhãn test khi tìm kiếm. `C_obs` vẫn là cost mô phỏng dù dùng nhãn quan sát. Review khuyến nghị `C_exp` chỉ là chẩn đoán theo mô hình xác suất, không tráo thành objective hoặc bằng chứng can thiệp; chủ dự án cần xác nhận lựa chọn này cùng A2. Việc so sánh h bằng C_exp có thể bị ảnh hưởng bởi xác suất dự đoán thấp, không chứng minh policy tốt.
+Công thức cộng PM với tổn thất còn lại, không thay y bằng nhãn sau can thiệp. Với `y=1,a=1`, cost là `1+20*(1-0.8)=5 cost units`. Đây là **minh họa tính tay theo tham số đã duyệt**, không phải kết quả thực nghiệm. Miền công thức nguồn: cost hữu hạn không âm, `0<=η<=1`; mọi giá trị đã chọn nằm trong miền.
 
-Đẳng thức kiểm tra bằng ký hiệu: với `M=Σa_i`, `P=Σy_i`, `TP=Σy_i*a_i`, có `C_obs=C_PM*M+C_F*P-η*C_F*TP`. B0 tốn `C_F*P`; saving mô phỏng so B0 là `η*C_F*TP-C_PM*M`, có thể âm. Đây là suy diễn công thức, không phải kết quả thực nghiệm.
+Dùng nhãn validation để chấm/chọn policy theo objective nguồn, không dùng test để tìm kiếm. Đặt `M=Σa_i`, `P=Σy_i`, `TP=Σy_i*a_i`: `C_obs=M+20*P-16*TP`; B0 tốn `20*P`. Đây là suy diễn đại số. Saving mô phỏng `C_B0-C_policy` có thể âm; không tạo số liệu thực nghiệm từ đẳng thức.
 
-**AI4I không cung cấp chi phí bảo trì thực tế hoặc kết quả phản thực tế sau can thiệp. Toàn bộ `C_PM`, `C_F`, `η`, đơn vị tiền và số tiết kiệm là mô phỏng. Không đặt giá trị kinh tế mặc định trong code/config khi chưa duyệt.** Ví dụ tiền trong lộ trình không được tự chuyển thành cấu hình chạy.
+Chi phí kỳ vọng là đánh giá khác:
 
-## 5. Constraints và quyết định còn thiếu — A3
+```text
+C_exp(h,τ) = Σ_i [C_PM*a_i + C_F*p_i*(1-η*a_i)]
+```
 
-Đề xuất giới hạn năng lực `M=Σ a_i <= K=floor(b*N)`, `b ∈ [0,1]`, N là số hàng trong batch/tập đang chấm. **Chưa có b cụ thể.** Con số 10% trong roadmap là ví dụ, không phải cấu hình được chọn. Đây là capacity số hành động, không phải constraint tiền.
+Không tráo C_exp với objective C_obs hoặc dùng làm bằng chứng can thiệp. Review đề xuất chỉ báo C_exp như chẩn đoán nếu cần; chưa giao thực nghiệm này. AI4I không cung cấp chi phí thực tế hoặc cặp kết quả phản thực tế để xác nhận η; các tham số/saving đều là giả định/kết quả mô phỏng có điều kiện.
 
-Review khuyến nghị vòng đầu chỉ dùng capacity và báo recall như metric. **Chưa có quyết định cụ thể bật/tắt recall constraint.** Nếu chọn bật `recall>=R_min`, cần chọn `R_min∈[0,1]`, định nghĩa recall bằng TP/P khi P>0 và kiểm tra khả thi. `K<ceil(R_min*P)` là điều kiện đủ để kết luận không khả thi; K đủ lớn chưa đảm bảo một threshold đạt được do thứ hạng/ties. Không tự đặt recall_min=0 để giả lập việc tắt constraint.
+**Thiết kế sensitivity còn cần duyệt chi tiết:** review chưa chốt quét từng yếu tố hay tích Descartes, đánh giá policy cố định hay tối ưu lại từng kịch bản. Đề xuất trình duyệt: đủ `4*3=12` tổ hợp C_F/η, giữ C_PM=1 và b=0.10; vòng đầu đánh giá lại policy đã khóa trên development data, reoptimization là nhánh riêng cần budget/giao việc riêng. Kịch bản chính (20,0.8) nằm trong 12 tổ hợp, không tính trùng. Các tập giá trị đã được duyệt; cách kết hợp và cách chạy này **chưa được duyệt**. Không thêm sensitivity b từ ví dụ roadmap.
 
-Phải định nghĩa `feasible`, lượng vi phạm và lý do; nghiệm vi phạm không được báo là nghiệm tốt nhất khả thi. Không thêm penalty, top-k, tie-breaking hay constraint tiền tệ thay constraint số lượng mà chưa duyệt. Recall khi không có positive phải được quy định, không tự ép thành một giá trị đẹp.
+## 5. Constraints, ties và ca biên — A3
 
-Các quy ước review đề xuất để chủ dự án xác nhận:
+**Đã phê duyệt:**
 
-| Nội dung | Đề xuất chờ quyết định cụ thể |
+```text
+b = 0.10
+K = floor(b*N)
+M = Σ_i a_i <= K
+Recall là metric, không phải constraint.
+```
+
+N là số quan sát trong batch/tập đang chấm. Đây là capacity số hành động, không phải ngân sách tiền. Không đặt R_min hoặc penalty recall. B0 là policy không bảo trì riêng, a toàn 0, không giả làm τ=1. Ties được giữ nguyên nhóm, không âm thầm top-k. Policy vi phạm capacity được ghi `infeasible`, không nhận làm nghiệm tốt nhất khả thi. Áp dụng cùng constraint cho baseline và P.
+
+Theo comparator/miền nguồn: τ=0 chọn mọi hàng kể cả p=0; τ=1 chọn các hàng p=1. Nếu `count(p=1)>K`, h cố định đó không có threshold capacity-feasible; không suy rộng rằng mọi H vô nghiệm. Với N nhỏ, b*N<1 cho K=0; không làm tròn lên. Capacity của cả batch dùng floor trên N toàn batch, không cộng floor của batch con. Threshold khóa trên validation có thể vi phạm trên test/dữ liệu mới; báo nguyên trạng, không tune lại bằng test.
+
+Chủ dự án đã yêu cầu kiểm tra τ=0/1 và p=0/1. Các **quy ước chi tiết đề xuất, chưa tự coi đã duyệt**:
+
+| Nội dung | Đề xuất trình duyệt |
 |---|---|
-| Tập ngưỡng cho h cố định | `T(p)={0,1} ∪ unique(p_i)`; đủ các vector a biểu diễn được bởi comparator/miền nguồn |
-| Ties tại threshold | Giữ nguyên nhóm theo `>=`; không chia nhóm để lấp capacity |
-| N nhỏ và capacity | Dùng floor chính xác; b*N<1 cho K=0; không cộng floor của các batch con thay floor toàn batch |
-| N=0 hoặc input không hợp lệ | Từ chối evaluation, ghi lỗi input; không gọi là policy infeasible |
-| P=0 | Recall=null kèm lý do; nếu hard recall bật thì `UNDEFINED_CONSTRAINT`, feasible=false |
-| Lượng vi phạm | `capacity_excess=max(0,M-K)` và rate `/N`; `recall_shortfall=max(0,R_min-recall)` nếu bật và xác định; không cộng khác đơn vị |
-| Không tìm được candidate khả thi | Best=null, `NO_FEASIBLE_CANDIDATE` kèm phạm vi h đã thử; không khẳng định toàn H vô nghiệm |
-| Hòa cost | Ưu tiên M nhỏ hơn, rồi τ lớn hơn trong cùng h, rồi thứ tự h đăng ký trước; cần A4 xác nhận |
+| Tập threshold | `T(p)={0,1}∪unique(p_i)`, quét đủ policy biểu diễn được bởi `>=` và `[0,1]`; không tách ties |
+| N=0/input sai | Reject evaluation với lỗi rõ; không báo feasibility/cost trung bình giả |
+| P=0 | Recall=null và reason; capacity vẫn quyết định feasible vì recall không là constraint |
+| Violation | `capacity_excess=max(0,M-K)` (hành động) và `capacity_excess_rate=capacity_excess/N`; không gộp khác đơn vị |
+| Không có candidate khả thi | Best=null, `NO_FEASIBLE_CANDIDATE` kèm phạm vi tìm; không đưa B0 vào miền h,τ một cách ngầm định |
+| Floor chính xác | Dùng biểu diễn b thập phân chính xác, tránh sai số float làm lệch K |
+| Hòa cost | Ưu tiên M nhỏ hơn, rồi τ lớn hơn trong cùng h, rồi thứ tự h đăng ký trước |
 
-Điểm biên: với `p_i >= τ`, `τ=0` chọn mọi hàng kể cả p=0; `τ=1` vẫn chọn các hàng p=1, nên không luôn biểu diễn chính sách không bảo trì. Review khuyến nghị giữ B0 là policy riêng ngoài miền `(h,τ)`; lựa chọn mở rộng miền bằng nhánh no-maintenance vẫn cần quyết định riêng. Nếu `count(p=1)>K`, h cố định đó không có ngưỡng capacity-feasible. Không tự đổi `>=` thành `>` hoặc thêm `τ>1`.
+Không tự đổi `>=` sang `>`, thêm τ>1 hoặc mở rộng miền policy. Đây là những thay đổi formulation cần quyết định mới.
 
-Formulation một kỳ ở §1 không khẳng định nhãn phản ánh kết quả thực tế sau hành động. Threshold khả thi trên validation có thể vi phạm capacity trên test/dữ liệu mới; phải báo nguyên trạng, không sửa threshold bằng test. Nếu cần policy bảo đảm capacity từng batch, phải trình formulation mới trước khi triển khai.
+## 6. Baseline và đề xuất ngưỡng — A6
 
-## 6. Baseline — A6 còn cần quyết định cụ thể
-
-| Mã | Đề xuất | Điều kiện đánh giá |
+| Mã | Đã phê duyệt | Chi tiết còn chờ duyệt |
 |---|---|---|
-| B0 | Reactive, mọi `a_i=0` | Policy riêng, cùng cost function |
-| B1 | Quy tắc ngưỡng `Tool wear` | Chưa chọn comparator, w cố định hay cách chọn w trên development data |
-| B2 | Logistic Regression, ngưỡng 0.5 | Báo cả feasibility, không miễn constraint |
-| P | Random Forest + tối ưu `h, τ` | Cùng split và giả định với baseline |
+| B0 | Reactive, không bảo trì trước, mọi a=0 | Dùng cùng cost/capacity, không cần p |
+| B1 | Fixed Rule theo Tool wear | Comparator, w cụ thể và quy tắc cố định ngưỡng |
+| B2 | Logistic Regression, threshold=0.5 | Cấu hình LR/preprocessing/calibration |
+| P | Random Forest + tối ưu h,τ | Miền H và quy tắc tìm kiếm ở §7 |
 
-Baseline vi phạm phải được đánh dấu; không âm thầm dùng top-k để làm khả thi. Ngưỡng wear, cách giới hạn hành động và mọi điều chỉnh baseline cần được duyệt trước thực nghiệm.
+**Đề xuất B1 để chủ dự án duyệt:** `a_i=1[Tool wear [min]>=200]`, w=200 phút, giữ cố định trước thực nghiệm, không chọn w bằng test và không sửa rule bằng top-k khi vi phạm. Mốc này là heuristic đề xuất theo mô tả wear failure 200–240 phút của [UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset); không phải ngưỡng đã được chứng minh hiệu quả hoặc được chủ dự án duyệt. Chủ dự án có thể chọn mốc khác trước thực nghiệm. So với review cũ đề xuất tìm w trên validation, lựa chọn fixed w này phù hợp tên Fixed Rule vừa được xác nhận và vẫn cần phê duyệt giá trị/comparator.
 
-Review đề xuất B1 dùng `Tool wear>=w`, w có đơn vị phút, candidate từ các mức wear train cộng policy all/none riêng, chọn bằng observed cost/capacity trên validation. Đây là khuyến nghị chưa được xác nhận cụ thể; không tự coi comparator/candidate đã khóa. B2 vẫn là mốc ngưỡng 0.5 của nguồn, nhưng cần khóa cấu hình LR, preprocessing và có/không calibration trước chạy; không tune ngưỡng B2 để sửa vi phạm. Nếu B1/B2 không khả thi, báo đầy đủ cost/metrics và tách khỏi xếp hạng feasible.
+B2 ngưỡng 0.5 giữ nguyên, không đổi để sửa capacity. Cần trình cấu hình LR cụ thể cùng encoder/scaler/imputer, handling category lạ và calibration trước task baseline; không tự dùng mọi default thư viện làm protocol đã được duyệt. Baseline vi phạm được ghi infeasible, vẫn báo cost/metrics đầy đủ và tách khỏi xếp hạng feasible.
 
-## 7. Phương pháp tối ưu — A4 còn cần khóa search space và budget
+## 7. Thuật toán, search space và budget — A4
 
-Theo roadmap: Optuna TPE cho cấu hình Random Forest và tìm ngưỡng. Đối chứng Random Search cùng search space/budget nếu đủ thời gian. 30–50 trials và 5 seeds là kế hoạch tham khảo, chưa khóa. Cần định nghĩa budget bao gồm số lần thử threshold để so sánh công bằng; ghi toàn bộ trials và cách chọn candidate, không chỉ nghiệm thắng.
+**Đã phê duyệt:** Random Forest, tối ưu x=(h,τ), Optuna TPE, ngân sách ban đầu **30 trials**, seed chính **42**. Random Search cùng ngân sách làm đối chứng **nếu đủ thời gian**; đánh giá ổn định **5 seeds nếu khả thi**. Hai phần tùy điều kiện không được báo là đã thực hiện hoặc tự tăng budget khi thiếu kế hoạch.
 
-Review đề xuất mỗi lượt h quét toàn bộ T(p) theo §5, thay vì coi τ là tìm kiếm liên tục cần thêm sampler. Nếu chọn đối chứng TPE/Random Search, dùng cùng H, số attempts, calibration, seeds và quy tắc dừng; ghi cả failed/pruned/infeasible. Cùng số trials chưa đồng nghĩa cùng chi phí tính toán do số threshold/fit có thể khác.
+**Miền H đề xuất để chủ dự án duyệt trước tối ưu**, chưa phải cấu hình chạy:
 
-| Nội dung A4 | Quyết định cụ thể còn thiếu |
+| Hyperparameter | Miền categorical đề xuất | Lý do thiết kế |
+|---|---|---|
+| `n_estimators` | `{100,200,300}` | Ba mức số cây, giữ quy mô tìm kiếm vừa phải |
+| `max_depth` | `{5,10,20,None}` | So sánh cây bị giới hạn và không giới hạn độ sâu |
+| `min_samples_leaf` | `{1,2,5,10}` | Điều chỉnh độ chi tiết của lá |
+| `max_features` | `{"sqrt",0.75,1.0}` | Từ chọn ít feature đến toàn bộ; áp dụng trên feature sau encoding |
+
+Có 144 tổ hợp danh nghĩa; không khẳng định chúng khác nhau hoàn toàn hoặc đủ để tìm optimum. TPE chọn h trong miền này, τ dự kiến quét theo §5. Các kiểu giá trị đối chiếu [RandomForestClassifier chính thức](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html); miền cụ thể là đề xuất của Codex, không phải kết luận của tài liệu hay kết quả tuning.
+
+Đề xuất giữ cố định ngoài H: `criterion="gini"`, `bootstrap=True`, `class_weight=None`, `min_samples_split=2`, `oob_score=False`, `max_samples=None`, random_state theo model seed và không sample weighting. Chưa duyệt các lựa chọn cố định này; trước chạy phải khóa toàn bộ params của phiên bản thư viện cùng pipeline/calibration, không chỉ bốn tham số search.
+
+**Các quy tắc còn chờ chốt:**
+
+- Đề xuất 30 trials là 30 attempts h cho mỗi study/seed, mỗi h dùng cùng quy tắc threshold; tính cả failed/pruned/infeasible vào attempts, không tự thay bằng 30 lượt thành công. Ghi số fit thực, số threshold/vector a chấm và thời gian fit/search/tổng. Chưa có quyết định cụ thể về đơn vị trial, retry/pruning hoặc runtime cap.
+- Nếu chạy Random Search, đề xuất cùng H, 30 attempts, threshold routine, calibration, seed schedule và quy tắc dừng. Số threshold phụ thuộc p nên bằng trials không có nghĩa bằng wall-clock. Điều kiện “đủ thời gian” cần quyết định trước khi xem kết quả, không chọn có/không theo phương pháp thắng.
+- Seed chính 42 đã duyệt; đề xuất năm seed `{42,43,44,45,46}` cho model/optimizer, giữ split seed 42, trường seed tách vai trò. Danh sách bổ sung, 30 trials mỗi seed và tổng ngân sách nhiều seed còn cần duyệt; không coi “5 seeds nếu khả thi” là quyền tự mở 150 trials/phương pháp.
+- Quy tắc hòa cost, τ-only ablation, runtime cap và phiên bản dependencies chưa được khóa. Không mở tuning/test ở nhiệm vụ tài liệu.
+
+## 8. Metrics và edge cases — A6
+
+**Đã phê duyệt:** chính gồm `total_cost`, `cost_per_observation`, `maintenance_rate`, `feasible`, `constraint_violation`; phụ gồm Recall, Precision, F1, PR-AUC, ROC-AUC, Brier score và runtime. Số action/N và TP/FP/FN/TN được ghi để kiểm chứng các tỷ lệ/cost. Mọi phương pháp dùng cùng công thức/đơn vị và constraint.
+
+**Chi tiết metric trình duyệt:**
+
+| Nội dung | Quy ước đề xuất, chưa được chốt |
 |---|---|
-| Phạm vi | τ-only hay h+τ là chính; có ablation nào |
-| Thuật toán | Xác nhận TPE; Random Search có/không; cách chọn threshold và hòa cost |
-| H | Giá trị/miền/sampling của `n_estimators`, `max_depth`, `min_samples_leaf`; toàn bộ tham số RF/pipeline giữ cố định |
-| Budget | Số attempts h `B_h`; số lần chấm policy/fit; giới hạn runtime và cách tính failed/pruned |
-| Seeds | Danh sách model/optimizer seeds; tách với split/fold seed; cách tổng hợp đa seed |
+| PR-AUC | Chọn `average_precision` (AP) có tên rõ, phân biệt diện tích PR hình thang |
+| Action metrics | Tính confusion matrix bằng a; probability metrics dùng p |
+| Recall P=0; precision M=0 | null kèm reason, không tự ép 0/1 |
+| F1 | `2TP/(2TP+FP+FN)`; null chỉ khi mẫu số 0 |
+| ROC-AUC một lớp; AP không positive | null kèm reason |
+| B0/B1 không có mô hình p | AUC/AP/Brier=null với reason, không dựng p giả |
+| Cost trung bình/rate khi N=0 | Reject batch như §5 |
+| Saving | Tuyệt đối `C_B0-C_policy` có thể âm; tỷ lệ null nếu C_B0=0 |
+| Brier/calibration | Brier dùng p và y; không dùng riêng Brier để khẳng định calibration tốt |
 
-Không lấy số trial/seeds tham khảo làm default; không tự thêm algorithm, penalty hay tăng budget sau khi xem validation. Log phải có số candidate/vector a thực chấm và runtime fit/search/tổng. Chưa có search space/budget được phép chạy ở lượt này.
+Định nghĩa AP và nguyên tắc calibration tham khảo [AP scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html), [calibration scikit-learn](https://scikit-learn.org/stable/modules/calibration.html). Cần duyệt wrapper xử lý null/reasons thay vì để default thư viện khác nhau giữa phương pháp. Không sửa tên PR-AUC thành AP đã khóa khi chủ dự án chưa chọn estimator.
 
-## 8. Metrics
+## 9. Protocol và điều kiện dữ liệu — A5
 
-Chính: `total_cost`, `cost_per_observation`, `n_maintenance`, `maintenance_rate`, `feasible`, `constraint_violation`. Bổ sung: recall, precision, F1, PR-AUC (ghi rõ estimator/định nghĩa), ROC-AUC, Brier score/calibration, runtime, trial count, mean/std qua seed. Dùng cùng quy tắc xử lý zero denominator/metric không xác định cho mọi phương pháp.
+**Đã phê duyệt:** AI4I UCI, target/features §2; stratified train/validation/test **60/20/20, seed 42 sau kiểm tra phụ thuộc dữ liệu**; fit preprocessing chỉ trên train; calibration dùng train folds; không dùng test để tuning; khóa mô hình/policy trước đánh giá test cuối.
 
-Review đề xuất gọi rõ `average_precision` (AP) thay tên PR-AUC không chỉ rõ estimator; đây là lựa chọn A6 còn cần xác nhận. Metric action dùng a; metric xác suất dùng p. Đề xuất edge cases: recall null khi P=0, precision null khi M=0, F1 dùng `2TP/(2TP+FP+FN)` và chỉ null nếu mẫu số 0; ROC-AUC null khi một lớp; AP null nếu không positive; probability metrics của B0/B1 không có mô hình p là null. Mọi null có reason. Saving tuyệt đối `C_B0-C_policy` có thể âm; saving tỷ lệ null khi C_B0=0. Không báo Brier riêng lẻ là bằng chứng calibration tốt. Chưa tự chọn zero-division default của thư viện.
+Thứ tự và các điểm cần chốt:
 
-## 9. Experimental protocol — đề xuất A5, chưa được khóa đầy đủ
+1. Trong W1-G2-A, Antigravity kiểm tra nguồn/schema, provenance, hash CSV, thiếu/trùng và phụ thuộc quan sát theo phạm vi được giao. Chưa có CSV/hash/split được kiểm chứng trong lượt Codex này. Không ghi đè raw hoặc split của AI kia.
+2. Cần xác định kiểm tra integrity toàn dữ liệu ở mức đủ tạo split và giữ test kín; EDA để chọn feature/mô hình chỉ train/validation. Trình cách xử lý duplicate/nhóm/thứ tự trước split; không tự loại dòng/outlier hay suy ra thời gian từ UID. Kiểm tra phụ thuộc phải có bằng chứng trước dùng random split. Nếu phát hiện điều kiện không đạt hoặc mâu thuẫn với random split đã chọn, báo chủ dự án để quyết định protocol thay thế, không tự đổi split.
+3. Khi task pipeline được giao và điều kiện đạt, tạo một split đã duyệt, lưu IDs/hash và dùng chung mọi phương pháp. Tách split/model/optimizer/fold seed; không thử nhiều split để chọn kết quả tốt. Đề xuất multi-seed giữ split cố định, không trộn thay split với thay model seed.
+4. Fit encoder/imputer/scaler/feature selection chỉ trên train. Trong calibration CV, mỗi fold fit preprocessing/model bằng train-fold tương ứng và calibrator dùng dự đoán ngoài fold thuộc train; không fit calibrator trên validation/test.
+5. Chủ dự án chưa chốt có/không calibration, method/folds/seed hoặc xử lý quá ít positives. Đề xuất sigmoid với 5 stratified train folds, fold seed 42, chỉ khi mỗi lớp đủ cho folds; nếu không đủ thì báo lại, không tự thay method/folds. Có/không calibration và ablation cần chốt trước chạy; đây không phải phần mặc nhiên được duyệt bởi câu “calibration dùng train folds”.
+6. Chọn h/τ bằng validation theo objective và budget đã khóa. Best validation cost là development estimate có thiên lệch lựa chọn. Không dùng test chọn threshold/hyperparameter/preprocessing/calibration/feature/algorithm/scenario/seed.
+7. Chỉ chạy các phần sau khi task tương ứng được kích hoạt và chi tiết phê duyệt đủ. Lưu code commit, dependency/Python versions, dataset/split hash, config/hash, seeds, lệnh, params/threshold, cost, feasibility/violations, null reasons, runtime, status và best-so-far feasible. Giữ failed/pruned/infeasible, không làm đẹp log.
+8. Sensitivity/multi-seed/ablation chỉ dùng development data, đăng ký kế hoạch và budget trước; phân biệt chấm policy cố định và tối ưu lại. Không tự chạy do roadmap nêu tuần tương ứng.
+9. Trước test cuối khóa model đã fit, policy, scenario và protocol; cần quyền đánh giá test cuối riêng theo AGENTS. Review đề xuất không refit train+validation ở lượt test đầu; refit policy chưa được chốt. Báo cả vi phạm/không cải thiện, không mở lại tuning sau test. Tái lập chỉ xác minh cấu hình đã khóa.
 
-1. Tải đúng nguồn, ghi timestamp, SHA-256, schema và license. Không commit raw data.
-2. Kiểm tra integrity/schema và rủi ro leakage ở mức cần thiết để chuẩn bị split; không dùng EDA toàn bộ dữ liệu, feature–target relations hoặc nhãn test để quyết định phương pháp. Phê duyệt protocol, feature list và cách xử lý duplicate/nhóm trước EDA định hướng mô hình; EDA lựa chọn chỉ dùng train/validation.
-3. Đề xuất split stratified 60/20/20, split seed 42 vẫn **chưa khóa**, chưa thực hiện. Cần review rủi ro phụ thuộc theo thứ tự/nhóm và xác nhận phạm vi nội suy trạng thái tổng hợp trước chọn random split; không suy ra machine ID/timestamp từ UID. Nếu cần split theo thời gian/nhóm thì trình phương án khác trước chạy, không thử nhiều split để chọn kết quả tốt.
-4. Lưu split IDs/hash; dùng cùng split cho mọi phương pháp. Khóa riêng split seed, model seed, optimizer seed và calibration-fold seed. Review đề xuất multi-seed giữ split cố định; nếu đổi split thì báo như thiết kế lặp split riêng, không chọn seed thắng.
-5. Fit preprocessing/model chỉ trên train. Nếu dùng calibration, fit preprocessing/model trong từng train-fold và calibrator từ dự đoán ngoài fold thuộc train; không fit calibrator trên validation/test. Review đề xuất không calibration so với sigmoid như ablation đăng ký trước, nhưng còn cần quyết định có/không, số folds/seed và cách xử lý ít positives. Chọn threshold/hyperparameter trên validation trong budget khóa trước; best validation cost có thiên lệch lựa chọn, không phải đánh giá độc lập.
-6. Chỉ triển khai/chạy cost sau khi A1–A3/A6 đầy đủ và task tương ứng được giao. B1/B2 còn cần A5/pipeline đạt; tối ưu cần thêm A4. So sánh B0/B1/B2/P cùng protocol; log thất bại và nghiệm không khả thi. Việc đánh dấu A1–A6 không tự kích hoạt các task này.
-7. Lưu code commit, dependency versions, dataset/split hash, config, seeds, lệnh chạy, params, threshold, cost, feasibility, violation, runtime, status và best-so-far khả thi.
-8. Multi-seed, sensitivity và ablation trên development data; phân biệt đánh giá policy cố định với tối ưu lại từng kịch bản. Không chọn kịch bản bằng test.
-9. Khóa mô hình, policy, cost scenario và protocol trước đánh giá test cuối khi chủ dự án cho phép; ghi nhận kết quả dù không cải thiện hoặc vi phạm capacity. Review khuyến nghị không refit train+validation ở lượt test đầu; nếu chọn refit cần protocol riêng trước khi đọc test vì p/policy có thể thay đổi. Không dùng kết quả test để mở lại tuning. Chạy tái lập về sau chỉ xác minh cấu hình đã khóa, không tạo vòng chọn cấu hình mới.
+Sơ đồ roadmap có tiền xử lý trước split không cho phép fit toàn dữ liệu: phân biệt kiểm tra schema với fit transformer. Đây là yêu cầu chống leakage, không phải quyền sửa roadmap hoặc task board ở lượt này.
 
-Pipeline phải phân biệt kiểm tra schema trước split với fit preprocessing sau split; không diễn giải sơ đồ roadmap có “tiền xử lý” trước split thành quyền fit toàn dữ liệu. Số liệu, hash và split chỉ được ghi khi có kiểm tra thực; lượt hiện tại chưa tải/đọc CSV, tạo split hoặc chạy mô hình.
+## 10. Bảng đối chiếu A1–A7
 
-## 10. Đối chiếu A1–A7 và nội dung cần chủ dự án bổ sung
+Các quyết định dưới đây đối chiếu với **câu trả lời phê duyệt chi tiết ngày 2026-10-21 trong cùng chat**, thay thế tình trạng thiếu giá trị khi chỉ có commit đổi nhãn. Không yêu cầu chủ dự án xác nhận lại những giá trị đã cung cấp.
 
-| ID | Bằng chứng ghi nhận | Quyết định cụ thể còn thiếu hoặc cần xác nhận | Trạng thái đối chiếu |
+| ID | Phần đã được chủ dự án phê duyệt | Chi tiết còn chờ duyệt/điều kiện | Trạng thái toàn mục |
 |---|---|---|---|
-| A1 | Chủ dự án đã đánh dấu phê duyệt; review §2/§4 đề xuất quan sát trạng thái, cộng cost một kỳ | Tên đơn vị chi phí; xác nhận không cộng trùng, ranh giới PM/failure và giả định một hàng/một kỳ ở §1 | Cần bổ sung quyết định |
-| A2 | Chủ dự án đã đánh dấu phê duyệt; review §4 giữ objective nguồn và phân biệt observed/expected | `C_PM`, `C_F`, η, đơn vị; xác nhận công thức/miền; bảng kịch bản chính/sensitivity và fixed-policy/reoptimization ở §4 | Cần bổ sung quyết định |
-| A3 | Chủ dự án đã đánh dấu phê duyệt; review §5 nêu capacity, ties/biên và các lựa chọn | b; recall off/on và R_min nếu on; xác nhận candidate/comparator/domain/B0, N=0/P=0, violations và infeasible ở §5 | Cần bổ sung quyết định |
-| A4 | Chủ dự án đã đánh dấu phê duyệt; review §3/§7 đề xuất h+τ chính, τ-only làm mốc và TPE | Chọn phạm vi/thuật toán/đối chứng; H, budget, seeds/runtime và quy tắc hòa cụ thể ở §3/§7 | Cần bổ sung quyết định |
-| A5 | Chủ dự án đã đánh dấu phê duyệt; review §2/§6 giữ whitelist và protocol train/validation/test | Xác nhận feature list, split/seed sau review thứ tự/nhóm; duplicate/EDA policy; calibration on/off, folds/seed, refit policy ở §2/§9; quyền test cuối cấp riêng | Cần bổ sung quyết định |
-| A6 | Chủ dự án đã đánh dấu phê duyệt; review §7 và cost review §5 đề xuất B0/B1/B2 và metrics | B1 comparator/w hoặc candidate/selection rule; LR/preprocessing/calibration của B2; estimator AP/PR-AUC và metric edge cases ở §6/§8 | Cần bổ sung quyết định |
-| A7 | Chat trước đã kích hoạt riêng W1-G1-C; chat hiện tại cho phép sửa spec và tạo nhánh/PR | Nhiệm vụ triển khai tiếp theo, sửa file chung khác và tích hợp nhánh chưa được giao; không coi review là kích hoạt cả tuần/lộ trình | Chờ chỉ dẫn |
+| A1 | Một dòng=một quan sát, mô hình cost một kỳ, cost units, không phải VND (§1) | Không thiếu quyết định trong phạm vi mô hình hiện tại | Đã phê duyệt |
+| A2 | Objective nguồn; C_PM=1, C_F=20, η=0.8; sensitivity C_F={5,10,20,40}, η={0.7,0.8,1.0}; giả định nghiên cứu (§4) | Thiết kế sensitivity: tích tổ hợp/từng yếu tố, fixed-policy/reoptimization và phạm vi giữ C_PM/b | Phê duyệt một phần |
+| A3 | b=0.10, M<=floor(b*N); recall chỉ là metric; B0 riêng; ties nguyên nhóm; không top-k; vi phạm=infeasible; kiểm tra τ/p=0/1 (§5) | Candidate thresholds, N=0/P=0, schema violation, no-feasible và hòa cost chi tiết | Phê duyệt một phần |
+| A4 | h+τ, RF, TPE, 30 trials, seed chính 42; RS cùng budget/5 seeds theo điều kiện (§7) | Miền bốn hyperparameter, params cố định, đơn vị trial, seeds bổ sung, runtime/điều kiện phần mở rộng | Phê duyệt một phần |
+| A5 | AI4I UCI, sáu feature, loại ID/nhãn phụ; stratified 60/20/20 seed42 sau kiểm tra phụ thuộc; train-only fit, train-fold calibration; test khóa (§2/§9) | Bằng chứng phụ thuộc trước split; duplicate/EDA policy; calibration on/off/method/folds; refit policy; quyền test cuối riêng | Phê duyệt một phần |
+| A6 | B0/B1/B2/P, B2 τ=0.5, metrics chính/phụ; baseline vi phạm=infeasible (§6/§8) | B1 w/comparator; LR/pipeline/calibration; PR-AUC estimator và zero-denominator/undefined rules | Phê duyệt một phần |
+| A7 | Chỉ W1-G1-C (Codex) và W1-G2-A (Antigravity); lượt này cho phép cập nhật spec và tạo PR (§0) | Các giai đoạn tiếp theo, thay đổi file chung khác, merge/tích hợp và test cuối vẫn chờ chỉ dẫn | Đã phê duyệt |
 
-Không có giá trị kinh tế nào được coi là đã duyệt nhờ việc tài liệu bootstrap có mặt trên main. Việc chấp nhận scope 5 tuần không đồng nghĩa với phê duyệt mọi con số ví dụ trong roadmap.
+Trạng thái A7 chỉ áp dụng hai task được nêu, không phê duyệt toàn tuần/lộ trình. W1-G1-A/proposal và các task G3–G10 chưa được kích hoạt bằng quyết định này. Không tự gửi prompt hay khởi chạy Antigravity; chủ dự án điều phối W1-G2-A. Các mục mới đề xuất ở §4–§9 phải được duyệt trước task chạy tương ứng; trạng thái từng giá trị đã phê duyệt không bị mất chỉ vì toàn mục còn chi tiết.
 
-Chưa hàng nào của A1–A6 đủ quyết định để đổi thành **Đã phê duyệt** theo tiêu chí chủ dự án yêu cầu ở lượt đối chiếu này. Để hoàn tất từng hàng, ghi: `A<ID>; quyết định cụ thể và giá trị; phạm vi; ngày; tham chiếu phiên bản/commit`. Có thể xác nhận trực tiếp một khuyến nghị bằng số mục nêu trên; trường bắt buộc còn trống vẫn khóa phần phụ thuộc. Không cần phát minh giá trị để làm bảng đủ trạng thái.
-
-A7 giữ “Chờ chỉ dẫn” cho các việc chưa được kích hoạt, đồng thời lưu đúng hai phạm vi đã được giao. Việc tạo PR không phải quyền merge; main chỉ thay đổi sau quyết định tích hợp của chủ dự án. Các tài liệu bootstrap/prompt/board còn ghi chưa kích hoạt là bối cảnh lịch sử; chỉ dẫn chat cụ thể được ưu tiên, không mở thêm task ngoài phạm vi đó.
+Mẫu quyết định bổ sung: `A<ID>; chấp nhận/điều chỉnh đề xuất §...; giá trị/quy tắc; phạm vi; ngày; tham chiếu phiên bản`. Không tự đánh dấu Done hoặc sửa task board. Quyết định mới trong chat có giá trị hơn nhãn bootstrap/prompt cũ, nhưng không mở scope ngoài nội dung đã được giao.
 
 ## 11. Deliverables và cổng nghiệm thu
 
-- Tuần 1 / G1–đầu G2: W1-G1-C đã bàn giao review trong chat, chưa tự chuyển task board sang Done; hoàn thiện quyết định A1–A6 và chủ dự án nghiệm thu/giao riêng proposal, dữ liệu/EDA. Bootstrap và việc sửa nhãn phê duyệt chưa hoàn tất checkpoint học thuật W1.
-- Tuần 2 / G2–G4: EDA, pipeline/split không leakage sau A5 và kích hoạt task. Trước baseline G4 phải có cost/constraints tối thiểu cùng unit tests sau A1–A3/A6, không chờ đến G6 mới định nghĩa cách chấm. B2 cần fit LR tối thiểu trong G4 khi được giao; không dùng mốc ML G5 để bỏ dependency này.
-- Tuần 3 / G5–G7: xác suất ML, cost/constraints đã duyệt, unit tests tính tay, optimization và trial logs thật.
-- Tuần 4 / G8: so sánh, feasibility, stability/sensitivity/ablation, ít nhất hai hình sinh từ logs.
-- Tuần 5 / G9–G10: khóa nghiệm, đánh giá test cuối, report 8–12 trang, 5–8 slides/demo, kiểm thử/tái lập và phát hành do chủ dự án quyết định.
+- Tuần 1 / G1–đầu G2: W1-G1-C đã bàn giao review; chủ dự án đã cho phép W1-G2-A kiểm tra dữ liệu, chưa tự xác nhận kết quả/Done. Bản review lịch sử được giữ nguyên. Đề cương/proposal và pipeline của Antigravity cần giao riêng nếu chưa được kích hoạt.
+- Tuần 2 / G2–G4: pipeline/split cần task riêng và A5/điều kiện dữ liệu đạt. Cost/constraints tối thiểu cùng unit tests phải đạt trước báo baseline cost G4 sau khi quy tắc A1–A3/A6 đủ; không chờ tới G6 mới chấm cost. B2 cần fit LR tối thiểu trong G4 khi được giao, dù phần ML đầy đủ ở G5.
+- Tuần 3 / G5–G7: ML/calibration, hoàn thiện cost/tests và optimization chỉ sau khi task được giao, miền H/quy tắc/budget đủ phê duyệt. 30 trials là mức ban đầu được chọn, không phải lệnh chạy ngay.
+- Tuần 4 / G8: so sánh, sensitivity, stability/ablation và ít nhất hai hình từ log thật; kế hoạch chi tiết cùng budget được duyệt trước chạy.
+- Tuần 5 / G9–G10: khóa nghiệm, test cuối sau cho phép riêng, báo cáo 8–12 trang, 5–8 slides/demo, reproduce và phát hành do chủ dự án quyết định.
 
-Giấy phép mã nguồn của repository chưa được chủ dự án lựa chọn; không tự tạo LICENSE. Quyền dùng dataset theo CC BY 4.0 không tự đặt giấy phép cho mã nguồn dự án.
+Giấy phép mã nguồn chưa được chọn; không tự tạo LICENSE. CC BY 4.0 của dataset không quyết định license cho code. Không commit raw data, secrets hoặc artifact lớn; kiểm tra staged diff trước commit.
 
-Lượt đối chiếu chỉ sửa `docs/PROJECT_SPEC.md`; không sửa roadmap, task board, hai bản review, config, source/tests hoặc tài liệu của Antigravity. Không chạy training/baseline/optimization, đánh giá test hay tự kích hoạt AI khác. Bản diff và các điểm thiếu được trình bằng PR, không merge/rebase tích hợp hoặc push trực tiếp main.
+PR này chỉ sửa `docs/PROJECT_SPEC.md` trên nhánh `codex/reconcile-project-spec-approvals`, base main; không sửa main trực tiếp, roadmap, board, config, source/tests hoặc hai bản review. Không merge/rebase tích hợp, force-push, train, baseline, tối ưu, đọc test để tuning hay tạo kết quả thực nghiệm giả. Bootstrap và việc phê duyệt ngữ nghĩa không tự hoàn tất checkpoint học thuật W1.
