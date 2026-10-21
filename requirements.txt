@@ -1,0 +1,14 @@
+# Bootstrap dependency manifest for Python 3.11; not an installed/tested lockfile.
+# Resolve and record exact versions after an approved environment setup.
+numpy
+pandas
+scipy
+scikit-learn
+optuna
+matplotlib
+seaborn
+joblib
+PyYAML
+pytest
+jupyterlab
+ipykernel
