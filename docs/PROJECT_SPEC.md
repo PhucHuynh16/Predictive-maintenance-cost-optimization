@@ -81,12 +81,12 @@ Chính: `total_cost`, `cost_per_observation`, `n_maintenance`, `maintenance_rate
 
 | ID | Quyết định | Trạng thái |
 |---|---|---|
-| A1 | Ý nghĩa một quan sát, đơn vị chi phí, tính cộng được và mô hình một kỳ | Chờ duyệt |
-| A2 | Công thức objective, `C_PM`, `C_F`, `η`, miền giá trị và các kịch bản sensitivity | Chờ duyệt |
-| A3 | Giới hạn `b`, có dùng recall constraint không, cách báo infeasible/ties/boundaries | Chờ duyệt |
-| A4 | Chỉ tối ưu τ hay đồng thời h; search space, algorithm và budget công bằng | Chờ duyệt |
-| A5 | Feature list, split/seed, EDA scope, calibration và protocol khóa test | Chờ duyệt |
-| A6 | B0/B1/B2, ngưỡng heuristic, quy tắc feasibility và metrics edge cases | Chờ duyệt |
+| A1 | Ý nghĩa một quan sát, đơn vị chi phí, tính cộng được và mô hình một kỳ | Phê duyệt |
+| A2 | Công thức objective, `C_PM`, `C_F`, `η`, miền giá trị và các kịch bản sensitivity | Phê duyệt |
+| A3 | Giới hạn `b`, có dùng recall constraint không, cách báo infeasible/ties/boundaries | Phê duyệt |
+| A4 | Chỉ tối ưu τ hay đồng thời h; search space, algorithm và budget công bằng | Phê duyệt |
+| A5 | Feature list, split/seed, EDA scope, calibration và protocol khóa test | Phê duyệt |
+| A6 | B0/B1/B2, ngưỡng heuristic, quy tắc feasibility và metrics edge cases | Phê duyệt |
 | A7 | Kích hoạt nhiệm vụ tuần 1; thay đổi file chung và tích hợp các nhánh | Chờ chỉ dẫn |
 
 Không có giá trị kinh tế nào được coi là đã duyệt nhờ việc tài liệu bootstrap có mặt trên main. Việc chấp nhận scope 5 tuần không đồng nghĩa với phê duyệt mọi con số ví dụ trong roadmap.
