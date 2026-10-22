@@ -1,0 +1,90 @@
+flowchart TD
+    %% =========================================================================
+    %% SƠ ĐỒ PIPELINE PHƯƠNG PHÁP LUẬN & THỰC NGHIỆM ĐỒ ÁN
+    %% Tối ưu chi phí bảo trì dự đoán bằng Machine Learning (AI4I 2020)
+    %% =========================================================================
+
+    subgraph SEC_DATA ["1. DỮ LIỆU & KIỂM TOÁN NGUỒN GỐC"]
+        RAW["Tập dữ liệu raw: UCI AI4I 2020<br/>(10,000 quan sát, 14 cột, CC BY 4.0)"]
+        AUDIT["Kiểm toán dữ liệu & Provenance<br/>(Xác thực SHA-256, 0 missing, 0 duplicates,<br/>xác thực 100% cơ chế vật lý Matzka 2020)"]
+        SPLIT_RULE["Giao thức chia tập đã phê duyệt có điều kiện<br/>(Stratified Split 60/20/20, seed 42 — Đánh giá phụ thuộc trước G3)"]
+        RAW --> AUDIT --> SPLIT_RULE
+    end
+
+    subgraph SEC_SPLITS ["2. PHÂN VÙNG DỮ LIỆU & CÔ LẬP CHỐNG RÒ RỈ"]
+        D_TRAIN["Tập Train (60% - 6,000 mẫu)<br/>Dùng lọc feature, fit tiền xử lý & huấn luyện ML"]
+        D_VAL["Tập Validation (20% - 2,000 mẫu)<br/>Chỉ dùng nhãn y để tính C_obs và chọn (h, τ);<br/>Không dùng nhãn để sinh xác suất"]
+        D_TEST["Tập Test (20% - 2,000 mẫu)<br/>🔒 ĐƯỢC CÔ LẬP KHỎI HUẤN LUYỆN / TỐI ƯU<br/>(Kiểm soát rủi ro exposure từ EDA toàn nhãn ban đầu)"]
+
+        SPLIT_RULE --> D_TRAIN
+        SPLIT_RULE --> D_VAL
+        SPLIT_RULE --> D_TEST
+    end
+
+    subgraph SEC_PREP ["3. LỌC ĐẶC TRƯNG & TIỀN XỬ LÝ (CHỈ FIT TRÊN TRAIN)"]
+        FEAT_FILTER["1. Lọc 6 đặc trưng vận hành hợp lệ:<br/>Type, Air Temp, Process Temp, Rot. Speed, Torque, Tool Wear<br/>❌ Loại bỏ trước khi fit pipeline: ID (UDI, Product ID),<br/>Target (Machine failure) & 5 nhãn lỗi phụ (TWF, HDF, PWF, OSF, RNF)"]
+        PREP_FIT["2. Fit Pipeline tiền xử lý trên 6 đặc trưng Train<br/>(OneHotEncoder cho Type, Scaler cho biến liên tục)<br/>⚠️ CHỈ FIT TRÊN TẬP TRAIN"]
+
+        D_TRAIN --> FEAT_FILTER --> PREP_FIT
+    end
+
+    subgraph SEC_BASELINES ["4. HỆ THỐNG BASELINES ĐỐI CHUẨN ĐỘC LẬP"]
+        B0["B0: Reactive (Run-to-failure)<br/>Mọi a_i = 0 (Chính sách không can thiệp riêng biệt)"]
+        B1["B1: Fixed Rule Heuristic<br/>a_i = 1[Tool wear >= w] (Đề xuất w = 200 min chờ duyệt)"]
+        B2["B2: Logistic Regression chuẩn<br/>(Huấn luyện trên Train, ngưỡng cố định τ = 0.5)"]
+
+        PREP_FIT --> B2
+        B0 --> BASE_EVAL["Đánh giá Baselines độc lập trên Validation<br/>(Chấm C_obs & kiểm tra capacity; KHÔNG qua tối ưu TPE)"]
+        B1 --> BASE_EVAL
+        B2 --> BASE_EVAL
+    end
+
+    subgraph SEC_MODELS ["5. MÔ HÌNH CHÍNH (PHƯƠNG PHÁP ĐỀ XUẤT P)"]
+        M_RF["Mô hình Random Forest Classifier<br/>(Không gian siêu tham số h ∈ H đề xuất chờ duyệt)"]
+        PRED_VAL["Ước lượng xác suất rủi ro: p_i(h) ∈ [0, 1]<br/>(Dữ liệu X_val lọc 6 features & transform qua preprocessor Train)"]
+        TH_ACT["Chính sách quyết định can thiệp: τ ∈ [0, 1]<br/>Hành động: a_i(h, τ) = 1[p_i(h) >= τ]"]
+
+        PREP_FIT --> M_RF
+        M_RF -. Cấu hình h .-> PRED_VAL --> TH_ACT
+        D_VAL -. Transform qua preprocessor Train (không fit lại) .-> PRED_VAL
+    end
+
+    subgraph SEC_OPT ["6. VÒNG LẶP TỐI ƯU HÓA TPE (CHỈ CHO PHƯƠNG PHÁP P)"]
+        COST_EVAL["Chấm chi phí quan sát: C_obs(h, τ)<br/>C_PM = 1, C_F = 20, η = 0.8 (cost units)<br/>(Chấm bằng nhãn thật y_val trên Validation)"]
+        CONST_CHECK{"Kiểm tra Ràng buộc Capacity<br/>M = Σ a_i <= floor(0.10 * N_val) = 200 quan sát ?<br/>(Recall là metric đánh giá, không phải constraint)"}
+
+        OPT_TPE["Bộ tối ưu hóa: Optuna TPE<br/>(Tree-structured Parzen Estimator)<br/>Ngân sách ban đầu: 30 trials, seed 42<br/>Tối ưu đồng thời: x = (h, τ)"]
+        TRIAL_LOG["Ghi log chi tiết toàn bộ trials:<br/>params h, threshold τ, cost, feasibility, runtime"]
+
+        TH_ACT --> COST_EVAL --> CONST_CHECK
+        CONST_CHECK -- "Khả thi (M <= 200)" --> OPT_TPE
+        CONST_CHECK -- "Vi phạm (M > 200): Infeasible" --> OPT_TPE
+        OPT_TPE -. Đề xuất thử nghiệm (h, τ) mới .-> M_RF
+        OPT_TPE --> TRIAL_LOG
+    end
+
+    subgraph SEC_FINAL ["7. NGHIỆM THU & ĐÁNH GIÁ ĐỘC LẬP TẬP TEST"]
+        BEST_POL["Khóa nghiệm tối ưu khả thi nhất:<br/>x* = (h*, τ*) trên Validation"]
+        APPROVAL_GATE{"Cổng phê duyệt riêng tại G10 (W5-G10-C)<br/>⚠️ A7 không phải quyền mở Test cuối;<br/>Test cuối cần phê duyệt riêng của Chủ dự án"}
+
+        TEST_EVAL["Đánh giá MỘT LẦN DUY NHẤT trên Test Set:<br/>1. Lọc 6 features và transform qua Preprocessor Train<br/>2. Dự đoán xác suất với mô hình h* đã khóa<br/>3. Áp dụng ngưỡng τ* để sinh hành động<br/>4. Chấm chi phí C_test & kiểm tra capacity (10% số quan sát Test)<br/>5. Tính metrics: Cost, Recall, Precision, PR-AUC, ROC-AUC"]
+
+        REPRODUCE["Báo cáo kết quả, phân tích độ nhạy (C_F, η)<br/>và quy trình tái lập (Reproducibility)"]
+
+        TRIAL_LOG --> BEST_POL --> APPROVAL_GATE
+        D_TEST -. Mở Test khi có phê duyệt riêng tại G10 .-> TEST_EVAL
+        APPROVAL_GATE -- "Phê duyệt riêng tại G10" --> TEST_EVAL --> REPRODUCE
+        BASE_EVAL -. Đối chuẩn kết quả .-> REPRODUCE
+    end
+
+    %% Định dạng phong cách hiển thị
+    style SEC_DATA fill:#e8f4f8,stroke:#2b5c8f,stroke-width:1.5px
+    style SEC_SPLITS fill:#fef9e7,stroke:#b7950b,stroke-width:1.5px
+    style SEC_PREP fill:#eafaf1,stroke:#1e8449,stroke-width:1.5px
+    style SEC_BASELINES fill:#f9ebea,stroke:#c0392b,stroke-width:1.5px
+    style SEC_MODELS fill:#f4ecf7,stroke:#7d3c98,stroke-width:1.5px
+    style SEC_OPT fill:#fbeee6,stroke:#ba4a00,stroke-width:1.5px
+    style SEC_FINAL fill:#eaeded,stroke:#515a5a,stroke-width:1.5px
+
+    style D_TEST fill:#fadbd8,stroke:#c0392b,stroke-width:2px,stroke-dasharray: 5 5
+    style APPROVAL_GATE fill:#d5f5e3,stroke:#27ae60,stroke-width:2px
