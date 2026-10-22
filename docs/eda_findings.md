@@ -4,7 +4,10 @@
 - **Tác giả phụ trách:** Antigravity (theo phân quyền `AGENTS.md`)
 - **Ngày thực hiện:** 2026-10-21 (Asia/Saigon)
 - **Môi trường thực thi:** Python 3.14.3 (Windows 64-bit), `pandas 3.0.2`, `numpy 2.4.4`, `scipy 1.17.1`, `scikit-learn 1.9.0`, `matplotlib 3.10.9`, `seaborn 0.13.2`.
-- **Trạng thái:** Hoàn thành kiểm tra dữ liệu raw local, xác thực provenance và sinh biểu đồ EDA. Chưa mở nhãn test để tuning (tuân thủ protocol).
+- **Trạng thái:** Hoàn thành kiểm toán toàn vẹn dữ liệu raw local, xác thực provenance và khảo sát cơ chế sinh dữ liệu vật lý.
+- **Phân định phạm vi thực hiện:**
+  - Khảo sát nhãn trên toàn bộ 10,000 dòng được thực hiện thuần túy cho mục đích **Kiểm toán dữ liệu (Data Integrity Audit)**: xác nhận tính toàn vẹn, rà soát bất nhất schema (như 9 ca hỏng không rõ nguyên nhân, 18 ca RNF không hỏng máy), đối chiếu 100% cơ chế vật lý (Matzka 2020), và nhận diện nguy cơ rò rỉ dữ liệu (HDF tập trung ở UDI 3000-5000).
+  - Đây **KHÔNG PHẢI EDA phục vụ lựa chọn mô hình (Model-selection EDA)**. Toàn bộ các bước sau này (lựa chọn feature, lựa chọn thuật toán, tuning siêu tham số, fit tiền xử lý/imputer/scaler, và calibration) tuyệt đối không được sử dụng nhãn toàn bộ dataset hay tập Test để tránh rò rỉ dữ liệu và sai lệch lạc quan (optimism bias). Tập Test sẽ được giữ bí mật và chỉ mở ở bước đánh giá cuối cùng khi mô hình đã được cố định hoàn toàn.
 
 ---
 
@@ -157,7 +160,10 @@ Chúng tôi đã lập trình kiểm chứng lại toàn bộ 3 quy tắc vật 
   - **108 trong tổng số 115 ca HDF nằm gọn trong khoảng UDI 4000–4999** (và 7 ca ở đoạn 3000–3999). Các khoảng UDI khác (0–2999 và 5000–10000) có **0 ca HDF**.
 - **Cảnh báo nghiêm trọng đối với Data Splitting:**
   - Nếu chia tập theo thứ tự thời gian tuần tự (ví dụ: Train = 0–6000, Val = 6000–8000, Test = 8000–10000): Tập Test sẽ chứa **0 ca HDF nào**! Khi đó mô hình sẽ không được đánh giá khả năng phát hiện lỗi tản nhiệt trên tập test.
-  - **Khuyến nghị cho Codex (Nhiệm vụ W2-G3-C):** Cần sử dụng **Stratified Random Split** (ví dụ tỷ lệ 60% Train, 20% Validation, 20% Test, phân tầng theo nhãn `Machine failure`, với seed cố định là 42) để đảm bảo phân bổ đều các chế độ lỗi trên cả 3 tập, đồng thời giữ bí mật tuyệt đối tập test cho đến giai đoạn đánh giá cuối cùng.
+  - **Khuyến nghị cho Codex (Nhiệm vụ W2-G3-C) & Rà soát giới hạn phân tầng:**
+    - Khuyến nghị sử dụng **Stratified Random Split** (ví dụ tỷ lệ 60% Train, 20% Validation, 20% Test, phân tầng theo nhãn mục tiêu chính `Machine failure`, với seed ngẫu nhiên cố định là 42) để khắc phục lỗi không có HDF của cách chia tuần tự, đồng thời giữ bí mật tuyệt đối tập test cho đến giai đoạn đánh giá cuối cùng.
+    - **LƯU Ý QUAN TRỌNG VỀ GIỚI HẠN PHÂN TẦNG (Review Disclaimer):** Việc phân tầng theo nhãn mục tiêu chính `Machine failure` **chỉ bảo đảm tỷ lệ giữa 2 lớp (hỏng 3.39% vs không hỏng 96.61%) được đồng nhất giữa các tập, HOÀN TOÀN KHÔNG BẢO ĐẢM phân tầng theo mọi nhãn lỗi phụ** (`TWF`, `HDF`, `PWF`, `OSF`, `RNF`). Do các nhãn lỗi phụ có tần suất rất thấp (đặc biệt `RNF` chỉ 19 ca, `TWF` chỉ 46 ca) và có hiện tượng đa lỗi (24 ca), phân tầng đơn nhãn không thể khống chế phân phối của từng loại lỗi cụ thể trên Train/Val/Test. Nếu Codex có nhu cầu cân bằng cả các nhãn phụ trong thực nghiệm chuyên sâu, Codex cần cân nhắc thuật toán phân tầng đa nhãn (Multi-label / Iterative Stratification) hoặc ghi nhận độ lệch ngẫu nhiên này như một thuộc tính khách quan của dữ liệu.
+    - **Cam kết Protocol:** Tuyệt đối không tiếp tục sử dụng toàn bộ nhãn dataset để lựa chọn feature, lựa chọn siêu tham số hay thay đổi protocol thực nghiệm dựa vào tập test. Mọi bước kỹ thuật mô hình phải thực hiện khép kín trên tập Train/Validation.
 
 ---
 
