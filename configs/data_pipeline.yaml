@@ -1,0 +1,32 @@
+# G3 only. Owner activation: 2026-10-23, attachment 066b5d85-3d0b-4ee2-bb7b-465cc1540273.
+# A5 rules approved in PR #7; no model, calibration, baseline or optimizer settings.
+protocol: A5.1-A5.7
+raw_path: data/raw/ai4i2020.csv
+raw_sha256: dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e
+expected_rows: 10000
+features:
+  - Type
+  - Air temperature [K]
+  - Process temperature [K]
+  - Rotational speed [rpm]
+  - Torque [Nm]
+  - Tool wear [min]
+split:
+  target: Machine failure
+  source_order: UDI
+  test_fraction_first: 0.2
+  validation_fraction_of_remaining: 0.25
+  random_state_both_steps: 42
+  stratify: true
+preprocessing:
+  type_encoder: one_hot
+  handle_unknown: ignore
+  lr_numeric: standard_scaler
+  rf_numeric: passthrough
+  missing: error
+  feature_engineering: false
+  resampling: false
+dependence_review:
+  dataset_sha256: dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e
+  reviewed_for: interpolation_with_known_order_dependence
+  basis: G3 preflight measured high temperature ACF at lags 1,5,10,50,100, consistent with known random walk. No new structure identified requiring a protocol change. This is not an IID or temporal generalization claim.

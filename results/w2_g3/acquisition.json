@@ -1,0 +1,11 @@
+{
+  "url": "https://archive.ics.uci.edu/static/public/601/ai4i+2020+predictive+maintenance+dataset.zip",
+  "downloaded_at_utc": "2026-10-23T14:14:54.292885+00:00",
+  "archive_sha256": "f601f14294bcf190f9d720676b7f0aea46a26cde9ab8ebc7b4f8174d9d26b252",
+  "archive_bytes": 522170,
+  "csv_sha256": "dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e",
+  "csv_bytes": 522048,
+  "source_commit": "48cb306f01540a41498cb091e992cdea84e44e88",
+  "runtime_seconds": 2.6540647000001627,
+  "method": "urllib.request.urlopen; ZipFile.read exact member ai4i2020.csv; exclusive raw write after SHA256 match"
+}
