@@ -1,8 +1,10 @@
 # A5 — protocol đã phê duyệt, giới hạn và điều kiện dừng
 
-Ngày cập nhật: **2026-10-23 (Asia/Saigon)**. Chủ dự án đã phê duyệt **A5.1–A5.7** bằng văn bản “PHÊ DUYỆT CHÍNH THỨC A5 – DATASET VÀ EXPERIMENTAL PROTOCOL”, căn cứ review W1 đã merge qua [PR #6](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/6). Bản này ghi nhận quy tắc đã chốt, giữ bằng chứng/giới hạn của review và nêu điều kiện dừng. **W2-G3-C chưa được giao; chưa tạo split, code pipeline, train ML hoặc mở Test.**
+Ngày cập nhật: **2026-10-23 (Asia/Saigon)**. A5.1–A5.7 đã được chủ dự án phê duyệt và tích hợp qua [PR #7](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/7). **W2-G3-C đã được kích hoạt riêng** bằng văn bản “NHIỆM VỤ CHÍNH THỨC W2-G3-C — GIAI ĐOẠN 3: DATA PIPELINE & EXPERIMENTAL PROTOCOL”. Đây là nhiệm vụ G3, không cho phép G4/G5, cost model, tối ưu hoặc đánh giá Test. Các trạng thái “chưa giao/chưa chạy” trong phần ghi nhận A5 bên dưới là snapshot trước G3; chỉ dẫn và tình trạng G3 hiện hành ở §9.
 
 ## 0. Bằng chứng phê duyệt và phạm vi nhiệm vụ
+
+Phần §0–§8 giữ nguồn quyết định, phân tích và cổng phê duyệt A5 từ PR #7. Quyền ghi nhận A5 ở dưới đã hoàn thành; quyền triển khai G3 hiện tại được nêu riêng tại §9, không thay đổi A5 hoặc tự cấp quyền các giai đoạn sau.
 
 Nguồn chỉ dẫn: `Văn bản đã dán.txt`, attachment `28ca3964-7860-4589-8d6c-ad9b1f10f831`, SHA-256 `5e9e9602543d1599477077b2e909f864d09791914b0665abef427b59d1f9c51b`, được chủ dự án gửi trong chat ngày 2026-10-23. Phạm vi được sửa chỉ `docs/PROJECT_SPEC.md`, `docs/experimental_protocol.md`, `docs/TASK_BOARD.md`; cho phép branch/commit/push/PR riêng và báo cáo Issue #2, không tự merge hoặc sửa quyết định A1–A4/A6/sản phẩm Antigravity.
 
@@ -114,3 +116,46 @@ Các nguyên tắc đánh giá đã có vẫn giữ nguyên:
 | Test G10 | Chưa khóa đủ thành phần hoặc chưa có phê duyệt riêng | Không đánh giá Test |
 
 **Sau khi PR ghi nhận A5 được merge**, chủ dự án sẽ giao riêng W2-G3-C và quyền sửa config/metadata liên quan. Đầu vào raw/hashes, dependency versions và kiểm tra tái lập phải đáp ứng nhiệm vụ được giao; phê duyệt văn bản chưa xác nhận chúng đã đạt. B2 chờ A6 trước G4; A2–A4/A6 còn các chi tiết ở PROJECT_SPEC cần chốt trước task tương ứng, không được coi là đã duyệt bởi A5. Không sửa sản phẩm/nhánh/worktree Antigravity. Nhiệm vụ hiện tại không tạo dữ liệu/split, code pipeline, baseline, ML, calibration fit, optimization hoặc kết quả Test.
+
+## 9. W2-G3-C — triển khai sau kích hoạt riêng
+
+### 9.1. Bằng chứng giao việc và phạm vi
+
+Chủ dự án gửi nhiệm vụ G3 trong chat ngày 2026-10-23, attachment `066b5d85-3d0b-4ee2-bb7b-465cc1540273`, tệp `Văn bản đã dán.txt`, SHA-256 `94a56f011308fe16a3f4e86fbd76f744c1b2f47f38d93aae6782c1a540040461`. PR #7 được xác minh đã merge vào main tại `48cb306f01540a41498cb091e992cdea84e44e88`; nhánh G3 xuất phát trực tiếp từ mốc này.
+
+Quyền sửa: `src/data.py`, `src/preprocessing.py`, `tests/test_data_pipeline.py`, tài liệu này, `scripts/run_data_pipeline.py`, riêng `configs/data_pipeline.yaml`, dữ liệu local bị ignore trong `data/processed/**`, logs/metadata nhỏ không chứa raw hoặc nội dung nhãn Test trong `results/w2_g3/**`. Chủ dự án cho phép tải raw UCI vào worktree Codex nếu thiếu; không đọc/ghi raw hoặc worktree Antigravity. Các file chung README, requirements, TASK_BOARD, data/README, PROJECT_SPEC chỉ đọc. Không tự chuyển task board sang Done.
+
+### 9.2. Hợp đồng triển khai và khả năng tái lập
+
+- `src/data.py`: xác minh hash trước đọc CSV; kiểm tra đúng 14 cột, schema/format/missing/finite, UDI theo thứ tự nguồn, ID và target nhị phân; chỉ lấy sáu feature bằng whitelist. Audit duplicate dùng đúng sáu X, `keep=False` để đếm mọi quan sát trong nhóm trùng và đếm nhóm riêng. Không sửa raw/nhãn, không bỏ hay clip hàng.
+- ACF nhiệt độ được đo trước split tại các lag cố định `{1,5,10,50,100}`, theo UDI, không dùng target/nhãn phụ. Công thức: `sum((x[t]-mean)*(x[t+k]-mean))/sum((x-mean)^2)`, không hiệu chỉnh theo lag. Đây là mô tả phụ thuộc, không phải kiểm định IID/stationarity hoặc ước lượng chu kỳ. Review gắn với hash dataset trong config; không dùng ACF làm điểm số để tìm nhiều split hoặc tự chọn gap.
+- `create_splits` luôn kiểm tra lại duplicate và yêu cầu review phụ thuộc trước khi gọi splitter. Hai lần `train_test_split` dùng seed42, stratify target: Test20% trước, Validation25% phần80% còn lại. Giữ nguyên thứ tự `remaining` mà sklearn trả về cho bước thứ hai; không sort hay thử lại để chọn coverage. Mảng đầu ra giữ thứ tự sklearn; input nguồn vẫn theo UDI.
+- `src/preprocessing.py`: Pipeline gồm validator sáu feature và ColumnTransformer. OHE Type `handle_unknown="ignore"`, dense float output; năm numeric dùng StandardScaler ở LR và passthrough ở RF. Validator chạy cả fit/transform, lỗi rõ với thiếu/thừa cột, missing/nonfinite hoặc kiểu sai. Không có estimator LR/RF, sampler, imputer, feature engineering hoặc calibration.
+- `prepare_development` chỉ nhận X_train/X_validation, không nhận y hoặc Test; fit hai preprocessor trên Train, chỉ transform Validation. Preprocessor sklearn có thể clone để sau này fit lại trong từng train fold, không mang state toàn train vào calibration fold.
+- Split CSV, split IDs, preprocessor joblib và các mảng đã transform chỉ lưu dưới `data/processed/w2_g3/<run-id>/`, bị Git ignore. **Không transform hoặc đánh giá Test thật trong G3**; đường transform Test được kiểm thử bằng fixture tổng hợp. Test được ghi local bằng partition cố định, nhãn chỉ dùng cơ học cho phân tầng/lưu split, không có histogram/coverage/metrics Test trong report.
+- Manifest public có quy mô/hash ordered IDs, hash file local và mảng development, thông tin chống leakage, dependency versions/config hash/commit nguồn/lệnh/runtime; không có giá trị raw, danh sách nhãn hoặc thống kê nhãn Test. IDs chi tiết chỉ ở manifest local. Hash ordered IDs dùng JSON canonical UTF-8, compact/sort keys và LF; tên file/mtime không tham gia hash.
+- Mỗi run dùng thư mục mới, không ghi đè log hoặc artifact. Nếu hash/schema/duplicate/review không đạt, ghi `BLOCKED` trước split; lỗi khác ghi `FAILED`, giữ nguyên bằng chứng. Config từ chối thay đổi seed/tỷ lệ/features/hash tham chiếu hoặc quy tắc preprocessing đã khóa.
+
+Lệnh chạy từ worktree Codex, Python 3.11 riêng:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m pip check
+.\.venv\Scripts\python.exe -X utf8 -m pytest tests/test_data_pipeline.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -X utf8 scripts/run_data_pipeline.py --run-id g3_reproduce
+.\.venv\Scripts\python.exe -X utf8 scripts/run_data_pipeline.py --run-id g3_submission
+```
+
+Các run sau chỉ xác minh lại **cùng cấu hình, seed và membership**, không tạo ứng viên split khác để chọn. Thư mục đã tồn tại phải dùng tên mới để giữ log cũ; không xóa/ghi đè. `--audit-only` chỉ chạy audit và không tạo split.
+
+### 9.3. Kết quả G3 đã chạy
+
+- Raw có sẵn/tải từ đúng URL UCI ghi ở trên, không lấy từ worktree Antigravity. Nhật ký acquisition ghi tải ZIP ngày `2026-10-23T14:14:54Z` bằng `urllib`/`ZipFile`, chỉ ghi CSV sau khi hash khớp. ZIP: 522,170 bytes, SHA-256 `f601f14294bcf190f9d720676b7f0aea46a26cde9ab8ebc7b4f8174d9d26b252`; CSV: 522,048 bytes, SHA-256 `dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e`. Đây là khớp hash Antigravity đã báo và hash cấu hình.
+- Audit thực tế: 10,000 hàng, 14 cột đúng thứ tự UCI; UDI duy nhất/liên tục và raw đã ở thứ tự UDI; target/năm nhãn phụ nhị phân; không missing, chuỗi rỗng hoặc giá trị số nonfinite. Exact duplicate trên đúng sáu X được kiểm tra bằng `pandas.DataFrame.duplicated(subset=FEATURES, keep=False)`, không làm tròn/chuẩn hóa và không dùng ID/target/nhãn phụ làm khóa: **0 hàng trong nhóm trùng, 0 nhóm, 0 hàng dư**.
+- ACF mô tả theo UDI, không dùng nhãn, công thức ở §9.2. Air temperature tại lag `{1,5,10,50,100}`: `0.999359, 0.997522, 0.995280, 0.979360, 0.960316`; Process temperature: `0.998466, 0.993409, 0.987248, 0.943709, 0.892249`. Tự tương quan cao và giảm theo lag, phù hợp phụ thuộc random-walk nhiệt đã biết. Không thấy cấu trúc mới trong phép rà soát này cần đổi protocol; đây không phải chứng minh IID, stationarity, chu kỳ hoặc khả năng tổng quát hóa theo thời gian. Kết luận chỉ hỗ trợ split nội suy đã duyệt và phải công khai giới hạn.
+- Sau các audit trên, ba lần chạy thành công `g3_reproduce`, `g3_verified`, `g3_submission` đều tạo cùng manifest SHA-256 `6dd33ba68c5a4d5d18b8db1fbe4d6f57f8dbfe667d96fe21d6d61bf62cf64522`: Train 6,000, Validation 2,000, Test 2,000; không giao nhau và bảo toàn 10,000 IDs. Hash ID theo thứ tự đã trả về của sklearn: Train `45f20d18308b53ace240dc55b0af55812509fe5af4bfed76494396d31536b99d`, Validation `3783ff7b44647e94aba4a9c8f15332a0a3e1b5c16c0e5e5b71d094ea7318eeb9`, Test `708cea9ae5f5d450f609a34bf07b568a54be1485c6759a9fa1298a76c5b99f2b`. Chi tiết ID và split CSV chỉ nằm local trong `data/processed/w2_g3/` bị ignore.
+- LR preprocessor dùng OHE + StandardScaler; RF dùng OHE + passthrough numeric. Manifest ghi cả hai fit trên 6,000 dòng Train và transform 2,000 Validation. Hàm chuẩn bị dữ liệu không nhận target hoặc Test; không transform Test thật, không xuất thống kê/coverage/metrics nhãn Test và không fit mô hình. Hash dữ liệu train/validation đã biến đổi, config, commit nguồn, lệnh, versions và runtime được ghi trong `results/w2_g3/runs/*/run.json`; metadata công khai chỉ có hash, không chứa hàng raw/nhãn Test.
+- Python: 3.11.9 64-bit trên Windows 10 (build `10.0.26200-SP0`), pip 24.0. Dependencies đã xác minh trong môi trường gồm NumPy 2.4.6, pandas 3.1.0, SciPy 1.17.1, scikit-learn 1.9.1, Optuna 5.0.0, matplotlib 3.11.2, seaborn 0.13.2, joblib 1.6.0, PyYAML 6.0.3, pytest 9.1.1, JupyterLab 4.6.4, ipykernel 7.4.0. `pip check` đạt; không sửa `requirements.txt` hoặc cài thêm dependency trong G3.
+- Kiểm thử: `43 passed`; lệnh đúng như block trên. Kết quả và SHA-256 source test được lưu ở `results/w2_g3/unit_tests_recheck.json`. Các test dùng fixture tổng hợp để kiểm tra hash mismatch, CSV/header/schema/missing, duplicate gate, dependency gate, split determinism/disjointness, fit chỉ trên Train, category chưa thấy, scaler và lỗi đầu vào; không đánh giá nhãn Test thật.
+- Có một lần chạy đầu `g3_primary` ở commit `4a3271c2c19ee1ce62069c834fcb6146e97f857b` bị `BLOCKED` trước split vì parser header chưa xử lý UTF-8 BOM của CSV UCI. Lỗi đã được sửa trong commit `4f47134cdf74a251a676a535880e0ef7ecf82faf` bằng cách decode BOM để kiểm tra header trong khi giữ nguyên bytes/hash raw. Nhật ký BLOCKED được giữ lại, không ghi đè; kiểm thử và các lần chạy hoàn tất đều dùng commit sau sửa.
+
+**Bàn giao G3:** pipeline, audit, split và preprocessing đã hoàn tất theo A5.3–A5.5; không train/calibrate, không đánh giá Test và không kích hoạt G4. `READY FOR G4` chưa đạt trong task này vì cần giao nhiệm vụ G4 riêng và hoàn tất/chốt các điều kiện G4 liên quan, bao gồm cấu hình B2 theo A6. Không cập nhật TASK_BOARD vì văn bản W2-G3-C chỉ cho phép đọc file chung đó.

@@ -1,0 +1,20 @@
+{
+  "source_commit": "4f47134cdf74a251a676a535880e0ef7ecf82faf",
+  "command": [
+    "D:\\Năm 3\\HK1_2026\\Nhập môn tối ưu hóa\\baitaplon\\worktrees\\codex\\.venv\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-m",
+    "pytest",
+    "tests/test_data_pipeline.py",
+    "-q",
+    "-p",
+    "no:cacheprovider"
+  ],
+  "exit_code": 0,
+  "stdout": "...........................................                              [100%]\n43 passed in 6.19s\n",
+  "stderr": "",
+  "runtime_seconds": 7.56584219999786,
+  "fixtures": "synthetic only; no actual Test labels",
+  "test_source_sha256": "3c92f10ba0131a20ef93e201ccf317725d72e7d68ebc2327c4c2cac331dece11"
+}
