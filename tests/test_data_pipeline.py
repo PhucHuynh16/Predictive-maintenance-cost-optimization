@@ -47,9 +47,10 @@ def test_preprocessor_rejects_extra_label_or_id(raw, extra):
         build_preprocessor("lr").fit(X)
 
 
-def test_raw_hash_and_loader(tmp_path, raw):
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
+def test_raw_hash_and_loader(tmp_path, raw, encoding):
     path = tmp_path / "fixture.csv"
-    payload = raw.to_csv(index=False, lineterminator="\n").encode()
+    payload = raw.to_csv(index=False, lineterminator="\n").encode(encoding)
     path.write_bytes(payload)
     with pytest.raises(data.DataGateError, match="SHA-256 mismatch"):
         data.load_verified_raw(path)

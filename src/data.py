@@ -140,7 +140,8 @@ def load_verified_raw(path: Path, expected: str = RAW_SHA256,
     payload = path.read_bytes()
     verify_hash(payload, expected)
     # Check before pandas could rename duplicate headers or coerce malformed rows.
-    with io.StringIO(payload.decode("utf-8"), newline="") as stream:
+    # Official CSV starts with a UTF-8 BOM. Decode the signature, not the raw bytes/hash.
+    with io.StringIO(payload.decode("utf-8-sig"), newline="") as stream:
         rows = csv.reader(stream, strict=True)
         if tuple(next(rows, ())) != RAW_COLUMNS:
             raise DataGateError("Missing/duplicate/reordered raw CSV header")
