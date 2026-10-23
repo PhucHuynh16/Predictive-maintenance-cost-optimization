@@ -1,0 +1,32 @@
+# W2-G4-C owner activation 2026-10-23, attachment 79973113-bec8-4c4f-b46c-226c89755294.
+# A3-a..g / A6-a..g approved in PR #10. No G3 config or other shared file changed.
+protocol: W2-G4-C
+g3_artifacts: data/processed/w2_g3/g3_submission
+g3_reference: results/w2_g3/runs/g3_submission/run.json
+g3_manifest_sha256: 6dd33ba68c5a4d5d18b8db1fbe4d6f57f8dbfe667d96fe21d6d61bf62cf64522
+raw_path: data/raw/ai4i2020.csv
+cost:
+  c_pm: 1.0
+  c_f: 20.0
+  eta: 0.8
+capacity: 0.10
+seed: 42
+b1_threshold_minutes: 200
+b2_threshold: 0.5
+b2_params:
+  C: 1.0
+  l1_ratio: 0.0
+  solver: lbfgs
+  dual: false
+  fit_intercept: true
+  tol: 0.0001
+  max_iter: 2000
+  class_weight: null
+  random_state: 42
+  warm_start: false
+  verbose: 0
+  n_jobs: null
+  intercept_scaling: 1
+post_calibration: false
+refit_train_validation: false
+evaluation_partition: validation
