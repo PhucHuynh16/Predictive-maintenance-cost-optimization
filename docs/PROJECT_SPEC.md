@@ -1,10 +1,14 @@
 # PROJECT SPEC — quyết định đã phê duyệt và chi tiết chờ chốt
 
-Ngày cập nhật: **2026-10-23 (Asia/Saigon)**. Đồ án cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Lượt hiện tại chỉ ghi nhận phê duyệt bổ sung A5 trong ba tài liệu được giao và tạo PR riêng. **Chưa triển khai W2-G3-C; không tạo split chính thức, code pipeline, train ML, chạy baseline/optimization hoặc đánh giá test.**
+Ngày cập nhật: **2026-10-23 (Asia/Saigon)**. Đồ án cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Lượt hiện tại ghi nhận phê duyệt A3-a–g/A6-a–g trong đúng hai tài liệu được giao. **G3 đã nghiệm thu/merge PR #8; G4 chưa triển khai và chờ giao riêng.** Nội dung lịch sử A5/G3 bên dưới phản ánh thời điểm ghi nhận trước đây, không thay đổi quyết định A5.
 
 ## 0. Bằng chứng phê duyệt và phạm vi
 
-**Quyết định mới ngày 2026-10-23:** chủ dự án gửi văn bản “PHÊ DUYỆT CHÍNH THỨC A5 – DATASET VÀ EXPERIMENTAL PROTOCOL”, căn cứ review đã merge qua [PR #6](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/6). Tệp chỉ dẫn `Văn bản đã dán.txt`, attachment `28ca3964-7860-4589-8d6c-ad9b1f10f831`, SHA-256 `5e9e9602543d1599477077b2e909f864d09791914b0665abef427b59d1f9c51b`, là bằng chứng cho A5.1–A5.7 ở §9. Chủ dự án cho phép sửa riêng `docs/PROJECT_SPEC.md`, `docs/experimental_protocol.md`, `docs/TASK_BOARD.md`; tạo branch/commit/push/PR và báo cáo Issue #2. Không sửa quyết định A1–A4/A6 đã có hoặc sản phẩm Antigravity; không tự merge.
+**Phê duyệt chính thức ngày 2026-10-23 (Asia/Saigon):** chủ dự án gửi trong chat “PHÊ DUYỆT CHÍNH THỨC A3 VÀ A6 – CHUẨN BỊ GIAI ĐOẠN 4”, xác nhận PR #9 đã merge và phê duyệt nguyên văn A3-a–g/A6-a–g, bao gồm tham số, điều kiện dừng và ngoại lệ. Nguồn chuẩn chi tiết: [bảng gốc PR #9 tại commit 8a0f95a](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/blob/8a0f95aa4e0cc6176af12cb512315f440f1ef034/docs/TASK_BOARD.md); merge SHA `5459d78b17857b6a5562ac0e75ab5357f6e8d33b` đã xác minh trên origin/main. Quyền nhiệm vụ này chỉ sửa `docs/PROJECT_SPEC.md` và `docs/TASK_BOARD.md`, tạo branch/commit/push/PR riêng và báo cáo Issue #2. **“Đây là nhiệm vụ ghi nhận phê duyệt A3/A6, chưa phải lệnh triển khai W2-G4-C.”** Không sửa A1/A2/A4/A5 hoặc các quyết định khác; không tự merge. G3 đã nghiệm thu/merge qua PR #8; G4 chưa thực hiện và cần giao riêng sau khi PR ghi nhận này được merge.
+
+Các câu lịch sử còn ghi threshold/B2/calibration/metrics A3/A6 “chưa chốt” được thay thế bởi quyết định hiện hành ở §5/§6/§8 và hàng A3/A6 tại §10. Phần A1/A2/A4/A5 và các quyết định khác giữ nguyên; chi tiết A4 chưa duyệt vẫn chờ task tương ứng.
+
+**Ghi nhận lịch sử A5 ngày 2026-10-23 (PR #7):** chủ dự án gửi văn bản “PHÊ DUYỆT CHÍNH THỨC A5 – DATASET VÀ EXPERIMENTAL PROTOCOL”, căn cứ review đã merge qua [PR #6](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/6). Tệp chỉ dẫn `Văn bản đã dán.txt`, attachment `28ca3964-7860-4589-8d6c-ad9b1f10f831`, SHA-256 `5e9e9602543d1599477077b2e909f864d09791914b0665abef427b59d1f9c51b`, là bằng chứng cho A5.1–A5.7 ở §9. Chủ dự án cho phép sửa riêng `docs/PROJECT_SPEC.md`, `docs/experimental_protocol.md`, `docs/TASK_BOARD.md`; tạo branch/commit/push/PR và báo cáo Issue #2. Không sửa quyết định A1–A4/A6 đã có hoặc sản phẩm Antigravity; không tự merge.
 
 Chỉ dẫn ghi rõ: **“Đây là lệnh phê duyệt và ghi nhận A5, chưa phải lệnh triển khai W2-G3-C.”** Sau khi PR ghi nhận A5 được merge, chủ dự án sẽ giao riêng G3 và quyền config/metadata. A5 được phê duyệt về quy tắc không có nghĩa duplicate/phụ thuộc đã kiểm tra đạt, split đã tạo hoặc Test đã được phép đánh giá.
 
@@ -98,32 +102,33 @@ N là số quan sát trong batch/tập đang chấm. Đây là capacity số hà
 
 Theo comparator/miền nguồn: τ=0 chọn mọi hàng kể cả p=0; τ=1 chọn các hàng p=1. Nếu `count(p=1)>K`, h cố định đó không có threshold capacity-feasible; không suy rộng rằng mọi H vô nghiệm. Với N nhỏ, b*N<1 cho K=0; không làm tròn lên. Capacity của cả batch dùng floor trên N toàn batch, không cộng floor của batch con. Threshold khóa trên validation có thể vi phạm trên test/dữ liệu mới; báo nguyên trạng, không tune lại bằng test.
 
-Chủ dự án đã yêu cầu kiểm tra τ=0/1 và p=0/1. Các **quy ước chi tiết đề xuất, chưa tự coi đã duyệt**:
+**A3-a đến A3-g đã phê duyệt đầy đủ** theo §0; bảng dưới sao nguyên văn nội dung/giải thích từ PR #9. Đây là quy tắc đã chốt, chưa có code/kiểm thử cost/constraints hoặc kết quả G4. M=Σa, P=Σy, TP=Σay; không có trọng số mẫu.
 
-| Nội dung | Đề xuất trình duyệt |
-|---|---|
-| Tập threshold | `T(p)={0,1}∪unique(p_i)`, quét đủ policy biểu diễn được bởi `>=` và `[0,1]`; không tách ties |
-| N=0/input sai | Reject evaluation với lỗi rõ; không báo feasibility/cost trung bình giả |
-| P=0 | Recall=null và reason; capacity vẫn quyết định feasible vì recall không là constraint |
-| Violation | `capacity_excess=max(0,M-K)` (hành động) và `capacity_excess_rate=capacity_excess/N`; không gộp khác đơn vị |
-| Không có candidate khả thi | Best=null, `NO_FEASIBLE_CANDIDATE` kèm phạm vi tìm; không đưa B0 vào miền h,τ một cách ngầm định |
-| Floor chính xác | Dùng biểu diễn b thập phân chính xác, tránh sai số float làm lệch K |
-| Hòa cost | Ưu tiên M nhỏ hơn, rồi τ lớn hơn trong cùng h, rồi thứ tự h đăng ký trước |
+| Quyết định A3 | Quy tắc đã phê duyệt | Lý do/phạm vi từ bảng gốc |
+|---|---|---|
+| A3-a Candidate thresholds | Với mỗi h, trên Validation: T={0,1}∪unique(p), sort/deduplicate exact, không rounding; quét mỗi candidate, dùng `>=`; khóa τ trước Test | Bao phủ các action vectors biểu diễn được trong [0,1]; không grid tùy ý hoặc τ>1; B0 vẫn riêng |
+| A3-b N=0 / input sai | Reject evaluation N=0; shape sai, nhãn/actions không binary, p không finite/ngoài [0,1], cost/domain sai đều ERROR với reason; không repair/clip hay gán feasible=false cho lỗi input | Phân biệt lỗi với policy capacity-infeasible; không chia 0 |
+| A3-c P=0 | Cost, M/K và feasibility vẫn tính bình thường; Recall=null, reason=NO_POSITIVES; áp dụng bảng A6 về metrics khác | Không biến recall thành constraint; không loại batch khỏi cost |
+| A3-d Ties | Giữ nhóm exact bằng nhau, không tolerance trên p, không tách nhóm/top-k. τ=0 chọn tất cả; τ=1 vẫn chọn p=1 | Comparator/domain/ties đã duyệt; chỉ làm rõ cách so sánh số và biên |
+| A3-e Capacity violation | K=floor(N/10) bằng số nguyên cho b=0.10; excess=max(0,M-K), excess_rate=excess/N; feasible iff excess=0; log cả M,K,excess và rate | Không sai số float ở floor; không penalty tùy ý, không sửa action |
+| A3-f No-feasible | best=null, status=NO_FEASIBLE_CANDIDATE; log số candidates và phạm vi h đã xét. h riêng có count(p=1)>K không có τ feasible; không suy ra toàn H vô nghiệm; B0 báo riêng | Không âm thầm mở domain hoặc thay bằng B0 trong kết quả P |
+| A3-g Tie-break | Chọn feasible trước; minimum observed cost trên Validation, rồi M nhỏ hơn, rồi τ lớn hơn trong cùng h, cuối cùng thứ tự h cố định đăng ký trước search (không theo arrival). Hòa cost iff chênh tuyệt đối ≤1e-9 cost units so với minimum toàn bộ, không gom dây chuyền | Tái lập, ưu tiên ít hành động; không dùng Test/metric phụ chọn thắng. Thứ tự H cần khóa khi A4 được chốt |
 
 Không tự đổi `>=` sang `>`, thêm τ>1 hoặc mở rộng miền policy. Đây là những thay đổi formulation cần quyết định mới.
 
-## 6. Baseline và đề xuất ngưỡng — A6
+## 6. Baseline và cấu hình đã phê duyệt — A6
 
-| Mã | Đã phê duyệt | Chi tiết còn chờ duyệt |
+**A6-a đến A6-g đã phê duyệt đầy đủ** theo §0, đúng bảng gốc PR #9 bên dưới. B0 reactive: mọi a=0; B1 fixed wear rule; B2 Logistic Regression với τ=0.5; P Random Forest tối ưu h/τ. Dùng cùng cost/capacity và các quy tắc chấm, giữ baseline infeasible. Miền H/thuật toán/budget còn thiếu thuộc A4, không được phê duyệt thêm ở đây. Preprocessing áp dụng A5.5 đã duyệt; RF calibration vẫn theo A5.6 tại G5. Chưa fit model/calibrator hoặc chạy baseline.
+
+| Quyết định A6 | Quy tắc đã phê duyệt | Lý do/công bằng từ bảng gốc |
 |---|---|---|
-| B0 | Reactive, không bảo trì trước, mọi a=0 | Dùng cùng cost/capacity, không cần p |
-| B1 | Fixed Rule theo Tool wear | Comparator, w cụ thể và quy tắc cố định ngưỡng |
-| B2 | Logistic Regression, threshold=0.5 | Cấu hình LR/preprocessing/calibration |
-| P | Random Forest + tối ưu h,τ | Miền H và quy tắc tìm kiếm ở §7 |
-
-**Đề xuất B1 để chủ dự án duyệt:** `a_i=1[Tool wear [min]>=200]`, w=200 phút, giữ cố định trước thực nghiệm, không chọn w bằng test và không sửa rule bằng top-k khi vi phạm. Mốc này là heuristic đề xuất theo mô tả wear failure 200–240 phút của [UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset); không phải ngưỡng đã được chứng minh hiệu quả hoặc được chủ dự án duyệt. Chủ dự án có thể chọn mốc khác trước thực nghiệm. So với review cũ đề xuất tìm w trên validation, lựa chọn fixed w này phù hợp tên Fixed Rule vừa được xác nhận và vẫn cần phê duyệt giá trị/comparator.
-
-B2 ngưỡng 0.5 giữ nguyên, không đổi để sửa capacity. Cần trình cấu hình LR cụ thể cùng encoder/scaler/imputer, handling category lạ và calibration trước task baseline; không tự dùng mọi default thư viện làm protocol đã được duyệt. Baseline vi phạm được ghi infeasible, vẫn báo cost/metrics đầy đủ và tách khỏi xếp hạng feasible.
+| A6-a B1 | `a=1[Tool wear [min]>=200]`, w=200 phút, cố định trước run; không fit/tune w | Heuristic đã nêu trong spec, chưa có chứng cứ hiệu quả; không dựa vào Test hoặc sửa ngưỡng để feasible |
+| A6-b B2 LR | L2, C=1.0, solver=lbfgs, l1_ratio=0.0 (API1.9.1; không truyền penalty deprecated), dual=False, fit_intercept=True, tol=1e-4, max_iter=2000, class_weight=None, random_state=42, warm_start=False, verbose=0; n_jobs=None/intercept_scaling=1 là tham số API không tác dụng với lbfgs. Không sample_weight/CV/tuning; score=predict_proba lớp1, a=1[p>=0.5] | Một baseline cấu hình cố định; preprocessing A5.5 đã duyệt, chỉ fit Train. Seed ghi metadata dù lbfgs không dùng seed. ConvergenceWarning/nonfinite => FAILED, giữ log và xin quyết định, không tự retry solver/C |
+| A6-c Calibration B2 | Không post-calibration; dùng xác suất LR trực tiếp; không fit calibrator hoặc refit Train+Val | Giữ baseline đơn giản, không chọn calibration bằng Validation/Test. RF sigmoid theo A5.6 vẫn áp dụng cho P tại G5; so sánh phản ánh toàn phương pháp, không quy hết lợi ích cho optimizer |
+| A6-d PR-AUC estimator | Báo tên `average_precision` (AP non-interpolated), sklearn.average_precision_score(y,p,pos_label=1), không trapezoidal AUC; ROC-AUC từ cùng p. B2/P dùng score liên tục, không dùng actions; B0/B1 ranking/probability metrics=null reason=NO_PROBABILITY_MODEL | AP khác trapezoid PR area. B0/B1 chỉ là policy nên không bịa probability; vẫn báo đủ cost/action metrics cho cả bốn |
+| A6-e Undefined metrics | Precision=TP/M nếu M>0, ngược lại null/NO_PREDICTED_POSITIVES; Recall=TP/P nếu P>0, ngược lại null/NO_POSITIVES; F1=2TP/(P+M) nếu P+M>0, ngược lại null/NO_TRUE_OR_PREDICTED_POSITIVES. ROC-AUC=null/SINGLE_CLASS nếu P=0 hoặc P=N; AP=null/NO_POSITIVES nếu P=0, AP=1 nếu P=N và có score hợp lệ. Brier=mean((p-y)^2) cho B2/P, vẫn hợp lệ nếu một lớp | Tính công thức rõ thay vì mặc định warning/0. F1=0 khi chỉ P hoặc M bằng0; null ghi JSON null, kèm reason, không thay bằng0 khi tổng hợp |
+| A6-f Mẫu số saving=0 | Báo cost, cost/N và absolute saving=C_B0-C; saving_pct=null/ZERO_REFERENCE_COST nếu C_B0=0 | P=0 không thể báo % tiết kiệm có nghĩa; absolute saving có thể âm |
+| A6-g Baseline infeasible | Giữ nguyên B1/B2 actions/τ, báo cost, classification metrics và excess như mọi policy; tách feasible ranking, không chọn best feasible từ chúng. B0 riêng luôn capacity-feasible khi N>0; nếu P không feasible thì báo tình trạng đó cạnh B0 | Không sửa baseline bằng top-k/retune; infeasible có thể cost thấp nhưng không là nghiệm đạt constraint |
 
 ## 7. Thuật toán, search space và budget — A4
 
@@ -153,21 +158,9 @@ Có 144 tổ hợp danh nghĩa; không khẳng định chúng khác nhau hoàn t
 
 **Đã phê duyệt:** chính gồm `total_cost`, `cost_per_observation`, `maintenance_rate`, `feasible`, `constraint_violation`; phụ gồm Recall, Precision, F1, PR-AUC, ROC-AUC, Brier score và runtime. Số action/N và TP/FP/FN/TN được ghi để kiểm chứng các tỷ lệ/cost. Mọi phương pháp dùng cùng công thức/đơn vị và constraint.
 
-**Chi tiết metric trình duyệt:**
+**Chi tiết metric đã phê duyệt:** áp dụng nguyên văn A6-d/A6-e/A6-f/A6-g ở §6, bao gồm tên `average_precision`, công thức, các ca một lớp/zero denominator, JSON null kèm reason và xử lý infeasible. Action metrics dùng confusion matrix từ a; probability/ranking metrics dùng p, không dựng p giả cho B0/B1. N=0 bị từ chối theo A3-b; không thay undefined bằng default 0/1 của thư viện. Brier không tự chứng minh calibration tốt.
 
-| Nội dung | Quy ước đề xuất, chưa được chốt |
-|---|---|
-| PR-AUC | Chọn `average_precision` (AP) có tên rõ, phân biệt diện tích PR hình thang |
-| Action metrics | Tính confusion matrix bằng a; probability metrics dùng p |
-| Recall P=0; precision M=0 | null kèm reason, không tự ép 0/1 |
-| F1 | `2TP/(2TP+FP+FN)`; null chỉ khi mẫu số 0 |
-| ROC-AUC một lớp; AP không positive | null kèm reason |
-| B0/B1 không có mô hình p | AUC/AP/Brier=null với reason, không dựng p giả |
-| Cost trung bình/rate khi N=0 | Reject batch như §5 |
-| Saving | Tuyệt đối `C_B0-C_policy` có thể âm; tỷ lệ null nếu C_B0=0 |
-| Brier/calibration | Brier dùng p và y; không dùng riêng Brier để khẳng định calibration tốt |
-
-Định nghĩa AP và nguyên tắc calibration tham khảo [AP scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html), [calibration scikit-learn](https://scikit-learn.org/stable/modules/calibration.html). Cần duyệt wrapper xử lý null/reasons thay vì để default thư viện khác nhau giữa phương pháp. Không sửa tên PR-AUC thành AP đã khóa khi chủ dự án chưa chọn estimator.
+Các quy tắc metric này đã được chủ dự án chốt, chưa được triển khai/kiểm thử trong G4. Phê duyệt không cấp quyền mở Test; cổng G10 ở A5 giữ nguyên.
 
 ## 9. Protocol và điều kiện dữ liệu — A5
 
@@ -234,19 +227,19 @@ Sơ đồ roadmap có tiền xử lý trước split không cho phép fit toàn 
 
 ## 10. Bảng đối chiếu A1–A7
 
-Các quyết định A1–A4/A6/A7 dưới đây giữ nguyên theo **câu trả lời phê duyệt chi tiết ngày 2026-10-21 trong cùng chat**. Riêng A5 cập nhật theo văn bản phê duyệt A5.1–A5.7 ngày **2026-10-23** ở §0/§9. Không yêu cầu chủ dự án xác nhận lại những giá trị đã cung cấp.
+A1/A2/A4/A7 giữ nguyên theo câu trả lời phê duyệt ngày 2026-10-21; A5 giữ nguyên theo văn bản A5.1–A5.7 ngày 2026-10-23 ở §0/§9. Riêng A3/A6 được cập nhật theo phê duyệt chính thức 14 hàng PR #9 ở §0/§5/§6/§8. Không yêu cầu chủ dự án duyệt lại các giá trị đã chốt.
 
 | ID | Phần đã được chủ dự án phê duyệt | Chi tiết còn chờ duyệt/điều kiện | Trạng thái toàn mục |
 |---|---|---|---|
 | A1 | Một dòng=một quan sát, mô hình cost một kỳ, cost units, không phải VND (§1) | Không thiếu quyết định trong phạm vi mô hình hiện tại | Đã phê duyệt |
 | A2 | Objective nguồn; C_PM=1, C_F=20, η=0.8; sensitivity C_F={5,10,20,40}, η={0.7,0.8,1.0}; giả định nghiên cứu (§4) | Thiết kế sensitivity: tích tổ hợp/từng yếu tố, fixed-policy/reoptimization và phạm vi giữ C_PM/b | Phê duyệt một phần |
-| A3 | b=0.10, M<=floor(b*N); recall chỉ là metric; B0 riêng; ties nguyên nhóm; không top-k; vi phạm=infeasible; kiểm tra τ/p=0/1 (§5) | Candidate thresholds, N=0/P=0, schema violation, no-feasible và hòa cost chi tiết | Phê duyệt một phần |
+| A3 | Các quyết định A3 trước đây và A3-a–g tại §5, được phê duyệt nguyên văn từ PR #9 theo §0 | Không còn chờ chốt 7 quy tắc; thứ tự H cụ thể khóa khi A4 được chốt; triển khai/tests cần task riêng | Đã phê duyệt A3-a–g; chưa triển khai G4 |
 | A4 | h+τ, RF, TPE, 30 trials, seed chính 42; RS cùng budget/5 seeds theo điều kiện (§7) | Miền bốn hyperparameter, params cố định, đơn vị trial, seeds bổ sung, runtime/điều kiện phần mở rộng | Phê duyệt một phần |
 | A5 | A5.1–A5.7 (§2/§9): nội suy AI4I và công khai exposure; audit sáu X/điều kiện dừng; split Test trước 60/20/20 seed42; preprocessing; RF sigmoid 5 train folds shuffle seed42, ensemble=False; không refit Train+Val; cổng Test G10 | Quy tắc đã chốt, kiểm tra/triển khai chưa chạy. G3 và quyền config/metadata giao riêng sau merge PR này; group-disjoint nếu có duplicate cần duyệt riêng; B2 thuộc A6; Test cuối cần phê duyệt riêng | Đã phê duyệt A5.1–A5.7; chưa triển khai |
-| A6 | B0/B1/B2/P, B2 τ=0.5, metrics chính/phụ; baseline vi phạm=infeasible (§6/§8) | B1 w/comparator; LR/pipeline/calibration; PR-AUC estimator và zero-denominator/undefined rules | Phê duyệt một phần |
+| A6 | B0/B1/B2/P và A6-a–g tại §6/§8, được phê duyệt nguyên văn từ PR #9 theo §0 | Không còn chờ B1/LR/calibration B2/AP/undefined/infeasible; thực thi G4 cần giao riêng | Đã phê duyệt A6-a–g; chưa triển khai G4 |
 | A7 | Chỉ W1-G1-C (Codex) và W1-G2-A (Antigravity); lượt này cho phép cập nhật spec và tạo PR (§0) | Các giai đoạn tiếp theo, thay đổi file chung khác, merge/tích hợp và test cuối vẫn chờ chỉ dẫn | Đã phê duyệt |
 
-Trạng thái A7 chỉ áp dụng hai task được nêu, không phê duyệt toàn tuần/lộ trình. W1-G1-A/proposal và các task G3–G10 chưa được kích hoạt bằng quyết định này. Không tự gửi prompt hay khởi chạy Antigravity; chủ dự án điều phối W1-G2-A. Các mục còn đề xuất ở §4–§8 phải được duyệt trước task chạy tương ứng; A5 ở §9 đã được phê duyệt bổ sung về quy tắc, vẫn cần điều kiện thực thi và nhiệm vụ riêng. Trạng thái từng giá trị đã phê duyệt không bị mất chỉ vì toàn mục còn chi tiết.
+Trạng thái A7 chỉ áp dụng hai task được nêu, không phê duyệt toàn tuần/lộ trình. W1-G1-A/proposal và các task G3–G10 chưa được kích hoạt bằng quyết định này. Không tự gửi prompt hay khởi chạy Antigravity; chủ dự án điều phối W1-G2-A. Các chi tiết thực sự còn chưa phê duyệt ở §4/§7 phải được chốt trước task tương ứng; A3/A6 ở §5/§6/§8 đã được phê duyệt theo §0; A5 ở §9 đã được phê duyệt bổ sung về quy tắc, vẫn cần điều kiện thực thi và nhiệm vụ riêng. Trạng thái từng giá trị đã phê duyệt không bị mất chỉ vì toàn mục còn chi tiết.
 
 Mẫu quyết định bổ sung: `A<ID>; chấp nhận/điều chỉnh đề xuất §...; giá trị/quy tắc; phạm vi; ngày; tham chiếu phiên bản`. Không tự đánh dấu Done hoặc sửa task board. Quyết định mới trong chat có giá trị hơn nhãn bootstrap/prompt cũ, nhưng không mở scope ngoài nội dung đã được giao.
 
@@ -262,4 +255,6 @@ Lượt ghi nhận A5 này được chủ dự án cho phép cập nhật cổng
 
 Giấy phép mã nguồn chưa được chọn; không tự tạo LICENSE. CC BY 4.0 của dataset không quyết định license cho code. Không commit raw data, secrets hoặc artifact lớn; kiểm tra staged diff trước commit.
 
-Ghi chú PR lịch sử ngày 2026-10-21: chỉ sửa `docs/PROJECT_SPEC.md` trên nhánh `codex/reconcile-project-spec-approvals`; không sửa main trực tiếp, roadmap, board, config, source/tests hoặc hai bản review. Nhiệm vụ hiện tại ngày 2026-10-23 chỉ cập nhật ba tài liệu tại §0 trên nhánh `codex/record-a5-approval`, từ `origin/main` sau PR #6. Không merge/rebase tích hợp, force-push, tạo split, code pipeline, train, baseline, tối ưu, đánh giá Test hay tạo kết quả thực nghiệm giả. Checkpoint sản phẩm W1 đã được ghi nhận qua PR #6; phê duyệt A5 không tự hoàn tất G3.
+Ghi chú PR lịch sử ngày 2026-10-21 và lượt ghi nhận A5 sau đó (không phải phạm vi nhiệm vụ hiện tại): chỉ sửa `docs/PROJECT_SPEC.md` trên nhánh `codex/reconcile-project-spec-approvals`; không sửa main trực tiếp, roadmap, board, config, source/tests hoặc hai bản review. Nhiệm vụ hiện tại ngày 2026-10-23 chỉ cập nhật ba tài liệu tại §0 trên nhánh `codex/record-a5-approval`, từ `origin/main` sau PR #6. Không merge/rebase tích hợp, force-push, tạo split, code pipeline, train, baseline, tối ưu, đánh giá Test hay tạo kết quả thực nghiệm giả. Checkpoint sản phẩm W1 đã được ghi nhận qua PR #6; phê duyệt A5 không tự hoàn tất G3.
+
+**Phạm vi hiện hành sau ghi nhận A3/A6:** chỉ hai tài liệu ở §0; chờ chủ dự án review/merge PR ghi nhận, sau đó giao riêng W2-G4-C và quyền file/config/log/tiêu chí nghiệm thu. Không chạy baseline, train ML, code cost model, optimization hoặc Test trong nhiệm vụ này. Các đoạn ghi chú PR cũ ở trên là lịch sử, không mở thêm quyền.
