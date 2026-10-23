@@ -1,8 +1,14 @@
 # PROJECT SPEC — quyết định đã phê duyệt và chi tiết chờ chốt
 
-Ngày cập nhật: 2026-10-21 (Asia/Saigon). Đồ án cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Lượt hiện tại chỉ cập nhật spec và tạo PR. **Không code cost model, train ML, chạy baseline/optimization hoặc đánh giá test trong nhiệm vụ này.**
+Ngày cập nhật: **2026-10-23 (Asia/Saigon)**. Đồ án cá nhân, 5 tuần, 10 giai đoạn theo `ROADMAP.md`. Lượt hiện tại chỉ ghi nhận phê duyệt bổ sung A5 trong ba tài liệu được giao và tạo PR riêng. **Chưa triển khai W2-G3-C; không tạo split chính thức, code pipeline, train ML, chạy baseline/optimization hoặc đánh giá test.**
 
 ## 0. Bằng chứng phê duyệt và phạm vi
+
+**Quyết định mới ngày 2026-10-23:** chủ dự án gửi văn bản “PHÊ DUYỆT CHÍNH THỨC A5 – DATASET VÀ EXPERIMENTAL PROTOCOL”, căn cứ review đã merge qua [PR #6](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/6). Tệp chỉ dẫn `Văn bản đã dán.txt`, attachment `28ca3964-7860-4589-8d6c-ad9b1f10f831`, SHA-256 `5e9e9602543d1599477077b2e909f864d09791914b0665abef427b59d1f9c51b`, là bằng chứng cho A5.1–A5.7 ở §9. Chủ dự án cho phép sửa riêng `docs/PROJECT_SPEC.md`, `docs/experimental_protocol.md`, `docs/TASK_BOARD.md`; tạo branch/commit/push/PR và báo cáo Issue #2. Không sửa quyết định A1–A4/A6 đã có hoặc sản phẩm Antigravity; không tự merge.
+
+Chỉ dẫn ghi rõ: **“Đây là lệnh phê duyệt và ghi nhận A5, chưa phải lệnh triển khai W2-G3-C.”** Sau khi PR ghi nhận A5 được merge, chủ dự án sẽ giao riêng G3 và quyền config/metadata. A5 được phê duyệt về quy tắc không có nghĩa duplicate/phụ thuộc đã kiểm tra đạt, split đã tạo hoặc Test đã được phép đánh giá.
+
+Các gạch đầu dòng tiếp theo lưu bằng chứng lịch sử ngày 2026-10-21; các câu về “lượt hiện tại”, file untracked và PR chỉ sửa spec phản ánh lúc viết. Hai bản review đã được tích hợp qua PR #3; checkpoint/review A5 qua PR #6, merge commit `8529fe4a428d221badee86aeb6e03170b274cc6f`. Phần A5 tương ứng được cập nhật bởi quyết định mới; nội dung A1–A4/A6 bên dưới giữ nguyên.
 
 - Commit [72b3d67526ca56e81900e301cbfcb310de916557](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/commit/72b3d67526ca56e81900e301cbfcb310de916557) đã đổi nhãn A1–A6 thành “Phê duyệt”. Chủ dự án sau đó cung cấp quyết định cụ thể A1–A7 trong câu trả lời cùng chat ngày 2026-10-21, mở đầu “Tôi là chủ dự án và xác nhận phê duyệt A1–A6 với các thông số cụ thể sau”. Quyết định chi tiết này là nguồn của các giá trị được ghi là đã phê duyệt bên dưới.
 - Chủ dự án yêu cầu cập nhật toàn bộ `docs/PROJECT_SPEC.md`, bảo toàn hai tài liệu review, tạo nhánh/PR và không tự merge main. Đây là quyền sửa riêng file chung này; không bao gồm config, task board hay tài liệu của Antigravity.
@@ -33,7 +39,7 @@ Từ đặc trưng vận hành, ước lượng nguy cơ hỏng và chọn chín
 
 Loại target, ID `UID`/`UDI`, `Product ID` và năm nhãn phụ `TWF`, `HDF`, `PWF`, `OSF`, `RNF` khỏi features. ID chỉ phục vụ truy vết/split, không suy ra timestamp hoặc machine ID. Xác minh tên cột thực tế trong task dữ liệu; ghi provenance theo [data/README](../data/README.md).
 
-Chưa có quyền dùng EDA toàn bộ dữ liệu để lựa chọn mô hình. Quy tắc duplicate/nhóm/thứ tự, phân biệt kiểm tra integrity và EDA định hướng mô hình, cùng các điều kiện trước split còn cần chốt ở §9. Không ghi kiểm tra dữ liệu là đã chạy chỉ từ metadata.
+Theo A5.1–A5.4 ngày 2026-10-23 (§9), tiếp tục AI4I cho đánh giá nội suy và công khai exposure do EDA ban đầu đã khảo sát toàn bộ nhãn. Không dùng nhãn/kết quả Test cho lựa chọn phát triển từ thời điểm khóa giao thức; không gọi holdout tương lai là hoàn toàn chưa từng bị xem xét. Quy tắc duplicate và thứ tự split đã được phê duyệt, nhưng audit sáu features/rà soát phụ thuộc và việc chia tập chưa được thực thi trong nhiệm vụ ghi nhận này. Không ghi kiểm tra dữ liệu là đã chạy chỉ từ metadata.
 
 ## 3. Decision variables và policy — A3/A4
 
@@ -165,25 +171,70 @@ Có 144 tổ hợp danh nghĩa; không khẳng định chúng khác nhau hoàn t
 
 ## 9. Protocol và điều kiện dữ liệu — A5
 
-**Đã phê duyệt:** AI4I UCI, target/features §2; stratified train/validation/test **60/20/20, seed 42 sau kiểm tra phụ thuộc dữ liệu**; fit preprocessing chỉ trên train; calibration dùng train folds; không dùng test để tuning; khóa mô hình/policy trước đánh giá test cuối.
+**Trạng thái: ĐÃ PHÊ DUYỆT A5.1–A5.7 về quy tắc, ngày 2026-10-23**, theo văn bản chủ dự án ở §0. Chi tiết áp dụng và giới hạn tại [experimental_protocol.md](experimental_protocol.md). Đây là ghi nhận quyết định, không là bằng chứng đã chạy kiểm tra/triển khai. B2 vẫn phải chốt cấu hình riêng trong A6 trước G4; quyền thực thi G3, config/metadata và quyền Test cuối được giao riêng.
 
-Thứ tự và các điểm cần chốt:
+### A5.1 — Mục tiêu đánh giá và phụ thuộc
 
-1. Trong W1-G2-A, Antigravity kiểm tra nguồn/schema, provenance, hash CSV, thiếu/trùng và phụ thuộc quan sát theo phạm vi được giao. Chưa có CSV/hash/split được kiểm chứng trong lượt Codex này. Không ghi đè raw hoặc split của AI kia.
-2. Cần xác định kiểm tra integrity toàn dữ liệu ở mức đủ tạo split và giữ test kín; EDA để chọn feature/mô hình chỉ train/validation. Trình cách xử lý duplicate/nhóm/thứ tự trước split; không tự loại dòng/outlier hay suy ra thời gian từ UID. Kiểm tra phụ thuộc phải có bằng chứng trước dùng random split. Nếu phát hiện điều kiện không đạt hoặc mâu thuẫn với random split đã chọn, báo chủ dự án để quyết định protocol thay thế, không tự đổi split.
-3. Khi task pipeline được giao và điều kiện đạt, tạo một split đã duyệt, lưu IDs/hash và dùng chung mọi phương pháp. Tách split/model/optimizer/fold seed; không thử nhiều split để chọn kết quả tốt. Đề xuất multi-seed giữ split cố định, không trộn thay split với thay model seed.
-4. Fit encoder/imputer/scaler/feature selection chỉ trên train. Trong calibration CV, mỗi fold fit preprocessing/model bằng train-fold tương ứng và calibrator dùng dự đoán ngoài fold thuộc train; không fit calibrator trên validation/test.
-5. Chủ dự án chưa chốt có/không calibration, method/folds/seed hoặc xử lý quá ít positives. Đề xuất sigmoid với 5 stratified train folds, fold seed 42, chỉ khi mỗi lớp đủ cho folds; nếu không đủ thì báo lại, không tự thay method/folds. Có/không calibration và ablation cần chốt trước chạy; đây không phải phần mặc nhiên được duyệt bởi câu “calibration dùng train folds”.
-6. Chọn h/τ bằng validation theo objective và budget đã khóa. Best validation cost là development estimate có thiên lệch lựa chọn. Không dùng test chọn threshold/hyperparameter/preprocessing/calibration/feature/algorithm/scenario/seed.
-7. Chỉ chạy các phần sau khi task tương ứng được kích hoạt và chi tiết phê duyệt đủ. Lưu code commit, dependency/Python versions, dataset/split hash, config/hash, seeds, lệnh, params/threshold, cost, feasibility/violations, null reasons, runtime, status và best-so-far feasible. Giữ failed/pruned/infeasible, không làm đẹp log.
-8. Sensitivity/multi-seed/ablation chỉ dùng development data, đăng ký kế hoạch và budget trước; phân biệt chấm policy cố định và tối ưu lại. Không tự chạy do roadmap nêu tuần tương ứng.
-9. Trước test cuối khóa model đã fit, policy, scenario và protocol; cần quyền đánh giá test cuối riêng theo AGENTS. Review đề xuất không refit train+validation ở lượt test đầu; refit policy chưa được chốt. Báo cả vi phạm/không cải thiện, không mở lại tuning sau test. Tái lập chỉ xác minh cấu hình đã khóa.
+Giữ UCI AI4I 2020 và Stratified Random Split cho **nội suy trên cùng dữ liệu tổng hợp**. Không tuyên bố dự báo theo thời gian, tổng quát hóa sang máy/nhà máy mới hoặc hiệu quả bảo trì thực tế. Ghi nhận phụ thuộc giữa các quan sát theo UDI và biến nhiệt độ; kiểm tra cấu trúc phụ thuộc, báo cáo giới hạn, không giả định các quan sát hoàn toàn độc lập. UDI chưa được xác nhận là timestamp hay machine ID.
 
-Sơ đồ roadmap có tiền xử lý trước split không cho phép fit toàn dữ liệu: phân biệt kiểm tra schema với fit transformer. Đây là yêu cầu chống leakage, không phải quyền sửa roadmap hoặc task board ở lượt này.
+### A5.2 — Data exposure
+
+Chấp nhận tiếp tục AI4I dù EDA ban đầu đã khảo sát **toàn bộ nhãn**; công khai giới hạn này trong tài liệu phương pháp luận và báo cáo cuối. Từ thời điểm khóa giao thức, không dùng nhãn hoặc kết quả Test để chọn features, thuật toán, hyperparameters, threshold, calibration hoặc thay đổi phương án chia dữ liệu. Không tuyên bố holdout tương lai hoàn toàn chưa từng bị xem xét; chia lại không xóa exposure. Các quy tắc cấm dùng Test chọn scenario/seed ở phần khác của spec vẫn giữ nguyên.
+
+### A5.3 — Exact duplicate trên sáu features
+
+Kiểm tra exact duplicates trên **đúng sáu features ở §2**, không dùng target hoặc năm nhãn phụ làm khóa nhóm. Giữ nguyên raw và nhãn gốc UCI. Nếu có quan sát trùng sáu features: **dừng trước split chính thức**, báo số lượng và đề xuất group-disjoint để chủ dự án phê duyệt riêng. Không tự xóa dữ liệu, đổi tỷ lệ hoặc chọn seed khác. Quy tắc xử lý đã duyệt; chưa có kết quả audit sáu X mới trong nhiệm vụ này.
+
+### A5.4 — Split cố định và metadata
+
+Phê duyệt phân tầng theo `Machine failure`, `random_state=42`, trình tự cố định:
+
+1. Giữ thứ tự dữ liệu nguồn theo UDI để tái lập.
+2. Tách **Test 20% trước**, stratify theo target với `random_state=42`.
+3. Từ **80% còn lại**, lấy **Validation 25%** của phần đó (20% toàn dataset), stratify theo target với `random_state=42`.
+4. Train chiếm **60% toàn dataset**.
+5. Lưu dataset hash, split IDs/hash, seed, thuật toán, phiên bản thư viện và metadata tái lập; dùng cùng split cho các phương pháp.
+
+Không thử nhiều seed/split để chọn kết quả tốt hoặc phân bố nhãn phụ thuận lợi. **Trước thực thi split**, phải hoàn thành audit duplicate và rà soát phụ thuộc trong phạm vi được duyệt. Nếu phát hiện điều kiện bất thường đòi hỏi đổi protocol, dừng và trình lại; không tự đổi thuật toán, tỷ lệ hoặc seed. Chưa có split chính thức được tạo trong lượt ghi nhận này.
+
+### A5.5 — Preprocessing
+
+Chỉ sáu features đã duyệt ở §2:
+
+- `Type`: `OneHotEncoder(handle_unknown="ignore")`.
+- Logistic Regression: `StandardScaler` cho năm numeric features.
+- Random Forest: giữ nguyên numeric features, không bắt buộc scaling.
+- Fit preprocessing chỉ trên Train; Validation và Test chỉ transform bằng preprocessor đã fit Train. Trong CV phải giữ ranh giới từng fold theo A5.6.
+- Missing bất ngờ phải báo lỗi rõ; không âm thầm impute/xử lý.
+- Không tự clipping outliers, thêm feature engineering, resampling/SMOTE hoặc dùng ID/nhãn phụ làm feature.
+
+Đây là phê duyệt quy tắc preprocessing A5; không chốt toàn bộ cấu hình baseline Logistic Regression B2 thuộc A6.
+
+### A5.6 — Calibration Random Forest tại G5 và refit
+
+Phê duyệt RF **sigmoid calibration**, **5 stratified train folds**, `shuffle=True`, `random_state=42`, `ensemble=False`. Fit preprocessing/model đúng ranh giới từng fold; không dùng Validation hoặc Test để fit calibrator. Không refit model trên **Train+Validation trước lần đánh giá Test đầu tiên**. Nếu dữ liệu không đáp ứng yêu cầu calibration, báo cáo và xin quyết định mới, không tự thay method/folds. Phương án này được phê duyệt cho **Giai đoạn 5**; task G5 vẫn cần giao riêng, không thực thi trong nhiệm vụ ghi nhận A5.
+
+Cấu hình baseline LR B2, bao gồm quyết định calibration B2, **sẽ chốt riêng trong A6 trước G4**. Đề xuất “B2 không post-calibration” trong review PR #6 không được văn bản A5 này phê duyệt.
+
+### A5.7 — Cổng Test cuối tại G10
+
+Test chỉ được mở để đánh giá tại **Giai đoạn 10**, sau khi đã khóa:
+
+- Model và toàn bộ preprocessing.
+- Hyperparameters, threshold và policy.
+- Cost scenarios và constraints.
+- Seeds, dependencies, metadata và protocol.
+- Có **phê duyệt riêng từ chủ dự án**.
+
+Không đánh giá Test trong nhiệm vụ A5. Việc bộ tạo split sau này dùng target để phân tầng theo A5.4 không cấp quyền khám phá hay đánh giá Test. Không mở lại tuning bằng Test; báo cả vi phạm/không cải thiện. Tái lập chỉ xác minh cấu hình đã khóa.
+
+Các quy tắc tái lập trước đây vẫn áp dụng: tách split/model/optimizer/fold seeds; lưu code commit, dependency/Python versions, dataset/split/config hash, lệnh, params/threshold, cost/feasibility/violations, null reasons, runtime/status; giữ failed/pruned/infeasible. Chọn h/τ trên validation theo objective/budget đã khóa; best validation cost có thiên lệch lựa chọn. Sensitivity/multi-seed/ablation chỉ development, cần kế hoạch/budget và nhiệm vụ riêng; phê duyệt A5 không kích hoạt chúng.
+
+Sơ đồ roadmap có tiền xử lý trước split không cho phép fit toàn dữ liệu. **G3 vẫn chưa được giao**; sau khi PR ghi nhận A5 được merge, chủ dự án mới giao W2-G3-C và quyền config/metadata liên quan.
 
 ## 10. Bảng đối chiếu A1–A7
 
-Các quyết định dưới đây đối chiếu với **câu trả lời phê duyệt chi tiết ngày 2026-10-21 trong cùng chat**, thay thế tình trạng thiếu giá trị khi chỉ có commit đổi nhãn. Không yêu cầu chủ dự án xác nhận lại những giá trị đã cung cấp.
+Các quyết định A1–A4/A6/A7 dưới đây giữ nguyên theo **câu trả lời phê duyệt chi tiết ngày 2026-10-21 trong cùng chat**. Riêng A5 cập nhật theo văn bản phê duyệt A5.1–A5.7 ngày **2026-10-23** ở §0/§9. Không yêu cầu chủ dự án xác nhận lại những giá trị đã cung cấp.
 
 | ID | Phần đã được chủ dự án phê duyệt | Chi tiết còn chờ duyệt/điều kiện | Trạng thái toàn mục |
 |---|---|---|---|
@@ -191,13 +242,15 @@ Các quyết định dưới đây đối chiếu với **câu trả lời phê 
 | A2 | Objective nguồn; C_PM=1, C_F=20, η=0.8; sensitivity C_F={5,10,20,40}, η={0.7,0.8,1.0}; giả định nghiên cứu (§4) | Thiết kế sensitivity: tích tổ hợp/từng yếu tố, fixed-policy/reoptimization và phạm vi giữ C_PM/b | Phê duyệt một phần |
 | A3 | b=0.10, M<=floor(b*N); recall chỉ là metric; B0 riêng; ties nguyên nhóm; không top-k; vi phạm=infeasible; kiểm tra τ/p=0/1 (§5) | Candidate thresholds, N=0/P=0, schema violation, no-feasible và hòa cost chi tiết | Phê duyệt một phần |
 | A4 | h+τ, RF, TPE, 30 trials, seed chính 42; RS cùng budget/5 seeds theo điều kiện (§7) | Miền bốn hyperparameter, params cố định, đơn vị trial, seeds bổ sung, runtime/điều kiện phần mở rộng | Phê duyệt một phần |
-| A5 | AI4I UCI, sáu feature, loại ID/nhãn phụ; stratified 60/20/20 seed42 sau kiểm tra phụ thuộc; train-only fit, train-fold calibration; test khóa (§2/§9) | Bằng chứng phụ thuộc trước split; duplicate/EDA policy; calibration on/off/method/folds; refit policy; quyền test cuối riêng | Phê duyệt một phần |
+| A5 | A5.1–A5.7 (§2/§9): nội suy AI4I và công khai exposure; audit sáu X/điều kiện dừng; split Test trước 60/20/20 seed42; preprocessing; RF sigmoid 5 train folds shuffle seed42, ensemble=False; không refit Train+Val; cổng Test G10 | Quy tắc đã chốt, kiểm tra/triển khai chưa chạy. G3 và quyền config/metadata giao riêng sau merge PR này; group-disjoint nếu có duplicate cần duyệt riêng; B2 thuộc A6; Test cuối cần phê duyệt riêng | Đã phê duyệt A5.1–A5.7; chưa triển khai |
 | A6 | B0/B1/B2/P, B2 τ=0.5, metrics chính/phụ; baseline vi phạm=infeasible (§6/§8) | B1 w/comparator; LR/pipeline/calibration; PR-AUC estimator và zero-denominator/undefined rules | Phê duyệt một phần |
 | A7 | Chỉ W1-G1-C (Codex) và W1-G2-A (Antigravity); lượt này cho phép cập nhật spec và tạo PR (§0) | Các giai đoạn tiếp theo, thay đổi file chung khác, merge/tích hợp và test cuối vẫn chờ chỉ dẫn | Đã phê duyệt |
 
-Trạng thái A7 chỉ áp dụng hai task được nêu, không phê duyệt toàn tuần/lộ trình. W1-G1-A/proposal và các task G3–G10 chưa được kích hoạt bằng quyết định này. Không tự gửi prompt hay khởi chạy Antigravity; chủ dự án điều phối W1-G2-A. Các mục mới đề xuất ở §4–§9 phải được duyệt trước task chạy tương ứng; trạng thái từng giá trị đã phê duyệt không bị mất chỉ vì toàn mục còn chi tiết.
+Trạng thái A7 chỉ áp dụng hai task được nêu, không phê duyệt toàn tuần/lộ trình. W1-G1-A/proposal và các task G3–G10 chưa được kích hoạt bằng quyết định này. Không tự gửi prompt hay khởi chạy Antigravity; chủ dự án điều phối W1-G2-A. Các mục còn đề xuất ở §4–§8 phải được duyệt trước task chạy tương ứng; A5 ở §9 đã được phê duyệt bổ sung về quy tắc, vẫn cần điều kiện thực thi và nhiệm vụ riêng. Trạng thái từng giá trị đã phê duyệt không bị mất chỉ vì toàn mục còn chi tiết.
 
 Mẫu quyết định bổ sung: `A<ID>; chấp nhận/điều chỉnh đề xuất §...; giá trị/quy tắc; phạm vi; ngày; tham chiếu phiên bản`. Không tự đánh dấu Done hoặc sửa task board. Quyết định mới trong chat có giá trị hơn nhãn bootstrap/prompt cũ, nhưng không mở scope ngoài nội dung đã được giao.
+
+Lượt ghi nhận A5 này được chủ dự án cho phép cập nhật cổng A5/G3 trong TASK_BOARD theo §0; không thay đổi A7, không đánh dấu G3 đã thực hiện.
 
 ## 11. Deliverables và cổng nghiệm thu
 
@@ -209,4 +262,4 @@ Mẫu quyết định bổ sung: `A<ID>; chấp nhận/điều chỉnh đề xu�
 
 Giấy phép mã nguồn chưa được chọn; không tự tạo LICENSE. CC BY 4.0 của dataset không quyết định license cho code. Không commit raw data, secrets hoặc artifact lớn; kiểm tra staged diff trước commit.
 
-PR này chỉ sửa `docs/PROJECT_SPEC.md` trên nhánh `codex/reconcile-project-spec-approvals`, base main; không sửa main trực tiếp, roadmap, board, config, source/tests hoặc hai bản review. Không merge/rebase tích hợp, force-push, train, baseline, tối ưu, đọc test để tuning hay tạo kết quả thực nghiệm giả. Bootstrap và việc phê duyệt ngữ nghĩa không tự hoàn tất checkpoint học thuật W1.
+Ghi chú PR lịch sử ngày 2026-10-21: chỉ sửa `docs/PROJECT_SPEC.md` trên nhánh `codex/reconcile-project-spec-approvals`; không sửa main trực tiếp, roadmap, board, config, source/tests hoặc hai bản review. Nhiệm vụ hiện tại ngày 2026-10-23 chỉ cập nhật ba tài liệu tại §0 trên nhánh `codex/record-a5-approval`, từ `origin/main` sau PR #6. Không merge/rebase tích hợp, force-push, tạo split, code pipeline, train, baseline, tối ưu, đánh giá Test hay tạo kết quả thực nghiệm giả. Checkpoint sản phẩm W1 đã được ghi nhận qua PR #6; phê duyệt A5 không tự hoàn tất G3.
