@@ -8,7 +8,7 @@ Chỉ dẫn chat ngày 2026-10-25 “PHÊ DUYỆT CHUYỂN ĐỔI DATASET – NH
 
 Đã fetch `origin/main`; [PR #11](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/11) có `merged=true`, merge SHA **`cea27fb004fd2761c12d6a055d420c8b8c95bddb`** (2026-10-23 16:33:12 UTC). Nhánh P0 `codex/p0-scania-migration-review` tạo trực tiếp từ mốc này. Đây là mốc Git bảo toàn G1–G4 AI4I, không cần di chuyển/đổi tên/xóa sản phẩm cũ để chuyển dataset chính.
 
-Đã đọc AGENTS, PROJECT_SPEC, TASK_BOARD, ROADMAP, prompt Codex, Issue #2 và các tài liệu G1–G4: formulation/cost review, project proposal, dictionary/EDA, experimental protocol, G4 review/config/code/tests/logs. Kiểm kê theo **72 file tracked tại mốc main trên**, không kiểm kê bằng cách mở raw/processed. Không có tài liệu Scania hoặc bảng S1–S10 độc lập trong cây tracked/Issue #2 được đọc ở P0. Bảng §2 là **chỉ mục đối chiếu P0 theo thứ tự 10 định hướng trong chỉ dẫn hiện tại**, không tái tạo nguyên văn hoặc khẳng định số mục của một kế hoạch bên ngoài chưa được cung cấp.
+Đã đọc AGENTS, PROJECT_SPEC, TASK_BOARD, ROADMAP, prompt Codex, Issue #2 và các tài liệu G1–G4: formulation/cost review, project proposal, dictionary/EDA, experimental protocol, G4 review/config/code/tests/logs. Kiểm kê theo **72 file tracked tại mốc main trên**, không kiểm kê bằng cách mở raw/processed; cây tracked ở mốc này chưa có tài liệu Scania. Khi hoàn tất bàn giao đã đọc thêm báo cáo P0-A của Antigravity tại Issue #2 (§3.1). Chưa tìm thấy bảng S1–S10 gốc độc lập. Bảng §2 là **chỉ mục đối chiếu P0 theo thứ tự 10 định hướng trong chỉ dẫn hiện tại**, không tái tạo nguyên văn hoặc khẳng định số mục của một kế hoạch bên ngoài chưa được cung cấp.
 
 PROJECT_SPEC/ROADMAP/README/TASK_BOARD hiện còn nội dung AI4I và một số trạng thái trước G4; P0 ghi nhận khác biệt, không sửa ngầm. Phê duyệt chat mới xác lập hướng Scania, không làm cho runner AI4I hiện tại tự trở thành runner Scania. Trạng thái G4 trong board cũ không phủ nhận bằng chứng merge PR #11.
 
@@ -46,6 +46,17 @@ Nguồn chính xem ngày 2026-10-25: [UCI dataset421](https://archive.ics.uci.ed
 Không dùng số liệu leaderboard hoặc nhãn/phân bố Test từ bài viết/mirror làm tiêu chí thiết kế. Test công khai không có nghĩa được phép khảo sát. P0 chỉ xem trang metadata/API docs, không mở official Test; điều này không chứng minh mọi người chưa từng xem Test hoặc rằng dữ liệu được thu thập theo một thiết kế prospective/time split.
 
 Truy cập mô tả `.txt` riêng qua web gặp lỗi decode; metadata endpoint không truy cập được bằng công cụ web. Các kết luận bảng trên dựa vào phần mô tả hiển thị trên hai trang UCI, không tuyên bố đã đọc file mô tả local hoặc xác thực checksum do UCI công bố. Hash/bytes/version local đều **CHƯA XÁC MINH**.
+
+### 3.1. Đối chiếu báo cáo P0-A của Antigravity tại Issue #2
+
+Khi hoàn tất PR P0 đã đọc thêm [báo cáo P0-A](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6394297738), tự mô tả là review nguồn/read-only. Đây là đầu vào đối chiếu, không phải phê duyệt bổ sung từ chủ dự án; Codex không sửa báo cáo hoặc worktree Antigravity.
+
+- Thống nhất về UCI421/target APS/cost10FP+500FN và giữ Test. Báo cáo không kèm CSV hash, audit script hoặc log kiểm đếm local; các phát biểu170 predictors, skip20 dòng comment và tỷ lệ missing>50%/>80% không được chuyển thành audit PASS của Codex. G2 phải xác minh header/preamble/tokens/counts theo bytes thực, không hard-code skip20 chỉ từ review.
+- Đề xuất drop cột thiếu/zero-variance và kết luận model ngưỡng0.5 sẽ thất bại chưa là quyết định hoặc kết quả Scania đã chạy. Giữ T5/T6/T7 ở trạng thái đề xuất, không tự thêm feature selection/class weighting/tuning; mọi tỷ lệ/hiệu quả cần nguồn hoặc audit/run có provenance phù hợp.
+- Kế hoạch EDA/association screening trên toàn official Train60000 trong P0-A cần tách khỏi Train48000 sau split: integrity/duplicate/count audit có thể cần60000, nhưng học preprocessing, chọn cột/threshold và khảo sát nhãn phục vụ chọn model chỉ dùng Train48000 (hoặc train folds tương ứng). Không dùng Validation12000 để fit/feature selection. Tỷ lệ48000/12000/seed42 đã được chủ dự án duyệt, không chờ chọn lại giữa holdout và K-fold.
+- P0-A gợi ý bàn giao vào `docs/data_dictionary.md`/`docs/eda_findings.md` hiện là AI4I; đề nghị giao Antigravity path Scania riêng ở §8 để bảo tồn S2. Các diễn giải kinh tế chi tiết trong báo cáo không thay thế benchmark cost hoặc chứng minh hóa đơn/cứu hộ/horizon thật của từng hàng.
+
+Các điểm này là đề xuất điều phối cho chủ dự án, không phải yêu cầu gửi việc hoặc tự kích hoạt/sửa sản phẩm AI kia. Cần đối chiếu trong nhiệm vụ G1/G2 riêng sau nghiệm thu P0.
 
 ## 4. Formulation Scania và thay đổi ngữ nghĩa
 
