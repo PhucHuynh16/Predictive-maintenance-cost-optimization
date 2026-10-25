@@ -1,0 +1,77 @@
+=== SCANIA APS SOURCE AUDIT EXECUTION LOG (TASK SC-G2-A) ===
+Execution Date: 2026-10-25 (Asia/Saigon)
+Executor: Antigravity (Data Audit Specialist)
+Branch: antigravity/sc-g2-source-audit
+Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
+
+[STEP 1: ACQUISITION & PROVENANCE VERIFICATION]
+- Source: UCI Machine Learning Repository (Dataset ID: 421)
+- Source URL: https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks
+- DOI: 10.24432/C51S51
+- Final Download URL: https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip
+- Download Timestamp (UTC): 2026-10-25T08:37:03.366093+00:00
+- Archive File: aps+failure+at+scania+trucks.zip (56,618,034 bytes)
+  SHA-256: 5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89
+- Extracted Files (Train & Description only; Test strictly sealed inside archive):
+  * aps_failure_description.txt (4,874 bytes)
+    SHA-256: 57b1eb3c551a678ffc1c8112e5b34c566dd16457642563f58aeb3ca65beeb820
+  * aps_failure_training_set.csv (44,669,194 bytes)
+    SHA-256: bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da
+  * aps_failure_test_set.csv (11,943,558 bytes): SEALED inside zip, NOT extracted, NOT parsed, NOT evaluated.
+- Provenance Status: VERIFIED & SEALED.
+
+[STEP 2: PREAMBLE & HEADER AUDIT]
+- Preamble lines count: 20 lines (containing Scania CV AB GPLv3 copyright notice and divider).
+- Header line: Line 21 (0-based index 20).
+- Header structure: 171 comma-separated columns.
+  First column: 'class' (Target).
+  Next 170 columns: Operational attributes 'aa_000' to 'eg_000'.
+- Encoding: UTF-8 / ASCII compatible.
+
+[STEP 3: DATA ROWS & TARGET AUDIT]
+- Total data rows read: 60,000 rows.
+- Malformed rows: 0 rows.
+- Target column name: 'class'.
+- Target classes observed:
+  * 'neg': 59,000 rows (98.33%) -> mapped to 0.
+  * 'pos': 1,000 rows (1.67%) -> mapped to 1.
+- Class imbalance ratio: 59.00 : 1.
+- Target tokens validation: 100% PASS (no missing, no unknown tokens).
+
+[STEP 4: MISSINGNESS & FEATURE PROFILE AUDIT]
+- Missing token: strictly 'na'.
+- Total missing values: 850,015 values (8.33% of total 10,200,000 feature cells).
+- Features with 0% missing: 1 feature ('aa_000').
+- Features with 100% all-missing: 0 features.
+- Features with >50% missing: 8 features ('br_000', 'bq_000', 'bp_000', 'bo_000', 'ab_000', 'cr_000', 'bn_000', 'bm_000').
+- Features with >70% missing: 7 features ('br_000', 'bq_000', 'bp_000', 'bo_000', 'ab_000', 'cr_000', 'bn_000').
+- Features with >80% missing: 2 features ('br_000' [82.11%], 'bq_000' [81.20%]).
+- Constant (zero-variance) features among observed: 1 feature ('cd_000' = 1209600.0 for 59,324 observed rows, 676 missing).
+- Row missingness:
+  * Rows with all 170 features missing: 0 rows.
+  * Min missing per row: 0 features.
+  * Max missing per row: 168 features.
+
+[STEP 5: EXACT-X DUPLICATE & LABEL CONFLICT AUDIT (P03)]
+- Scope: Exact-X matching on all 170 parsed numeric values + missing mask, excluding target 'class' and source_row_id.
+- Total unique feature patterns: 60,000 patterns across 60,000 rows.
+- Duplicate groups (size >= 2): 0 groups.
+- Total rows involved in duplicates: 0 rows.
+- Surplus duplicate rows: 0 rows.
+- Conflicting label groups: 0 groups.
+- Decision Gate P03 Status: PASSED (No duplicates or label conflicts detected).
+
+[STEP 6: HISTOGRAM FEATURE GROUP AUDIT]
+- Verified 7 histogram feature families (10 bins each, 000 to 009):
+  1. 'ag_000' to 'ag_009'
+  2. 'ay_000' to 'ay_009'
+  3. 'az_000' to 'az_009'
+  4. 'ba_000' to 'ba_009'
+  5. 'cn_000' to 'cn_009'
+  6. 'cs_000' to 'cs_009'
+  7. 'ee_000' to 'ee_009'
+  Total histogram features: 70 features. Single numerical counters: 100 features.
+
+[SUMMARY & READINESS GATES]
+- READY FOR SCANIA G2 REVIEW: YES
+- READY FOR SCANIA G3: YES (Integrity and P03 duplicate checks fully satisfied; pending Owner review of findings).
