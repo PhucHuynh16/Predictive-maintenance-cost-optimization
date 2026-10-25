@@ -181,3 +181,42 @@ Chủ dự án có thể duyệt từng hàng và ghi rõ phần còn treo. “�
 Mẫu nội dung phê duyệt bằng văn bản: `A<ID>; duyệt/điều chỉnh/chờ; lựa chọn và giá trị cụ thể; ngày; tham chiếu phiên bản; task/file mở tiếp`. Có thể duyệt ngữ nghĩa trước rồi bổ sung bảng kịch bản/search space; phần thiếu vẫn khóa việc chạy liên quan.
 
 Sau nghiệm thu review, đề xuất chủ dự án ghi W1-G1-C “đã bàn giao, chờ nghiệm thu/phê duyệt” bằng cơ chế trạng thái do chủ dự án chọn; chưa tự chuyển Done. Task dữ liệu/proposal và task triển khai kế tiếp cần được giao riêng. Tài liệu [cost model review](cost_model_review.md) cung cấp API, test matrix và checklist kiểm chứng trước khi mở code.
+
+---
+
+## Phụ lục P0 — phân tích chuyển sang Scania APS (2026-10-25)
+
+**Phần AI4I phía trên được giữ nguyên như review lịch sử.** Các nhận định “chưa duyệt/chưa triển khai” trong đó phản ánh ngày viết, không phủ nhận các phê duyệt/kết quả AI4I G1–G4 sau đó. Chủ dự án hiện phê duyệt Scania làm dataset chính, bảo tồn AI4I, và chỉ giao **Migration Impact Review P0**, chưa giao thực thi Scania G1/G2.
+
+Quyền append phụ lục này và tạo [scania_migration_plan.md](scania_migration_plan.md) đến từ chỉ dẫn chat “PHÊ DUYỆT CHUYỂN ĐỔI DATASET – NHIỆM VỤ P0”, ngày 2026-10-25 (Asia/Saigon). Không sửa PROJECT_SPEC/TASK_BOARD/ROADMAP, code/tests/config hoặc dữ liệu. Main đã tích hợp PR #11 tại `cea27fb004fd2761c12d6a055d420c8b8c95bddb`; mọi kết quả AI4I giữ nguyên dataset/objective/provenance cũ, không tái gắn nhãn Scania.
+
+### P0.1. Target, đơn vị và giới hạn
+
+Nguồn dự kiến [APS Failure at Scania Trucks, UCI421](https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks), DOI [10.24432/C51S51](https://doi.org/10.24432/C51S51), đã đối chiếu metadata ngày 2026-10-25; **chưa tải/audit CSV**. Mapping đề xuất `pos→1`, `neg→0` phải khớp tokens thật. Neg là lỗi ngoài APS, không đồng nghĩa xe khỏe. Một hàng được chấm như một quan sát nguồn, không giả định timestamp, horizon dự báo hay xe độc lập. `a=1` là dự đoán dương/đề xuất kiểm tra APS; không chứng minh bảo trì đã tránh được lỗi.
+
+### P0.2. Objective đã được chủ dự án phê duyệt cho Scania
+
+```text
+FP = Σ(1-y_i)*a_i; FN = Σy_i*(1-a_i)
+C_APS = 10*FP + 500*FN
+```
+
+TN/TP có cost benchmark0, FP10, FN500. Đây là benchmark misclassification được nguồn mô tả, không phải hóa đơn doanh nghiệp hoặc mô hình can thiệp có η. **Không** thay objective AI4I bằng cách đặt C_PM=10,C_F=500,η=1: khi đó TP vẫn tốn10, sai công thức Scania. Biến đổi đại số đúng là `C_APS=10*M+500*P-510*TP`, với M=Σa và P=Σy. B0 toàn a0 có cost500P; saving là chênh so cùng B0/partition/cost model, có thể âm. Đề xuất tiếp tục null/reason khi mẫu số saving%=0.
+
+Ví dụ tính tay cho test tương lai, **không phải kết quả Scania**: y=[0,1,1,0], a=[1,0,1,0] có FP1,FN1,TP1,TN1 nên cost510. Không so cost này hoặc cost Scania thật với1360/1022/1169 của AI4I như cùng objective/thang đo.
+
+### P0.3. Decision space, capacity và dữ liệu
+
+Đã duyệt: RF là mô hình chính; capacity tối đa10%; official Train60000 chia stratified thành48000/12000, seed42; official Test16000 giữ tới G10; missing/preprocessing Train-only; baseline B0/B1 DecisionStump/B2 LR; tests/provenance/tái lập bắt buộc.
+
+Đề xuất cụ thể hóa Scania: `x=(h,τ)`, p lớp APS1, `a=1[p>=τ]`, τ∈[0,1], K=N//10 toàn partition, giữ exact ties/không top-k. Candidate thresholds, no-feasible, tie-break, metric null/reason và baseline infeasible cần ghi rõ phạm vi Scania trước code/chạy; không tự coi mọi chi tiết A3/A6 AI4I đã chuyển sang dataset mới. Official Test không nằm trong API split/fit hoặc EDA G1–G4. Chỉ chia official Train một lần80/20 theo source order khi audit đủ, không trộn hai file nguồn rồi chia60/20/20.
+
+Capacity là giả định nguồn lực đồ án bổ sung vào benchmark cost, không phải constraint được UCI xác nhận cho vận hành xe tải. Các feature ẩn danh/missing cần schema/parser/imputer mới; không có cơ sở chuyển rule Tool wear>=200, Type/OHE, UDI hoặc cơ chế lỗi AI4I sang Scania. B1 stump là mô hình học trên Train, có probability score thật nếu thiết kế dùng predict_proba, khác heuristic AI4I không có probability model.
+
+### P0.4. Chi tiết còn cần quyết định và trình tự
+
+Các đề xuất T1–T10 trong [kế hoạch P0](scania_migration_plan.md) ghi rõ parser/hash/feature count, duplicate/conflicting-label stop gate, source-row IDs, missing toàn cột/hàng/median/indicators, full stump/LR params và comparator p=0.5, calibration/refit/weighting, metrics/feasibility, namespace/quyền và H/budget về sau. Không suy ra số predictor từ dòng “171 features” khi nguồn đồng thời mô tả171 attributes gồm class; audit mới xác nhận.
+
+P0 đề nghị giữ nguyên mọi path/kết quả AI4I, tạo namespace Scania riêng; cập nhật file chung chỉ qua task được cấp quyền. Chủ dự án nghiệm thu P0 → giao Scania G1 để chốt formulation/protocol và G2 acquisition/audit → xử lý các điều kiện dừng → G3 split/preprocessing/tests → G4 cost/constraints tests PASS trước baseline thật. Antigravity nhận proposal/EDA/dictionary/figures Scania riêng khi được chủ dự án giao; Codex không tự sửa sản phẩm hoặc kích hoạt AI kia.
+
+Chỉ đọc metadata không chứng minh Test hoàn toàn chưa được xem xét, dữ liệu độc lập hay đánh giá theo thời gian. Thiếu timestamp/group/horizon và nhãn neg ngoài APS phải được công khai; không tuyên bố tiết kiệm tiền thật hoặc hiệu quả can thiệp. P0 không tải/raw audit/split/fit/baseline/optimization/Test, không tạo kết quả Scania. Tiêu chí nghiệm thu, inventory hàm/file, risk/stop gates và trạng thái sẵn sàng giao G1/G2 ở [kế hoạch chi tiết](scania_migration_plan.md).
