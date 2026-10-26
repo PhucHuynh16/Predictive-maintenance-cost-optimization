@@ -66,6 +66,12 @@
     "failed_subcases": 0,
     "all_tests_passed": true
   },
+  "g2_gate_logic_tests_audit": {
+    "total_tests": 12,
+    "passed_tests": 12,
+    "failed_tests": 0,
+    "all_tests_passed": true
+  },
   "protocol_gates": {
     "p01_integrity_pass": true,
     "p03_duplicates_found": false,

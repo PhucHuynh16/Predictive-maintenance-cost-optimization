@@ -50,7 +50,8 @@ Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
 - Counter features: 100.
 
 [STEP 7: SYNTHETIC EDGE-CASE TESTS]
-- Synthetic Edge-case tests: 12 groups, 17 subcases (All 17 subcases PASS, 0 FAIL).
+- Data Edge-case tests: 12 groups, 17 subcases (All 17 subcases PASS, 0 FAIL).
+- G2 Gate Logic unit tests: 12 tests (All 12 tests PASS, 0 FAIL).
 
 [SUMMARY & READINESS GATES]
 - READY FOR SCANIA G2 REVIEW: YES

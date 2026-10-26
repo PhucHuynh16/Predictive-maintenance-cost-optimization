@@ -185,6 +185,27 @@ Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với �
 > - **Cơ chế nghiệm thu nghiêm ngặt:** Toàn bộ 17 ca con đều nằm trong điều kiện nghiệm thu `assert all(t['conclusion'] == 'PASS')`, hoàn toàn không loại trừ Ca 12 hay bất kỳ ca nào.
 > - **Xác minh cơ chế bắt lỗi của Harness (Negative Self-Verification):** Đã kiểm chứng độc lập một trường hợp giả lập lỗi (`actual != expected`) để chứng minh hệ thống gắn cờ `FAIL` thật sự khi có sai lệch ngoài dự kiến, không nuốt lỗi.
 
+### 8.2. Kiểm thử Đơn vị Logic Cổng Kỹ thuật G2 (12 Unit Tests)
+
+Để kiểm chứng toàn diện tính chính xác của hàm quyết định trạng thái `compute_g2_technical_gate_status()` trước mọi kịch bản biên và các trạng thái đầu vào dị dạng, một bộ kiểm thử đơn vị độc lập gồm **12 unit tests** đã được thực thi:
+
+| Mã Test | Mô tả kịch bản kiểm thử | Trạng thái kỳ vọng | Trạng thái thực tế | Kết luận |
+|---|---|---|---|:---:|
+| **TG-01** | Tất cả điều kiện đạt chuẩn, P03 `PASSED`, nguồn và bằng chứng xác minh | `PASS` | `PASS` | **PASS** |
+| **TG-02** | P03 `BLOCKED` khi mọi cổng kiểm toán khác đều đạt | `BLOCKED` | `BLOCKED` | **PASS** |
+| **TG-03** | Kiểm tra toàn vẹn nhị phân P01 thất bại (`False`) | `FAIL` | `FAIL` | **PASS** |
+| **TG-04** | Thiếu bằng chứng kiểm toán bắt buộc (`mandatory_checks_verified=False`) | `NOT_VERIFIED` | `NOT_VERIFIED` | **PASS** |
+| **TG-05** | Xung đột ưu tiên: vừa có lỗi bắt buộc vừa có P03 `BLOCKED` (`FAIL` ưu tiên) | `FAIL` | `FAIL` | **PASS** |
+| **TG-06a**| P03 nhận trạng thái lạ không hợp lệ (`'UNKNOWN'`) | `FAIL` | `FAIL` | **PASS** |
+| **TG-06b**| P03 nhận giá trị rỗng / `None` | `FAIL` | `FAIL` | **PASS** |
+| **TG-06c**| P03 nhận chuỗi rỗng `''` | `FAIL` | `FAIL` | **PASS** |
+| **TG-07** | Có bài kiểm thử biên không đạt (`synthetic_tests_pass=False`) | `FAIL` | `FAIL` | **PASS** |
+| **TG-08** | Nguồn bắt buộc Train CSV chưa được xác minh live | `NOT_VERIFIED` | `NOT_VERIFIED` | **PASS** |
+| **TG-09** | Cổng cấu trúc header schema thất bại (`False`) | `FAIL` | `FAIL` | **PASS** |
+| **TG-10** | Cổng kiểm toán nhãn biến mục tiêu thất bại (`False`) | `FAIL` | `FAIL` | **PASS** |
+
+*Tất cả 12 unit tests của Gate logic đều đạt **PASS 100%**, khẳng định quy tắc ưu tiên $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$ được thực thi nghiêm ngặt, không thể bị ghi đè ngầm.*
+
 ---
 
 ## 9. Các Phát hiện Bất thường cần Chủ dự án Quyết định trước SC-G3-C
