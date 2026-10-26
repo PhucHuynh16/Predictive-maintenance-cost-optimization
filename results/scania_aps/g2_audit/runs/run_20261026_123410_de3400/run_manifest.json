@@ -1,0 +1,13 @@
+{
+  "run_id": "run_20261026_123410_de3400",
+  "lifecycle_state": "COMPLETE",
+  "final_gate_status": "PASS",
+  "timestamp_utc": "2026-10-26T12:34:40.042389+00:00",
+  "artifacts_checksums": {
+    "audit_summary.json": "93158c4375d5c8eafeb4f83831eec75b7222dd148306b90ee3f25f16127f6403",
+    "acquisition_manifest.json": "5fc45ae1f3684c5a23286ebd2830c5e2db8e093bf957a5bf42c7b70f48cd3cc1",
+    "environment.json": "74e6a5e03073dd8e32e2ff512f4f69a76e3c2c6858000e24e7f8524b8c75b723",
+    "feature_profiles.json": "1d9614b5d2b5aa50f72a926fc8468e5ea95e597c5d1baa5e9ddf40ed373c4c4a",
+    "audit_execution.txt": "2d5936cf7df601899549747c378cc853fd0959601c5fed74437f6ded28aed9e4"
+  }
+}

@@ -1,14 +1,16 @@
 {
   "run_metadata": {
-    "run_id": "run_20261026_112323_7b91d3",
-    "start_timestamp_utc": "2026-10-26T11:23:23.620379+00:00",
-    "end_timestamp_utc": "2026-10-26T11:23:51.676640+00:00",
-    "duration_seconds": 28.06,
-    "git_commit_sha": "2c9b1f3483ce504b51f97ef984eedc5703dcf23e",
+    "run_id": "run_20261026_123410_de3400",
+    "start_timestamp_utc": "2026-10-26T12:34:10.765025+00:00",
+    "end_timestamp_utc": "2026-10-26T12:34:33.178641+00:00",
+    "train_audit_duration_seconds": 20.68,
+    "total_notebook_duration_seconds": 22.41,
+    "execution_base_commit_sha": "d8ea6ba838370d8442d1466cd261589e06f3b73c",
     "git_worktree_clean": false,
+    "git_worktree_note": "Executed in working tree prior to commit. Generated artifacts are staged into subsequent commit.",
     "executor": "Antigravity (Data Audit Specialist)",
     "task_id": "SC-G2-A",
-    "line_ending_convention": "LF in Git repository blobs, CRLF/LF local depending on OS/core.autocrlf"
+    "line_ending_convention": "LF in Git repository blobs, CRLF on local Windows disk"
   },
   "file_audit": {
     "file_name": "aps_failure_training_set.csv",
@@ -86,8 +88,8 @@
     "all_tests_passed": true
   },
   "integration_tests_audit": {
-    "total_tests": 9,
-    "passed_tests": 9,
+    "total_tests": 10,
+    "passed_tests": 10,
     "failed_tests": 0,
     "all_tests_passed": true
   },

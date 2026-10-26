@@ -1,0 +1,17 @@
+{
+  "runs": [
+    {
+      "run_id": "run_20261026_123410_de3400",
+      "timestamp_utc": "2026-10-26T12:34:10.765025+00:00",
+      "duration_seconds": 20.68,
+      "git_commit_sha": "d8ea6ba838370d8442d1466cd261589e06f3b73c",
+      "git_worktree_clean": false,
+      "g2_technical_gate_status": "PASS",
+      "p03_status": "PASSED",
+      "duplicate_groups": 0,
+      "conflicting_groups": 0,
+      "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261026_123410_de3400"
+    }
+  ],
+  "latest_run_id": "run_20261026_123410_de3400"
+}
