@@ -67,7 +67,7 @@ Biến mục tiêu được kiểm toán trên toàn bộ 60.000 dòng dữ li�
 * **Ý nghĩa kỹ thuật:**
   * Nhãn `neg` tương ứng với lớp số học `0`, đại diện cho xe gặp sự cố ở các hệ thống cơ khí/điện khác ngoài hệ thống khí nén.
   * Nhãn `pos` tương ứng với lớp số học `1`, đại diện cho xe bị hỏng hóc thực tế tại một bộ phận thuộc hệ thống khí nén (APS).
-  * Tỷ lệ mẫu dương tính chỉ $1,67\%$ kết hợp với hàm phạt bất đối xứng $\text{Cost}_1 = 10$, $\text{Cost}_2 = 500$ (tỷ số phạt bỏ sót $\text{FN}/\text{FP} = 50 : 1$) khẳng định bài toán phụ thuộc hoàn toàn vào năng lực tối ưu hóa ngưỡng quyết định $\tau$, không thể sử dụng ngưỡng phân loại mặc định $0,5$.
+  * Tỷ lệ mẫu dương tính chỉ $1,67\%$ kết hợp với hàm phạt bất đối xứng $\text{Cost}_1 = 10$, $\text{Cost}_2 = 500$ (tỷ số phạt bỏ sót $\text{FN}/\text{FP} = 50 : 1$) đặt ra một **giả thuyết kỹ thuật cần kiểm chứng ở các giai đoạn sau**: với chi phí phạt FN gấp 50 lần FP, ngưỡng phân loại mặc định $0,5$ có nguy cơ không tối ưu về mặt chi phí kinh tế so với việc tối ưu hóa ngưỡng quyết định $\tau$, cần được đánh giá thực nghiệm chính thức tại G4.
 
 ---
 
@@ -99,7 +99,7 @@ Bảng thống kê 8 thuộc tính có tỷ lệ khuyết thiếu cao nhất:
 | `bm_000` | Counter | 39.549 | **65,92%** | 0.0 | 1.310.700.0 | Chuỗi cảm biến B |
 
 > [!NOTE]
-> Nhóm 6 thuộc tính `bm_000`, `bn_000`, `bo_000`, `bp_000`, `bq_000`, `br_000` có cùng giá trị quan sát cực đại ($1.310.700,0$) và tỷ lệ missing tăng dần từ $65,92\%$ lên $82,11\%$. Đây rõ ràng là một chuỗi cảm biến đo lường liên quan mật thiết đến nhau trong cấu trúc xe Scania.
+> Nhóm 6 thuộc tính `bm_000`, `bn_000`, `bo_000`, `bp_000`, `bq_000`, `br_000` có cùng giá trị quan sát cực đại ($1.310.700,0$) và tỷ lệ missing tăng dần từ $65,92\%$ lên $82,11\%$. Vì toàn bộ thuộc tính đã bị Scania ẩn danh, sự liên quan về mặt vật lý hay cấu trúc cụm cảm biến chỉ là **giả thuyết thống kê chưa được xác minh**, không phải nhận định vật lý đã được kiểm chứng.
 
 ### 4.2. Phân bố khuyết thiếu theo Dòng (Row-wise Missingness)
 * **Số dòng thiếu toàn bộ 170 thuộc tính:** **0 dòng** (không có bản ghi nào hoàn toàn rỗng).
@@ -114,7 +114,7 @@ Kiểm toán trên 170 thuộc tính số học phát hiện **đúng 1 thuộc 
 * **Tên thuộc tính:** `cd_000`
 * **Giá trị quan sát:** Duy nhất một giá trị số **`1.209.600,0`** xuất hiện trên **59.324 dòng** (chiếm **98,87%** tập Train).
 * **Số ô khuyết thiếu (`na`):** **676 ô** (chiếm **1,13%**).
-* **Nhận xét kỹ thuật:** Đối với 59.324 quan sát có dữ liệu, thuộc tính này hoàn toàn không có độ biến thiên (zero variance). Giá trị `1.209.600` tương ứng chính xác với số giây trong 14 ngày ($14 \times 24 \times 3600 = 1.209.600$), nhiều khả năng là một tham số chu kỳ quét mặc định (default scan window / watchdog timer) của hệ thống điều khiển Scania. Thuộc tính này không mang lại giá trị phân tách thông tin cho các mô hình học máy dạng tuyến tính hoặc cây quyết định.
+* **Nhận xét kỹ thuật:** Đối với 59.324 quan sát có dữ liệu, thuộc tính này hoàn toàn không có độ biến thiên (zero variance). Con số `1.209.600` tình cờ bằng số giây trong 14 ngày ($14 \times 24 \times 3600$), tuy nhiên đây chỉ là **giả thuyết số học chưa xác minh**, hoàn toàn không có tài liệu kỹ thuật nào từ Scania xác nhận đây là chu kỳ quét hay watchdog timer. Về mặt học máy, thuộc tính này không mang lại phương sai phân tách cho các mô hình khi chỉ xét trên tập các giá trị quan sát được.
 
 ---
 

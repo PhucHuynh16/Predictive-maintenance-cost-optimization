@@ -3,7 +3,7 @@
     "file_name": "aps_failure_training_set.csv",
     "file_size_bytes": 44669194,
     "sha256": "bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da",
-    "encoding": "utf-8",
+    "encoding": "Standard UTF-8 / ASCII (No BOM)",
     "preamble_lines_count": 20,
     "header_row_0based_index": 20,
     "header_columns_count": 171,
