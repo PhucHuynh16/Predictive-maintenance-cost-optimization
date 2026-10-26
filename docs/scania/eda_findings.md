@@ -206,6 +206,42 @@ Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với �
 
 *Tất cả 12 unit tests của Gate logic đều đạt **PASS 100%**, khẳng định quy tắc ưu tiên $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$ được thực thi nghiêm ngặt, không thể bị ghi đè ngầm.*
 
+### 8.3. Kiểm thử Tích hợp Toàn diện Quy trình Kiểm toán (9 Integration Tests - F4)
+
+Đáp ứng đầy đủ khuyến nghị F4 từ báo cáo Codex, bộ kiểm thử tích hợp thực chất này kiểm chứng toàn bộ chu trình $\text{Input} \rightarrow \text{Parser} \rightarrow \text{Audit} \rightarrow \text{Gate} \rightarrow \text{Artifact Export} \rightarrow \text{Final Status}$ trên fixtures tổng hợp độc lập (in-memory và temporary directory):
+
+| Mã Test | Mô tả Kịch bản Kiểm thử Tích hợp | Trạng thái Kỳ vọng | Kết luận |
+|:---:|---|:---:|:---:|
+| **IT-01** | E2E Pipeline trên dữ liệu sạch $\rightarrow$ Trạng thái `PASS` & Xuất đủ 5 artifacts | `PASS` | **PASS** |
+| **IT-02** | E2E Pipeline trên dữ liệu Duplicate cùng nhãn $\rightarrow$ Trạng thái `BLOCKED`, không crash, xuất đầy đủ thông tin duplicate | `PASS` | **PASS** |
+| **IT-03** | E2E Pipeline trên dữ liệu Xung đột nhãn $\rightarrow$ Trạng thái `BLOCKED`, không crash, xuất đầy đủ nhóm xung đột và ID dòng | `PASS` | **PASS** |
+| **IT-04** | E2E Pipeline dữ liệu hỏng Schema / Token cấm $\rightarrow$ Bị từ chối dừng tại cổng (`FAIL`) | `PASS` | **PASS** |
+| **IT-05** | E2E Pipeline thiếu bằng chứng bắt buộc $\rightarrow$ Cổng trả về `NOT_VERIFIED` | `PASS` | **PASS** |
+| **IT-06** | Run Preservation: Chạy Run A (`PASS`) rồi Run B (`BLOCKED`), cả hai run đều được lưu độc lập, Run A không bị ghi đè | `PASS` | **PASS** |
+| **IT-07** | Atomic Safe Write: Giả lập lỗi ghi giữa chừng, tệp đích không bị hỏng, tệp tạm `.tmp` được dọn sạch | `PASS` | **PASS** |
+| **IT-08** | Synthetic Feature Profiling Accuracy: Kiểm toán chính xác min, max, mean, missing rate và zero-variance | `PASS` | **PASS** |
+| **IT-09** | Negative Integration Harness Verification: Xác nhận harness phát hiện và báo lỗi thật khi có sai lệch giả lập | `PASS` | **PASS** |
+
+*Tổng kết Integration Tests:* **9/9 tests đạt PASS 100%**.
+
+### 8.4. Kiến trúc Bảo toàn Bằng chứng Lượt chạy (Run Preservation Architecture - F2 & F3)
+
+- **Cấu trúc lưu trữ độc lập theo Run:** Mỗi lần thực thi notebook sinh ra một `run_id` duy nhất (ví dụ `run_20261026_112323_7b91d3`). Toàn bộ 5 artifacts của run đó được lưu trữ bất biến tại thư mục `results/scania_aps/g2_audit/runs/<run_id>/`.
+- **Mục lục lịch sử các lượt chạy (`runs_index.json`):** Ghi nhận có hệ thống thông tin mọi lượt chạy gồm `run_id`, timestamp UTC, runtime đo thật, commit SHA, trạng thái worktree, trạng thái Cổng G2 và Cổng P03.
+- **Cơ chế ghi an toàn (Atomic Write):** Toàn bộ tệp xuất bản đều được ghi qua tệp tạm `.tmp` trước khi đổi tên nguyên tử (`os.replace()`), hỗ trợ chế độ exclusive write để chống ghi đè lên các tệp đã có.
+- **Quy ước Line Ending (LF vs CRLF):** Tài liệu quy định rõ: Git blob chuẩn hóa xuống dòng LF; trên môi trường Windows làm việc cục bộ, tệp text có thể lưu CRLF. Mã băm SHA-256 đối chiếu nội dung chuẩn hóa (decoded content) là đồng nhất tuyệt đối.
+
+### 8.5. Rà soát Riêng tư & Lịch sử Git (Privacy Audit - F5)
+
+Đã tiến hành rà soát chuyên sâu toàn bộ các commit của PR #14 (`origin/main..HEAD`):
+1. **Kiểm toán Bí mật & Thông tin Nhạy cảm cao:** Xác nhận **100% KHÔNG có API key, token, credentials, hay password nào** trong bất kỳ commit nào của PR.
+2. **Các Commit từng chứa Đường dẫn Cá nhân Cục bộ:**
+   - Commit `fde5004` (commit đầu tiên của PR) và `b9176c3`: Chứa đường dẫn máy cá nhân cục bộ (`D:\Năm 3\...`) trong `00_source_audit.ipynb` và `environment.json`.
+   - Commit `e50afdf`: Chứa đường dẫn máy cá nhân trong notebook outputs.
+   - Commit `2d8586b` và các commit tiếp theo: Đã khử sạch hoàn toàn, thay thế bằng `<workspace_root>`.
+3. **Hiện trạng tại HEAD:** Tất cả các tệp tại HEAD commit **SẠCH 100%**, không chứa bất kỳ đường dẫn cá nhân nào.
+4. **Quy định xử lý:** Tuân thủ quy định không force-push hay rewrite Git history của PR. Khi Chủ dự án nghiệm thu, tính năng **"Squash and merge"** của GitHub sẽ gộp PR thành 1 commit duy nhất sạch sẽ trên `main`. Nếu Chủ dự án muốn xóa sạch dấu vết trong ref PR cũ trên GitHub, cần sự can thiệp từ quản trị viên repository bằng công cụ chuyên dụng (`git-filter-repo`).
+
 ---
 
 ## 9. Các Phát hiện Bất thường cần Chủ dự án Quyết định trước SC-G3-C
@@ -235,12 +271,12 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
 * **Độ đầy đủ sản phẩm bàn giao G2:**
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
   * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21 (0-based index 20), xác nhận 1 cột `class` và 170 cột đặc trưng số học.
-  * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md`.
-  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với các hàm validator dùng chung cho cả dữ liệu thật và 17 ca kiểm thử biên.
-  * Đã lưu trữ toàn bộ logs, summary JSON và snapshot môi trường đã khử sạch thông tin cá nhân tại `results/scania_aps/g2_audit/**`.
+  * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md` kèm ghi chú làm tròn, giới hạn float64 và ranh giới dữ liệu ẩn danh.
+  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với luồng điều phối có kiểm soát, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên, 12 unit tests cổng logic và 9 bài integration tests end-to-end.
+  * Đã lưu trữ toàn bộ logs, summary JSON và snapshot môi trường đã khử sạch thông tin cá nhân tại `results/scania_aps/g2_audit/**` và `results/scania_aps/g2_audit/runs/**`.
 * **Cơ chế tính toán Cổng Kỹ thuật G2:**
   * Trạng thái cổng kỹ thuật được tính toán động theo quy tắc ưu tiên nghiêm ngặt: $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$.
-  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và 17 ca kiểm thử biên đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
+  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ 38 bài kiểm thử (17 synthetic + 12 gate logic + 9 integration) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
 * **Trạng thái cổng nghiệm thu cuối cùng:**
 
 ```text

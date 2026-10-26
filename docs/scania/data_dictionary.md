@@ -233,3 +233,26 @@ $$\text{source\_row\_id} = (\text{official\_train\_sha256}, \text{"train"}, \tex
 | 168 | `ee_009` | Histogram Bin | float64 | 59,329 | 671 | 1.12% | 0.0 | 3810078.0 | 8388.91 | Bình thường |
 | 169 | `ef_000` | Counter | float64 | 57,276 | 2,724 | 4.54% | 0.0 | 482.0 | 0.09 | Bình thường |
 | 170 | `eg_000` | Counter | float64 | 57,277 | 2,723 | 4.54% | 0.0 | 1146.0 | 0.21 | Bình thường |
+
+---
+
+## 6. Các Giới hạn Kỹ thuật & Nguyên tắc Khoa học Bắt buộc
+
+Nhằm bảo đảm tính trung thực khoa học và tránh ngộ nhận số liệu trong toàn bộ dự án:
+
+1. **Quy ước Làm tròn và Hiển thị Thống kê (Display Rounding vs Machine Precision):**
+   - Các số liệu trong Bảng Từ điển ở Mục 5 (như tỷ lệ %, giá trị trung bình `mean`, giá trị cực đại `max`) được **làm tròn số thập phân** phục vụ mục đích trình bày trực quan trên Markdown.
+   - Toàn bộ tính toán trong mã nguồn kiểm toán và học máy sử dụng độ chính xác dấu phẩy động 64-bit nguyên bản (`float64`, IEEE 754). Hồ sơ chi tiết đầy đủ không làm tròn được lưu trữ tại `results/scania_aps/g2_audit/feature_profiles.json`.
+
+2. **Giới hạn Đối sánh Trùng lặp Exact-X (IEEE 754 Floating-Point Matching):**
+   - Phép kiểm toán trùng lặp exact-X được định nghĩa là sự trùng khớp đẳng thức tuyệt đối (`==`) giữa các vector $X$ gồm các giá trị `float64` đã parse và token khuyết thiếu `None`.
+   - Theo chuẩn IEEE 754, các biểu diễn chuỗi số khác nhau nhưng cùng giá trị toán học (ví dụ `"1"` và `"1.0"`) sau khi parse sẽ ánh xạ về cùng một giá trị số thực 64-bit; token `"na"` ánh xạ về `None`. Không áp dụng dung sai $\epsilon$ trong kiểm toán exact-X.
+
+3. **Ranh giới Khoa học của 170 Đặc trưng Ẩn danh (Anonymized Data Boundaries):**
+   - Toàn bộ 170 thuộc tính vận hành đã bị Scania CV AB ẩn danh hóa vì lý do bảo mật công nghệ độc quyền.
+   - Các tiền tố như `ag`, `ay`, `az`, `ba`, `cn`, `cs`, `ee` được mô tả là các phân bố tần suất tích lũy (Histogram Bins) theo tài liệu UCI IDA 2016, nhưng **không có bất kỳ thông tin nào về loại cảm biến vật lý cụ thể, chu kỳ lấy mẫu, hay thành phần cơ khí liên quan**.
+   - Mọi phân tích trong đồ án này hoàn toàn thuần túy dựa trên các thuộc tính thống kê và tối ưu hóa toán học; nghiêm cấm suy diễn hoặc khẳng định cơ chế vật lý chưa được kiểm chứng.
+
+4. **Bản chất của Đơn vị Chi phí Benchmark IDA 2016 (Cost Units Convention):**
+   - Hàm mục tiêu chi phí $C = 10 \times \text{FP} + 500 \times \text{FN}$ là quy ước đánh giá chuẩn hóa (cost units benchmark) được ban tổ chức cuộc thi Industrial Challenge 2016 thiết lập nhằm phản ánh sự bất cân xứng rủi ro giữa việc kiểm tra thừa (FP = 10 cost units) và sự cố dừng xe trên đường (FN = 500 cost units).
+   - Đơn vị này là **điểm chi phí tối ưu hóa (cost units)**, không đại diện trực tiếp cho một đơn vị tiền tệ thực tế (như USD, EUR hay VND). Tuyệt đối không quy đổi cost units thành số tiền tiết kiệm tài chính cụ thể.

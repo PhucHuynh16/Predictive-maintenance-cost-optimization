@@ -1,8 +1,12 @@
 === SCANIA APS SOURCE AUDIT EXECUTION LOG (TASK SC-G2-A) ===
-Execution Date: 2026-10-26 (Asia/Saigon)
+Run ID: run_20261026_112323_7b91d3
+Start Time (UTC): 2026-10-26T11:23:23.620379+00:00
+End Time (UTC):   2026-10-26T11:23:51.676640+00:00
+Execution Duration: 28.06 seconds
 Executor: Antigravity (Data Audit Specialist)
 Branch: antigravity/sc-g2-source-audit
-Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
+Git Commit SHA: 2c9b1f3483ce504b51f97ef984eedc5703dcf23e
+Git Worktree Clean: False
 
 [STEP 1: ACQUISITION & PROVENANCE VERIFICATION]
 - Source: UCI Machine Learning Repository (Dataset ID: 421)
@@ -49,9 +53,10 @@ Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
 - Histogram features: 70 (7 families x 10 bins).
 - Counter features: 100.
 
-[STEP 7: SYNTHETIC EDGE-CASE TESTS]
+[STEP 7: SYNTHETIC TESTS (EDGE CASES, G2 GATE LOGIC & INTEGRATION)]
 - Data Edge-case tests: 12 groups, 17 subcases (All 17 subcases PASS, 0 FAIL).
 - G2 Gate Logic unit tests: 12 tests (All 12 tests PASS, 0 FAIL).
+- Integration tests (E2E): 9 tests (All 9 tests PASS, 0 FAIL).
 
 [SUMMARY & READINESS GATES]
 - READY FOR SCANIA G2 REVIEW: YES

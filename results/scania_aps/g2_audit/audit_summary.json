@@ -1,4 +1,15 @@
 {
+  "run_metadata": {
+    "run_id": "run_20261026_112323_7b91d3",
+    "start_timestamp_utc": "2026-10-26T11:23:23.620379+00:00",
+    "end_timestamp_utc": "2026-10-26T11:23:51.676640+00:00",
+    "duration_seconds": 28.06,
+    "git_commit_sha": "2c9b1f3483ce504b51f97ef984eedc5703dcf23e",
+    "git_worktree_clean": false,
+    "executor": "Antigravity (Data Audit Specialist)",
+    "task_id": "SC-G2-A",
+    "line_ending_convention": "LF in Git repository blobs, CRLF/LF local depending on OS/core.autocrlf"
+  },
   "file_audit": {
     "file_name": "aps_failure_training_set.csv",
     "file_size_bytes": 44669194,
@@ -57,7 +68,9 @@
     "total_duplicate_rows": 0,
     "surplus_duplicate_rows": 0,
     "conflicting_label_groups_count": 0,
-    "conflicting_groups": []
+    "conflicting_groups": [],
+    "p03_status": "PASSED",
+    "blocking_reason": null
   },
   "synthetic_tests_audit": {
     "total_test_groups": 12,
@@ -69,6 +82,12 @@
   "g2_gate_logic_tests_audit": {
     "total_tests": 12,
     "passed_tests": 12,
+    "failed_tests": 0,
+    "all_tests_passed": true
+  },
+  "integration_tests_audit": {
+    "total_tests": 9,
+    "passed_tests": 9,
     "failed_tests": 0,
     "all_tests_passed": true
   },
