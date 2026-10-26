@@ -1,6 +1,6 @@
 # SC-G2-A — Data Dictionary: APS Failure at Scania Trucks
 
-Ngày lập: **2026-10-25 (Asia/Saigon)**  
+Ngày lập: **2026-10-26 (Asia/Saigon)**  
 Người thực hiện: **Antigravity (Data Audit Specialist)**  
 Nhiệm vụ: **SC-G2-A (Giai đoạn G2 Kiểm toán nguồn)**  
 Mã tham chiếu quyết định: **P01, P03, P10** trong `docs/scania/decision_register.md`  
@@ -17,6 +17,12 @@ Mã tham chiếu quyết định: **P01, P03, P10** trong `docs/scania/decision_
 * **Giấy phép bản quyền:** Creative Commons Attribution 4.0 International (CC BY 4.0) & Scania CV AB GNU General Public License v3 (GPLv3)
 * **Tệp Train được kiểm toán:** `aps_failure_training_set.csv` (44.669.194 bytes, SHA-256: `bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da`)
 * **Tệp Test:** `aps_failure_test_set.csv` (11.943.558 bytes) — Được niêm phong (sealed) bên trong tệp nén gốc `aps+failure+at+scania+trucks.zip` (SHA-256: `5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89`), tuyệt đối không mở hoặc khảo sát trước G10.
+
+> [!IMPORTANT]
+> **Nguyên tắc phân tích dữ liệu ẩn danh & Đơn vị chi phí:**
+> - Toàn bộ 170 đặc trưng vận hành đã bị Scania ẩn danh hoàn toàn. Mọi phân loại ('Histogram Bin' hay 'Counter') chỉ phản ánh cấu trúc số học và tên gọi từ nguồn UCI; không áp đặt bất kỳ suy luận vật lý hay giả định cơ chế cơ học nào.
+> - Đơn vị đánh giá là **cost units** benchmark chuẩn hóa từ cuộc thi IDA 2016 ($10 \times \text{FP} + 500 \times \text{FN}$), không quy đổi thành tiền tệ thực tế (VND/USD).
+> - Nhãn `neg=0` chỉ biểu thị sự cố ngoài hệ thống APS, không đồng nghĩa xe hoàn toàn khỏe mạnh. Dữ liệu không chứa timestamp hay vehicle ID, do đó không đưa ra khẳng định về dự báo trước sự cố theo chuỗi thời gian.
 
 ## 2. Đặc tả Biến Mục tiêu (Target Variable)
 

@@ -152,7 +152,30 @@ Xác thực cấu trúc mô tả của UCI về 7 họ biến histogram (mỗi h
 
 ---
 
-## 8. Các Phát hiện Bất thường cần Chủ dự án Quyết định trước SC-G3-C
+## 8. Kiểm thử các Trường hợp Biên & Dị dạng Tổng hợp (Synthetic Edge-Case Tests)
+
+Nhằm bảo đảm tính vững chắc của bộ parser và kiểm chứng khả năng bắt lỗi trước khi chuyển giao cho Codex, Antigravity đã thực hiện 12 ca kiểm thử biên trên dữ liệu tổng hợp nhỏ độc lập (in-memory fixtures, không gây ô nhiễm tập dữ liệu Scania thật):
+
+| Mã ca kiểm thử | Tình huống biên giả lập | Kết quả kiểm thử | Chi tiết phản ứng của hệ thống |
+|---|---|:---:|---|
+| Case 1 | Dòng header bị thiếu (không có cột `class`) | **PASS** | Bắt lỗi `HEADER_MISSING`, từ chối nạp file |
+| Case 2a | Tên cột bị trùng lặp trong header | **PASS** | Bắt lỗi `DUPLICATE_COLUMN_NAME`, từ chối header |
+| Case 2b | Dòng dữ liệu thiếu/thừa cột (sai chiều rộng) | **PASS** | Bắt lỗi `ROW_WIDTH_MISMATCH`, không nuốt lỗi ngầm |
+| Case 3a | Phát hiện BOM UTF-8 bất thường | **PASS** | Nhận diện byte-order mark bất thường, yêu cầu chuẩn hóa |
+| Case 3b | Byte không thể decode UTF-8 | **PASS** | Strict UTF-8 kích hoạt `UnicodeDecodeError`, không thay byte |
+| Case 4 | Token khuyết thiếu lạ (`null`, `None`, `?`) | **PASS** | Bắt lỗi `INVALID_NUMERIC_TOKEN`, chỉ chấp nhận `"na"` |
+| Case 5 | Nhãn mục tiêu không hợp lệ (khác `pos`/`neg`) | **PASS** | Bắt lỗi `INVALID_TARGET`, không ép nhãn ngầm |
+| Case 6 | Giá trị số `NaN`, `inf`, `-inf`, chuỗi ký tự | **PASS** | `math.isfinite()` từ chối mọi giá trị non-finite |
+| Case 7 | Hai dòng exact-X trùng lặp cùng nhãn | **BLOCKED** | Phát hiện duplicate group $\rightarrow$ Kích hoạt trạng thái `BLOCKED` P03 |
+| Case 8 | Hai dòng exact-X trùng lặp khác nhãn | **BLOCKED** | Phát hiện label conflict $\rightarrow$ Kích hoạt trạng thái `BLOCKED` P03 |
+| Case 9 | Dòng thiếu toàn bộ đặc trưng (all-missing row) | **PASS** | Nhận diện bản ghi thiếu toàn bộ đặc trưng (giữ theo P05) |
+| Case 10 | Cột hằng số & Cột thiếu 100% | **PASS** | Phát hiện chính xác cột zero-variance và cột all-missing |
+| Case 11 | Hợp đồng `source_row_id` và thứ tự dòng | **PASS** | Xác thực tuple 1-based duy nhất, bảo toàn thứ tự nguồn |
+| Case 12 | Sai lệch mã băm tệp raw (tampered file) | **FAIL** | Cổng toàn vẹn nhị phân từ chối tệp không khớp SHA-256 |
+
+---
+
+## 9. Các Phát hiện Bất thường cần Chủ dự án Quyết định trước SC-G3-C
 
 Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ dự án 4 điểm kỹ thuật cần xem xét và ban hành quyết định trước khi giao Codex triển khai SC-G3-C (Data Pipeline):
 
@@ -174,14 +197,15 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
 
 ---
 
-## 9. Đánh giá Trạng thái Nghiệm thu & Sẵn sàng
+## 10. Đánh giá Trạng thái Nghiệm thu & Sẵn sàng
 
 * **Độ đầy đủ sản phẩm bàn giao G2:**
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
   * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21, xác nhận 1 cột `class` và 170 cột đặc trưng số học.
   * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md`.
   * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb`.
-  * Đã lưu trữ toàn bộ logs, summary JSON và snapshot môi trường tại `results/scania_aps/g2_audit/**`.
+  * Đã lưu trữ toàn bộ logs, summary JSON và snapshot môi trường đã khử sạch thông tin cá nhân tại `results/scania_aps/g2_audit/**`.
 * **Trạng thái cổng nghiệm thu:**
   * `READY FOR SCANIA G2 REVIEW: YES`
-  * `READY FOR SCANIA G3: YES` (Dữ liệu Train đạt toàn diện điều kiện P01 & P03; sẵn sàng để Chủ dự án phê duyệt giao nhiệm vụ SC-G3-C cho Codex).
+  * `G2 AUDIT TECHNICAL GATES: PASS`
+  * `READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL`

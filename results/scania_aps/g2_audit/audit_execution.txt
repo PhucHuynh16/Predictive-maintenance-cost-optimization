@@ -9,8 +9,8 @@ Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
 - Source URL: https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks
 - DOI: 10.24432/C51S51
 - Final Download URL: https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip
-- Train File Size: 44669194 bytes
-- Train SHA-256: bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da
+- Train File Size: 44669194 bytes (VERIFIED_LIVE_IN_THIS_RUN)
+- Train SHA-256: bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da (VERIFIED_LIVE_IN_THIS_RUN)
 - Test Set Status: SEALED inside archive, NOT extracted, NOT parsed, NOT evaluated.
 
 [STEP 2: PREAMBLE & HEADER AUDIT]
@@ -49,6 +49,10 @@ Git Commit Base: 6a184cc4093719ff77f65e7303a84d97efe44dbc (PR #13 merge on main)
 - Histogram features: 70 (7 families x 10 bins).
 - Counter features: 100.
 
+[STEP 7: SYNTHETIC EDGE-CASE TESTS]
+- 12 Synthetic Edge-case tests: ALL EXECUTED (PASS / BLOCKED / FAIL correctly differentiated).
+
 [SUMMARY & READINESS GATES]
 - READY FOR SCANIA G2 REVIEW: YES
-- READY FOR SCANIA G3: YES
+- G2 AUDIT TECHNICAL GATES: PASS
+- READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL
