@@ -154,24 +154,36 @@ Xác thực cấu trúc mô tả của UCI về 7 họ biến histogram (mỗi h
 
 ## 8. Kiểm thử các Trường hợp Biên & Dị dạng Tổng hợp (Synthetic Edge-Case Tests)
 
-Nhằm bảo đảm tính vững chắc của bộ parser và kiểm chứng khả năng bắt lỗi trước khi chuyển giao cho Codex, Antigravity đã thực hiện 12 ca kiểm thử biên trên dữ liệu tổng hợp nhỏ độc lập (in-memory fixtures, không gây ô nhiễm tập dữ liệu Scania thật):
+Nhằm bảo đảm tính vững chắc của bộ parser và kiểm chứng khả năng bắt lỗi trước khi chuyển giao cho Codex, Antigravity đã thực hiện kiểm thử trên dữ liệu tổng hợp nhỏ độc lập (in-memory fixtures, không gây ô nhiễm tập dữ liệu Scania thật).
 
-| Mã ca kiểm thử | Tình huống biên giả lập | Kết quả kiểm thử | Chi tiết phản ứng của hệ thống |
-|---|---|:---:|---|
-| Case 1 | Dòng header bị thiếu (không có cột `class`) | **PASS** | Bắt lỗi `HEADER_MISSING`, từ chối nạp file |
-| Case 2a | Tên cột bị trùng lặp trong header | **PASS** | Bắt lỗi `DUPLICATE_COLUMN_NAME`, từ chối header |
-| Case 2b | Dòng dữ liệu thiếu/thừa cột (sai chiều rộng) | **PASS** | Bắt lỗi `ROW_WIDTH_MISMATCH`, không nuốt lỗi ngầm |
-| Case 3a | Phát hiện BOM UTF-8 bất thường | **PASS** | Nhận diện byte-order mark bất thường, yêu cầu chuẩn hóa |
-| Case 3b | Byte không thể decode UTF-8 | **PASS** | Strict UTF-8 kích hoạt `UnicodeDecodeError`, không thay byte |
-| Case 4 | Token khuyết thiếu lạ (`null`, `None`, `?`) | **PASS** | Bắt lỗi `INVALID_NUMERIC_TOKEN`, chỉ chấp nhận `"na"` |
-| Case 5 | Nhãn mục tiêu không hợp lệ (khác `pos`/`neg`) | **PASS** | Bắt lỗi `INVALID_TARGET`, không ép nhãn ngầm |
-| Case 6 | Giá trị số `NaN`, `inf`, `-inf`, chuỗi ký tự | **PASS** | `math.isfinite()` từ chối mọi giá trị non-finite |
-| Case 7 | Hai dòng exact-X trùng lặp cùng nhãn | **BLOCKED** | Phát hiện duplicate group $\rightarrow$ Kích hoạt trạng thái `BLOCKED` P03 |
-| Case 8 | Hai dòng exact-X trùng lặp khác nhãn | **BLOCKED** | Phát hiện label conflict $\rightarrow$ Kích hoạt trạng thái `BLOCKED` P03 |
-| Case 9 | Dòng thiếu toàn bộ đặc trưng (all-missing row) | **PASS** | Nhận diện bản ghi thiếu toàn bộ đặc trưng (giữ theo P05) |
-| Case 10 | Cột hằng số & Cột thiếu 100% | **PASS** | Phát hiện chính xác cột zero-variance và cột all-missing |
-| Case 11 | Hợp đồng `source_row_id` và thứ tự dòng | **PASS** | Xác thực tuple 1-based duy nhất, bảo toàn thứ tự nguồn |
-| Case 12 | Sai lệch mã băm tệp raw (tampered file) | **FAIL** | Cổng toàn vẹn nhị phân từ chối tệp không khớp SHA-256 |
+Toàn bộ các ca kiểm thử đều **gọi trực tiếp các hàm validator và parser cốt lõi** dùng chung cho tập dữ liệu Scania thật (`validate_binary_integrity`, `detect_bom_and_encoding`, `parse_and_validate_header`, `validate_target_token`, `validate_and_parse_numeric_cell`, `validate_source_row_id`, `parse_and_validate_row`, `audit_duplicates_and_conflicts`).
+
+Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với đúng **17 trường hợp kiểm thử con (sub-cases)**:
+
+| Mã ca | Nhóm kiểm thử | Mô tả ca kiểm thử | Dữ liệu đầu vào (Input) | Kết quả mong đợi (Expected) | Kết quả thực tế (Actual) | Kết luận |
+|---|---|---|---|---|---|:---:|
+| 1.1 | 1. Header Presence & Format | Thiếu cột `class` trong dòng header | `'col_a,col_b\n1,2'` | `REJECTED_HEADER_MISSING` | `REJECTED_HEADER_MISSING` | **PASS** |
+| 2.1 | 2. Schema & Column Width | Trùng lặp tên cột trong header | `'class,feat_a,feat_a'` | `REJECTED_DUPLICATE_COLUMN` | `REJECTED_DUPLICATE_COLUMN` | **PASS** |
+| 2.2 | 2. Schema & Column Width | Dòng dữ liệu thiếu cột so với header | `['neg', '1.0']` (2 cột vs 3) | `REJECTED_ROW_WIDTH_MISMATCH` | `REJECTED_ROW_WIDTH_MISMATCH` | **PASS** |
+| 3.1 | 3. Binary BOM & Encoding | Tiền tố Byte-Order Mark (BOM) lạ | `b'\xef\xbb\xbfclass,feat_a...'` | `REJECTED_BOM` | `REJECTED_BOM` | **PASS** |
+| 3.2 | 3. Binary BOM & Encoding | Chuỗi byte ngoài chuẩn mã hóa UTF-8 | `b'class,feat_a\nneg,\xff\xfe1.0\n'` | `REJECTED_INVALID_ENCODING` | `REJECTED_INVALID_ENCODING` | **PASS** |
+| 4.1 | 4. Missingness Token | Token thiếu lạ `'null'` ngoài `'na'` | `'null'` tại ô đặc trưng | `REJECTED_INVALID_TOKEN` | `REJECTED_INVALID_TOKEN` | **PASS** |
+| 5.1 | 5. Target Label | Nhãn `'positive'` ngoài `'pos'`/`'neg'` | `'positive'` tại cột class | `REJECTED_INVALID_TARGET` | `REJECTED_INVALID_TARGET` | **PASS** |
+| 6.1 | 6. Numeric & Finite Check | Giá trị chuỗi `'NaN'` | `'NaN'` tại ô đặc trưng | `REJECTED_NON_FINITE_TOKEN` | `REJECTED_NON_FINITE_TOKEN` | **PASS** |
+| 6.2 | 6. Numeric & Finite Check | Giá trị dương vô cực `'inf'` | `'inf'` tại ô đặc trưng | `REJECTED_NON_FINITE_TOKEN` | `REJECTED_NON_FINITE_TOKEN` | **PASS** |
+| 6.3 | 6. Numeric & Finite Check | Giá trị âm vô cực `'-inf'` | `'-inf'` tại ô đặc trưng | `REJECTED_NON_FINITE_TOKEN` | `REJECTED_NON_FINITE_TOKEN` | **PASS** |
+| 6.4 | 6. Numeric & Finite Check | Chuỗi số thực dị dạng `'12.3.4'` | `'12.3.4'` tại ô đặc trưng | `REJECTED_FLOAT_PARSE_ERROR` | `REJECTED_FLOAT_PARSE_ERROR` | **PASS** |
+| 7.1 | 7. Exact-X Duplicates (Same) | 2 dòng trùng lặp $X$ cùng nhãn `neg` | 2 dòng $X=(1.0, \text{na})$, target=neg | `BLOCKED_DUPLICATES_1` | `BLOCKED_DUPLICATES_1` | **PASS** |
+| 8.1 | 8. Exact-X Duplicates (Conflict) | 2 dòng trùng lặp $X$ khác nhãn (neg vs pos) | 2 dòng $X=(1.0, \text{na})$, neg vs pos | `BLOCKED_CONFLICTS_1` | `BLOCKED_CONFLICTS_1` | **PASS** |
+| 9.1 | 9. All-Missing Row Retention | Dòng thiếu toàn bộ 170 đặc trưng | `['neg', 'na', 'na']` | `ROW_PRESERVED_ALL_NA` | `ROW_PRESERVED_ALL_NA` | **PASS** |
+| 10.1 | 10. Constant & All-Missing | Nhận diện cột hằng số và cột missing 100% | `feat_c=[5.0, 5.0]`, `feat_m=[na, na]` | `CONSTANT_AND_ALL_MISSING_PROFILED` | `CONSTANT_AND_ALL_MISSING_PROFILED` | **PASS** |
+| 11.1 | 11. Source-Row ID Integrity | Cấu trúc tuple 1-based tăng đơn điệu | Dòng 1, 2, 3 với SHA và split | `SOURCE_ROW_IDS_VALIDATED` | `SOURCE_ROW_IDS_VALIDATED` | **PASS** |
+| 12.1 | 12. Binary Checksum Mismatch | Tệp bị can thiệp sai lệch mã băm SHA-256 | `b'tampered bytes...'` với SHA Train thật | `REJECTED_HASH_MISMATCH` | `REJECTED_HASH_MISMATCH` | **PASS** |
+
+> [!NOTE]
+> - **Nguyên tắc đánh giá kiểm thử:** Đối với dữ liệu dị dạng hoặc sai mã băm (như Ca 12), việc hệ thống từ chối đúng quy cách (`actual_outcome == expected_outcome`) được tính là **PASS** của bài kiểm thử. Tuyệt đối không nhầm lẫn việc từ chối dữ liệu sai với việc bài kiểm thử bị hỏng.
+> - **Cơ chế nghiệm thu nghiêm ngặt:** Toàn bộ 17 ca con đều nằm trong điều kiện nghiệm thu `assert all(t['conclusion'] == 'PASS')`, hoàn toàn không loại trừ Ca 12 hay bất kỳ ca nào.
+> - **Xác minh cơ chế bắt lỗi của Harness (Negative Self-Verification):** Đã kiểm chứng độc lập một trường hợp giả lập lỗi (`actual != expected`) để chứng minh hệ thống gắn cờ `FAIL` thật sự khi có sai lệch ngoài dự kiến, không nuốt lỗi.
 
 ---
 
@@ -201,11 +213,17 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
 
 * **Độ đầy đủ sản phẩm bàn giao G2:**
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
-  * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21, xác nhận 1 cột `class` và 170 cột đặc trưng số học.
+  * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21 (0-based index 20), xác nhận 1 cột `class` và 170 cột đặc trưng số học.
   * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md`.
-  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb`.
+  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với các hàm validator dùng chung cho cả dữ liệu thật và 17 ca kiểm thử biên.
   * Đã lưu trữ toàn bộ logs, summary JSON và snapshot môi trường đã khử sạch thông tin cá nhân tại `results/scania_aps/g2_audit/**`.
-* **Trạng thái cổng nghiệm thu:**
-  * `READY FOR SCANIA G2 REVIEW: YES`
-  * `G2 AUDIT TECHNICAL GATES: PASS`
-  * `READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL`
+* **Cơ chế tính toán Cổng Kỹ thuật G2:**
+  * Trạng thái cổng kỹ thuật được tính toán động theo quy tắc ưu tiên nghiêm ngặt: $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$.
+  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và 17 ca kiểm thử biên đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
+* **Trạng thái cổng nghiệm thu cuối cùng:**
+
+```text
+READY FOR SCANIA G2 REVIEW: YES
+G2 AUDIT TECHNICAL GATES: PASS
+READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL
+```

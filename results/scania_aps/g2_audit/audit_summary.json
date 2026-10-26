@@ -59,10 +59,18 @@
     "conflicting_label_groups_count": 0,
     "conflicting_groups": []
   },
+  "synthetic_tests_audit": {
+    "total_test_groups": 12,
+    "total_subcases": 17,
+    "passed_subcases": 17,
+    "failed_subcases": 0,
+    "all_tests_passed": true
+  },
   "protocol_gates": {
     "p01_integrity_pass": true,
     "p03_duplicates_found": false,
     "p03_conflicts_found": false,
-    "p03_split_gate_status": "PASSED"
+    "p03_split_gate_status": "PASSED",
+    "g2_audit_technical_gates": "PASS"
   }
 }
