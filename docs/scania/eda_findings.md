@@ -275,15 +275,15 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
   * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21 (0-based index 20), xác nhận 1 cột `class` và 170 cột đặc trưng số học.
   * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md` kèm ghi chú làm tròn, giới hạn float64 và ranh giới dữ liệu ẩn danh.
-  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên, 12 unit tests cổng logic và 12 bài integration tests end-to-end.
+  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên, 12 unit tests cổng logic và 14 bài integration tests end-to-end (bao gồm kiểm thử xử lý thiếu tệp nguồn và tương thích phương thức báo lỗi).
   * Đã chuẩn hóa quy chuẩn băm SHA-256 đa nền tảng (`CANONICAL_LF_UTF8`), kiểm chứng tính tương đương 100% giữa Windows CRLF và Git LF blobs mà không làm thay đổi hay giả mạo dữ liệu.
   * Đã khử sạch hoàn toàn thông tin cá nhân/đường dẫn tuyệt đối trong outputs về `<workspace_root>` và `<temporary_test_dir>`.
-  * Đã bổ sung provenance đầy đủ: `canonical_code_digest` (`0bc7b745b706dae0f6f8e1632130f1d59be12bbd475f9922be8b2b80e15ec7c6`), thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
+  * Đã bổ sung provenance đầy đủ: `canonical_code_digest` (`ec2593b303c30f589283f83a6eda9ce8ca1fd3d5f1ccba7a2c90b3d9ca3e4224`), thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
   * Đã tăng cường khả năng phục hồi tự động của `load_or_rebuild_runs_index` qua 8 kịch bản hỏng hóc, thiếu file, sai checksum và xung đột ID.
   * Đã lưu trữ toàn bộ logs, summary JSON, snapshot môi trường và từng run độc lập tại `results/scania_aps/g2_audit/**` và `results/scania_aps/g2_audit/runs/**`.
 * **Cơ chế tính toán Cổng Kỹ thuật G2:**
   * Trạng thái cổng kỹ thuật được tính toán động theo quy tắc ưu tiên nghiêm ngặt: $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$.
-  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ 41 trường hợp kiểm thử (17 synthetic subcases + 12 gate logic tests + 12 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
+  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ 43 trường hợp kiểm thử (17 synthetic subcases + 12 gate logic tests + 14 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
 * **Trạng thái cổng nghiệm thu cuối cùng:**
 
 ```text
