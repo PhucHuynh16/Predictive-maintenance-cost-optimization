@@ -2,16 +2,37 @@
   "runs": [
     {
       "run_id": "run_20261026_123410_de3400",
-      "timestamp_utc": "2026-10-26T12:34:10.765025+00:00",
+      "timestamp_utc": "2026-10-26T12:34:40.042389+00:00",
       "duration_seconds": 20.68,
       "git_commit_sha": "d8ea6ba838370d8442d1466cd261589e06f3b73c",
       "git_worktree_clean": false,
+      "canonical_code_digest": null,
       "g2_technical_gate_status": "PASS",
       "p03_status": "PASSED",
       "duplicate_groups": 0,
       "conflicting_groups": 0,
-      "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261026_123410_de3400"
+      "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261026_123410_de3400",
+      "lifecycle_state": "COMPLETE"
+    },
+    {
+      "run_id": "run_20261027_035106_2adfa1",
+      "timestamp_utc": "2026-10-27T03:51:14.824243+00:00",
+      "duration_seconds": 4.9708,
+      "git_commit_sha": "2163cd73cca89070c4a1669de04f8e2b8085a2e9",
+      "git_worktree_clean": false,
+      "canonical_code_digest": "0bc7b745b706dae0f6f8e1632130f1d59be12bbd475f9922be8b2b80e15ec7c6",
+      "g2_technical_gate_status": "PASS",
+      "p03_status": "PASSED",
+      "duplicate_groups": 0,
+      "conflicting_groups": 0,
+      "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261027_035106_2adfa1",
+      "lifecycle_state": "COMPLETE"
     }
   ],
-  "latest_run_id": "run_20261026_123410_de3400"
+  "latest_run_id": "run_20261027_035106_2adfa1",
+  "rebuild_status": "COMPLETE",
+  "total_verified_runs": 2,
+  "total_unverified_runs": 0,
+  "unverified_runs": [],
+  "last_updated_utc": "2026-10-27T03:51:14.861592+00:00"
 }

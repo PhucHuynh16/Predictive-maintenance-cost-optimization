@@ -1,10 +1,13 @@
 {
-  "run_id": "run_20261026_123410_de3400",
+  "run_id": "run_20261027_035106_2adfa1",
   "python_version": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
   "platform": "Windows-11-10.0.26200-SP0",
   "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
   "machine": "AMD64",
+  "execution_command": "jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb",
   "working_directory": "<workspace_root>",
+  "canonical_code_digest": "0bc7b745b706dae0f6f8e1632130f1d59be12bbd475f9922be8b2b80e15ec7c6",
+  "code_digest_algorithm": "sha256(canonical_code_cells_v1_utf8_lf)",
   "pandas_version": "3.0.2",
   "numpy_version": "2.4.4",
   "sklearn_version": "1.9.0"

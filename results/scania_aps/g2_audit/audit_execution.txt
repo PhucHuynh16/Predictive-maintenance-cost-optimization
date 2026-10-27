@@ -1,65 +1,27 @@
 === SCANIA APS SOURCE AUDIT EXECUTION LOG (TASK SC-G2-A) ===
-Run ID: run_20261026_123410_de3400
-Start Time (UTC): 2026-10-26T12:34:10.765025+00:00
-End Time (UTC):   2026-10-26T12:34:33.178641+00:00
-Train Audit Duration: 20.68 seconds
-Total Notebook Duration: 22.41 seconds
+Run ID: run_20261027_035106_2adfa1
+Start Time (UTC): 2026-10-27T03:51:06.797080+00:00
+End Time (UTC):   2026-10-27T03:51:14.824243+00:00
+Train Audit Duration: 4.9708 seconds
+Total Notebook Duration: 8.0272 seconds
 Executor: Antigravity (Data Audit Specialist)
 Branch: antigravity/sc-g2-source-audit
-Base Commit SHA: d8ea6ba838370d8442d1466cd261589e06f3b73c
+Base Commit SHA: 2163cd73cca89070c4a1669de04f8e2b8085a2e9
 Git Worktree Clean: False
+Canonical Code Digest: 0bc7b745b706dae0f6f8e1632130f1d59be12bbd475f9922be8b2b80e15ec7c6
+Code Digest Algorithm: sha256(canonical_code_cells_v1_utf8_lf)
+Execution Command: jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb
+Checksum Protocol: CANONICAL_LF_UTF8
 
-[STEP 1: ACQUISITION & PROVENANCE VERIFICATION]
-- Source: UCI Machine Learning Repository (Dataset ID: 421)
-- Source URL: https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks
-- DOI: 10.24432/C51S51
-- Final Download URL: https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip
-- Train File Size: 44669194 bytes (VERIFIED_LIVE_IN_THIS_RUN)
-- Train SHA-256: bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da (VERIFIED_LIVE_IN_THIS_RUN)
-- Test Set Status: SEALED inside archive, NOT extracted, NOT parsed, NOT evaluated.
+[LIFECYCLE & TECHNICAL GATE STATUS]
+Lifecycle State: COMPLETE
+G2 Audit Technical Gates: PASS
+Completed Stages: STAGE_1_BINARY_INTEGRITY, STAGE_2_BOM_AND_ENCODING, STAGE_3_HEADER_SCHEMA, STAGE_4_ROWS_TARGET_TOKENS, STAGE_5_DUPLICATES_CONFLICTS, STAGE_6_FEATURE_PROFILES, STAGE_7_HISTOGRAM_STRUCTURE
 
-[STEP 2: PREAMBLE & HEADER AUDIT]
-- Preamble lines count: 20 lines.
-- Header line index: line 21 (0-based index 20).
-- Total header columns: 171 columns (1 'class' + 170 operational features).
-- Encoding status: Standard UTF-8 / ASCII (No BOM).
-
-[STEP 3: DATA ROWS & TARGET AUDIT]
-- Total data rows: 60000 rows.
-- Malformed rows: 0 rows.
-- Target distribution: neg=59000 (98.33%), pos=1000 (1.67%).
-- Class imbalance ratio: 59.00:1.
-- Target token validation: PASS (only 'pos' and 'neg').
-
-[STEP 4: MISSINGNESS & FEATURE PROFILE AUDIT]
-- Missing token: strictly 'na'.
-- Total missing values: 850015 (8.3335%).
-- Total observed values: 9349985 (91.6665%).
-- Features with 0% missing: 1 (['aa_000']).
-- Features with 100% all-missing: 0.
-- Features with >50% missing: 8.
-- Features with >70% missing: 7.
-- Features with >80% missing: 2.
-- Constant (zero-variance) features: 1 ('cd_000' = 1209600.0 for 59,324 rows).
-- Row missingness: min=0, max=168, all-missing rows=0.
-
-[STEP 5: EXACT-X DUPLICATE & LABEL CONFLICT AUDIT (P03)]
-- Unique feature patterns: 60000 / 60000.
-- Duplicate groups: 0.
-- Total duplicate rows: 0.
-- Conflicting label groups: 0.
-- P03 Split Gate Status: PASSED.
-
-[STEP 6: HISTOGRAM FEATURE GROUP AUDIT]
-- Histogram features: 70 (7 families x 10 bins).
-- Counter features: 100.
-
-[STEP 7: SYNTHETIC TESTS (EDGE CASES, G2 GATE LOGIC & INTEGRATION)]
-- Data Edge-case tests: 12 groups, 17 subcases (All 17 subcases PASS, 0 FAIL).
-- G2 Gate Logic unit tests: 12 tests (All 12 tests PASS, 0 FAIL).
-- Integration tests (E2E): 10 tests (All 10 tests PASS, 0 FAIL).
-
-[SUMMARY & READINESS GATES]
-- READY FOR SCANIA G2 REVIEW: YES
-- G2 AUDIT TECHNICAL GATES: PASS
-- READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL
+[DATA VERIFICATION SUMMARY]
+- Train File Size: 44669194 bytes
+- Train SHA-256:   bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da
+- Data Rows:       60000
+- Target Counts:   neg=59000, pos=1000
+- Missing Values:  850015 (8.3335%)
+- P03 Status:      PASSED
