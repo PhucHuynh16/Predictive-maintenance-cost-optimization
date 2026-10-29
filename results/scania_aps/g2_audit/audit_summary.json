@@ -1,19 +1,20 @@
 {
   "run_metadata": {
-    "run_id": "run_20261029_035233_62bc35",
-    "start_timestamp_utc": "2026-10-29T03:52:33.476798+00:00",
-    "end_timestamp_utc": "2026-10-29T03:52:41.548123+00:00",
-    "train_audit_duration_seconds": 5.0574,
-    "total_notebook_duration_seconds": 8.0713,
-    "execution_base_commit_sha": "4da8a77c01c5d4daecf057f18b943ca9252f9fa1",
+    "run_id": "run_20261029_091708_549aa4",
+    "start_timestamp_utc": "2026-10-29T09:17:09.103208+00:00",
+    "end_timestamp_utc": "2026-10-29T09:17:34.804665+00:00",
+    "train_audit_duration_seconds": 16.437,
+    "total_notebook_duration_seconds": 25.7015,
+    "execution_base_commit_sha": "fba0640a5f5b41839bb00697b1ec62088ba29c72",
     "git_worktree_clean": false,
-    "canonical_code_digest": "f57dd597c84e9b03413cb178b785b472f9576f81e983c4f693d0a936dac23bb6",
+    "canonical_code_digest": "2002a1d12ee8c6b26a6107081ffc505dabbff890e7b4a2760f2b1d0c30f1e62e",
     "code_digest_algorithm": "sha256(canonical_code_cells_v1_utf8_lf)",
     "execution_command": "jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb",
     "checksum_protocol": "CANONICAL_LF_UTF8",
     "executor": "Antigravity (Data Audit Specialist)",
     "task_id": "SC-G2-A",
-    "lifecycle_state": "COMPLETE"
+    "lifecycle_state": "COMPLETE",
+    "execution_mode": "PRODUCTION"
   },
   "error_diagnostics": null,
   "file_audit": {
