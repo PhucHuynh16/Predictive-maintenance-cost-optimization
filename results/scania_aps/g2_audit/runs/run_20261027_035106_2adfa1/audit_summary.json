@@ -1,0 +1,93 @@
+{
+  "run_metadata": {
+    "run_id": "run_20261027_035106_2adfa1",
+    "start_timestamp_utc": "2026-10-27T03:51:06.797080+00:00",
+    "end_timestamp_utc": "2026-10-27T03:51:14.824243+00:00",
+    "train_audit_duration_seconds": 4.9708,
+    "total_notebook_duration_seconds": 8.0272,
+    "execution_base_commit_sha": "2163cd73cca89070c4a1669de04f8e2b8085a2e9",
+    "git_worktree_clean": false,
+    "canonical_code_digest": "0bc7b745b706dae0f6f8e1632130f1d59be12bbd475f9922be8b2b80e15ec7c6",
+    "code_digest_algorithm": "sha256(canonical_code_cells_v1_utf8_lf)",
+    "execution_command": "jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb",
+    "checksum_protocol": "CANONICAL_LF_UTF8",
+    "executor": "Antigravity (Data Audit Specialist)",
+    "task_id": "SC-G2-A",
+    "lifecycle_state": "COMPLETE"
+  },
+  "error_diagnostics": null,
+  "file_audit": {
+    "file_name": "aps_failure_training_set.csv",
+    "file_size_bytes": 44669194,
+    "sha256": "bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da",
+    "encoding": "Standard UTF-8 / ASCII (No BOM)",
+    "preamble_lines_count": 20,
+    "header_row_0based_index": 20,
+    "header_columns_count": 171,
+    "feature_columns_count": 170,
+    "data_rows_count": 60000,
+    "malformed_rows_count": 0
+  },
+  "target_audit": {
+    "column_name": "class",
+    "classes_counts": {
+      "neg": 59000,
+      "pos": 1000
+    },
+    "pos_count": 1000,
+    "neg_count": 59000,
+    "pos_ratio": 0.016666666666666666,
+    "imbalance_ratio": "59.00:1",
+    "invalid_tokens_count": 0
+  },
+  "missingness_audit": {
+    "missing_token": "na",
+    "total_missing_values": 850015,
+    "total_observed_values": 9349985,
+    "overall_missing_rate": 0.08333480392156863,
+    "zero_missing_columns_count": 1,
+    "zero_missing_columns": [
+      "aa_000"
+    ],
+    "all_missing_columns_count": 0,
+    "all_missing_columns": [],
+    "gt_50pct_missing_columns_count": 8,
+    "gt_70pct_missing_columns_count": 7,
+    "gt_80pct_missing_columns_count": 2,
+    "rows_all_missing_count": 0,
+    "min_missing_per_row": 0,
+    "max_missing_per_row": 168
+  },
+  "zero_variance_audit": {
+    "constant_columns_count": 1,
+    "constant_columns": [
+      [
+        "cd_000",
+        1209600.0,
+        59324
+      ]
+    ]
+  },
+  "duplicates_audit": {
+    "total_unique_feature_patterns": 60000,
+    "duplicate_groups_count": 0,
+    "total_duplicate_rows": 0,
+    "surplus_duplicate_rows": 0,
+    "conflicting_label_groups_count": 0,
+    "conflicting_groups": [],
+    "p03_status": "PASSED",
+    "blocking_reason": null
+  },
+  "histogram_structure_audit": {
+    "histogram_families_count": 7,
+    "histogram_features_count": 70,
+    "counter_features_count": 100
+  },
+  "protocol_gates": {
+    "p01_integrity_pass": true,
+    "p03_duplicates_found": false,
+    "p03_conflicts_found": false,
+    "p03_split_gate_status": "PASSED",
+    "g2_audit_technical_gates": "PASS"
+  }
+}

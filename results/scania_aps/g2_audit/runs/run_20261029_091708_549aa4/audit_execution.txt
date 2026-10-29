@@ -1,0 +1,27 @@
+=== SCANIA APS SOURCE AUDIT EXECUTION LOG (TASK SC-G2-A) ===
+Run ID: run_20261029_091708_549aa4
+Start Time (UTC): 2026-10-29T09:17:09.103208+00:00
+End Time (UTC):   2026-10-29T09:17:34.804665+00:00
+Train Audit Duration: 16.437 seconds
+Total Notebook Duration: 25.7015 seconds
+Executor: Antigravity (Data Audit Specialist)
+Branch: antigravity/sc-g2-source-audit
+Base Commit SHA: fba0640a5f5b41839bb00697b1ec62088ba29c72
+Git Worktree Clean: False
+Canonical Code Digest: 2002a1d12ee8c6b26a6107081ffc505dabbff890e7b4a2760f2b1d0c30f1e62e
+Code Digest Algorithm: sha256(canonical_code_cells_v1_utf8_lf)
+Execution Command: jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb
+Checksum Protocol: CANONICAL_LF_UTF8
+
+[LIFECYCLE & TECHNICAL GATE STATUS]
+Lifecycle State: COMPLETE
+G2 Audit Technical Gates: PASS
+Completed Stages: STAGE_1_BINARY_INTEGRITY, STAGE_2_BOM_AND_ENCODING, STAGE_3_HEADER_SCHEMA, STAGE_4_ROWS_TARGET_TOKENS, STAGE_5_DUPLICATES_CONFLICTS, STAGE_6_FEATURE_PROFILES, STAGE_7_HISTOGRAM_STRUCTURE
+
+[DATA VERIFICATION SUMMARY]
+- Train File Size: 44669194 bytes
+- Train SHA-256:   bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da
+- Data Rows:       60000
+- Target Counts:   neg=59000, pos=1000
+- Missing Values:  850015 (8.3335%)
+- P03 Status:      PASSED

@@ -1,0 +1,28 @@
+{
+  "run_id": "run_20261029_091708_549aa4",
+  "lifecycle_state": "COMPLETE",
+  "final_gate_status": "PASS",
+  "timestamp_utc": "2026-10-29T09:17:34.804665+00:00",
+  "checksum_protocol": "CANONICAL_LF_UTF8",
+  "artifacts_checksums": {
+    "audit_summary.json": "e929d6794ce02fd4a1f0f38e7fce15d091d39000d839411ad136e0479987a0cd",
+    "acquisition_manifest.json": "3ca5fcca94cd5857b4c4a05fea714693bd0f6acffaac3c02334dcc0563b1c487",
+    "environment.json": "45de59bb24441e1658ebc861920f6e177e3d39ec549f9c949db25aacff3a45fa",
+    "feature_profiles.json": "92efccd753cbf5231cd3a08e5af4ca91265e3a8a391d08c88329dd5c0da2f8e0",
+    "audit_execution.txt": "2bcbfebbb9aa6809b33020b839e362c83ed009687571ca92e94bf00febfbf66a"
+  },
+  "canonical_checksums_lf": {
+    "audit_summary.json": "e929d6794ce02fd4a1f0f38e7fce15d091d39000d839411ad136e0479987a0cd",
+    "acquisition_manifest.json": "3ca5fcca94cd5857b4c4a05fea714693bd0f6acffaac3c02334dcc0563b1c487",
+    "environment.json": "45de59bb24441e1658ebc861920f6e177e3d39ec549f9c949db25aacff3a45fa",
+    "feature_profiles.json": "92efccd753cbf5231cd3a08e5af4ca91265e3a8a391d08c88329dd5c0da2f8e0",
+    "audit_execution.txt": "2bcbfebbb9aa6809b33020b839e362c83ed009687571ca92e94bf00febfbf66a"
+  },
+  "raw_disk_checksums": {
+    "audit_summary.json": "e929d6794ce02fd4a1f0f38e7fce15d091d39000d839411ad136e0479987a0cd",
+    "acquisition_manifest.json": "3ca5fcca94cd5857b4c4a05fea714693bd0f6acffaac3c02334dcc0563b1c487",
+    "environment.json": "45de59bb24441e1658ebc861920f6e177e3d39ec549f9c949db25aacff3a45fa",
+    "feature_profiles.json": "92efccd753cbf5231cd3a08e5af4ca91265e3a8a391d08c88329dd5c0da2f8e0",
+    "audit_execution.txt": "2bcbfebbb9aa6809b33020b839e362c83ed009687571ca92e94bf00febfbf66a"
+  }
+}

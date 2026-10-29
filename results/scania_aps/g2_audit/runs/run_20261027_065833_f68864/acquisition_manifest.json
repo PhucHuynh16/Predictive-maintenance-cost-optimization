@@ -1,0 +1,26 @@
+{
+  "dataset_id": "scania_aps_uci421",
+  "uci_url": "https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks",
+  "final_download_url": "https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip",
+  "doi": "10.24432/C51S51",
+  "download_timestamp_utc": "2026-10-25T08:37:03.366093+00:00",
+  "license_notes": "CC BY 4.0 (UCI) / Scania CV AB GPLv3-or-later notice in description file",
+  "raw_files_provenance": {
+    "aps_failure_training_set.csv": {
+      "size_bytes": 44669194,
+      "sha256": "bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da",
+      "status": "VERIFIED_LIVE_IN_THIS_RUN"
+    },
+    "aps+failure+at+scania+trucks.zip": {
+      "size_bytes": 56618034,
+      "sha256": "5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89",
+      "status": "VERIFIED_LIVE_IN_THIS_RUN"
+    },
+    "aps_failure_description.txt": {
+      "size_bytes": 4874,
+      "sha256": "57b1eb3c551a678ffc1c8112e5b34c566dd16457642563f58aeb3ca65beeb820",
+      "status": "VERIFIED_LIVE_IN_THIS_RUN"
+    }
+  },
+  "test_set_status": "SEALED inside archive, NOT extracted, NOT parsed, NOT evaluated"
+}
