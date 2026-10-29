@@ -1,0 +1,232 @@
+{
+  "command": "python -m pytest tests/scania -q --junitxml=data/processed/scania_aps/g3_tests_final.xml",
+  "execution_base_commit": "3ff36a5a41cd8680da062a8cf997464f57f1f3ff",
+  "failures": 0,
+  "groups": {
+    "G301": [
+      {
+        "name": "test_G301_valid_parser_dynamic_header_mapping",
+        "seconds": 0.001,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[bom]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[utf8]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[header]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[order]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[duplicate_col]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[extra]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[width]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[label]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[missing_label]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[empty]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G301_invalid_parser[count]",
+        "seconds": 0.0,
+        "status": "PASS"
+      }
+    ],
+    "G302": [
+      {
+        "name": "test_G302_source_hash_size_path_before_parse",
+        "seconds": 0.015,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G302_config_schema_version_mismatch",
+        "seconds": 0.015,
+        "status": "PASS"
+      }
+    ],
+    "G303": [
+      {
+        "name": "test_G303_duplicates_missing_masks_block_before_split[False]",
+        "seconds": 0.001,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G303_duplicates_missing_masks_block_before_split[True]",
+        "seconds": 0.001,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G303_missing_mask_and_hash_collision_do_not_merge_rows",
+        "seconds": 0.001,
+        "status": "PASS"
+      }
+    ],
+    "G304": [
+      {
+        "name": "test_G304_single_stratified_call_and_exact_returned_order",
+        "seconds": 0.008,
+        "status": "PASS"
+      }
+    ],
+    "G305": [
+      {
+        "name": "test_G305_source_ids_order_hashes_and_exclusion",
+        "seconds": 0.001,
+        "status": "PASS"
+      }
+    ],
+    "G306": [
+      {
+        "name": "test_G306_train_only_statistics_validation_sentinels_and_constant",
+        "seconds": 0.002,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G306_all_missing_column_row_observed_validation_and_no_drop",
+        "seconds": 0.002,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G306_eight_high_missing_columns_kept",
+        "seconds": 0.001,
+        "status": "PASS"
+      }
+    ],
+    "G307": [
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[NaN]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[nan]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[inf]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[-inf]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[null]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[None]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[NA]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[1e999]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[1e-999]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[1.0000000000000001]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_invalid_nonfinite_precision_rejected[9007199254740993]",
+        "seconds": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G307_transform_validation_only_missing_and_invalid",
+        "seconds": 0.001,
+        "status": "PASS"
+      }
+    ],
+    "G308": [
+      {
+        "name": "test_G308_test_path_and_archive_member_sentinel",
+        "seconds": 0.004,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G308_acquisition_opens_only_train_description",
+        "seconds": 0.028,
+        "status": "PASS"
+      }
+    ],
+    "G309": [
+      {
+        "name": "test_G309_exclusive_writes_failure_logs_and_checksum_detection",
+        "seconds": 0.05,
+        "status": "PASS"
+      },
+      {
+        "name": "test_G309_public_checksums_survive_git_crlf_and_detect_tampering",
+        "seconds": 0.078,
+        "status": "PASS"
+      }
+    ],
+    "G310": [
+      {
+        "name": "test_G310_two_reproductions_and_fold_clone",
+        "seconds": 0.008,
+        "status": "PASS"
+      }
+    ]
+  },
+  "note": "Tests ran on the exact staged verifier/test changes subsequently committed as tested_code_commit. No expected policy/data/seed/version changes.",
+  "pytest_runtime_seconds": 1.79,
+  "tested_code_commit": "4789c0d6b8220a5f70758b019e4f0a639919e67c",
+  "total": 40,
+  "worktree_clean_at_test": false
+}

@@ -1,0 +1,24 @@
+{
+  "supplemental_verification_attempts": [
+    {
+      "status": "FAIL",
+      "type": "review_harness_scope_assertion",
+      "reason": "Initial supplementary checker incorrectly required every new authorized file to be an existing-base document. No dataset/pipeline/split failure. Corrected checker compares only protected files already in origin/main."
+    },
+    {
+      "status": "PASS",
+      "evidence": "real_data_verification.json",
+      "production_code_config_data_split_changed": false
+    }
+  ],
+  "official_pipeline_runs": [
+    {
+      "run_id": "official_20261029_01",
+      "status": "PASS"
+    },
+    {
+      "run_id": "official_20261029_02",
+      "status": "PASS"
+    }
+  ]
+}
