@@ -1,5 +1,7 @@
 # SC-G1-C — Decision register Scania APS
 
+> **Cập nhật SC-G3-C ngày 2026-10-29:** G2 được owner nghiệm thu; PR #14 đã merge. P04/P05 đã được owner phê duyệt và giao triển khai trong task hiện tại. Xem phụ lục phê duyệt cuối tài liệu; các đoạn G1 “chờ duyệt/chưa giao” bên dưới là lịch sử.
+
 Ngày: **2026-10-25 (Asia/Saigon)**. **Dự thảo trình nghiệm thu G1**. Nguồn trạng thái quyết định của bốn tài liệu Scania là register này; nội dung đề xuất ở các tài liệu khác không tự trở thành phê duyệt.
 
 ## 1. Bằng chứng, phạm vi và quy tắc đọc
@@ -87,3 +89,18 @@ Chủ dự án có thể duyệt bằng `P<ID hoặc T-thành phần>; lựa ch�
 **READY FOR SCANIA G1 REVIEW: YES** về độ đầy đủ bộ tài liệu thiết kế: đã phủ T1–T10, formulation/data contract/tests/stop gates và gói giao SC-G2-A. Chưa được chủ dự án nghiệm thu G1; **SC-G2-A/G3/G4 chưa được kích hoạt**. Không có dữ liệu/CSV hash/split/model/metrics Scania được tạo trong G1. Các lựa chọn P giữ nguyên CHỜ DUYỆT dù PR tài liệu được merge.
 
 Kiểm tra document diff/links/fences/phạm vi và bảo toàn mọi file base sẽ được báo theo kết quả thực ở PR/Issue #2. Không chạy unit tests, kiểm tra/cài dependencies, tải/raw audit/split hoặc thực nghiệm. Mốc43/132 tests và các cost AI4I trong tài liệu nguồn chỉ là lịch sử, không là chứng cứ Scania.
+
+## Phụ lục phê duyệt owner và kích hoạt SC-G3-C — 2026-10-29
+
+Nguồn: chỉ dẫn trong chat **“OWNER APPROVAL P04/P05 & TASK ASSIGNMENT – SC-G3-C”**, attachment `46930803-a9d5-4cf0-8c4d-68cabdbe89af`, SHA-256 `1c8081d1857ac5561071047fee51a636436ab49eb0b7e0f40a9ddaf34079d672`. Owner nghiệm thu G2 tại [Issue #2 comment6501313014](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6501313014); PR #14 merged tại `f2217c3ea7c56f579ed8b82ef23db703055e6489`, tích hợp HEAD G2 `e65361f5de840f2ee7ce9c211d54bf8958bad398`. Đã fetch/API xác minh.
+
+| Gói | Trạng thái hiện hành và nội dung owner phê duyệt | Giới hạn |
+|---|---|---|
+| P04 | **APPROVED FOR SC-G3-C**. OfficialTrain60000 → Train48000/Validation12000; một `train_test_split` positions theo source order, test_size0.20, shuffleTrue, stratifyy, seed42; giữ returned order. Lưu IDs/membership local, ordered hashes/source/schema/config/version/commit; disjoint/coverage và tái lập100%. | Không thử seed để chọn; duplicate/conflict hoặc source mismatch → STOP/BLOCKED, không tự sửa split. Test không là input. |
+| P05 | **APPROVED FOR SC-G3-C**. Giữ170X và rows có class hợp lệ; chỉ `na` missing. Median imputer keep_empty_features=True, add_indicator=False, copy=True, fitTrain-only. Train-all-missing giữ cột/fallback0 cho ô missing, Validation observed value giữ nguyên. LR StandardScaler sau impute fitTrain-only; tree/RF không scale bắt buộc. | Không drop/SMOTE/KNN/clipping/feature engineering/indicators; outputfinite/shape/order; clone fold-safe; không refitValidation/Test. |
+
+Quyền task: namespace `src/scania/**`, `tests/scania/**`, `configs/scania/**`, `scripts/run_scania_*.py`, `results/scania_aps/g3/**`, tài liệu Scania cần thiết; processed/membership local dưới `data/processed/scania_aps/**`. Owner cho phép tải UCI421 trong worktree Codex, opaqueZIP và chỉ đọc/extractTrain+description; Test SEALED đếnG10. Python3.11 riêng worktree, khóa dependency thực tế trước split/fit. Không sửa file chung/AI4I/sản phẩm hoặc worktree Antigravity.
+
+G301–G310 bắt buộc trước nghiệm thu; source/precision/schema/duplicate/preprocessing/leakage mismatch phải giữ failed evidence và dừng, không đổi policy/seed/version để vượt gate. Đây là quyền triển khai G3 (preprocessing fit được phép), **không** quyền predictive-model training, baseline, optimization, mởTest, G4 hoặc auto-merge. P02/P06/P07/P08/P09 và các quyết định khác không được thay đổi bằng phụ lục này.
+
+Phạm vi này được chủ dự án cấp trực tiếp trong chat; không yêu cầu phê duyệt lại P04/P05 chỉ vì các bảng G1 cũ còn ghi đề xuất. Trạng thái **triển khai/nghiệm thu G3** phải căn cứ kết quả và owner acceptance riêng, không mặc định Done từ phê duyệt này.

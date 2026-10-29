@@ -1,5 +1,7 @@
 # SC-G1-C — Experimental protocol design Scania APS
 
+> **Cập nhật SC-G3-C ngày 2026-10-29:** G2 được owner nghiệm thu; PR #14 đã merge. P04/P05 đã được owner phê duyệt và giao triển khai trong task hiện tại. Xem phụ lục phê duyệt cuối tài liệu; các đoạn G1 “chờ duyệt/chưa giao” bên dưới là lịch sử.
+
 Ngày: **2026-10-25 (Asia/Saigon)**. **Thiết kế chờ nghiệm thu, không lệnh thực thi.** [Decision register](decision_register.md) là nguồn trạng thái D/P/A/L và các gói P01–P10. P0 đã nghiệm thu/PR #12 merge ở `c52d89ef7d9d0ee8f5e35f12c2f0f63777835d4b`; SC-G1-C hiện chỉ tạo bốn Markdown này, không sửa file chung/AI4I/code/config/tests/results/data hoặc sản phẩm Antigravity.
 
 ## 1. Ranh giới dữ liệu và quyền đã có
@@ -115,3 +117,18 @@ Tới G10, chỉ sau owner cho phép và model/preprocessing/hyperparameters/thr
 **READY FOR SCANIA G1 REVIEW: YES**: bốn tài liệu có formulation/cost matrix/hand examples, T1–T10 bốn nhóm, source contract/boundaries, proposed tests/stop gates, yêu cầu quyết định trước G2/G3/G4 và đề xuất quyền SC-G2-A. Không tự đánh dấu owner nghiệm thu hoặc P approved, không tự cập nhật TASK_BOARD.
 
 Đã thực hiện ở G1: Git status/fetch/PR #12 merge verification, đọc tài liệu/Issue #2/P0-A và metadata/API docs; soạn/review Markdown. Kiểm tra links/fences/diff/scope và bảo toàn mọi file base được báo bằng kết quả thực trong PR/Issue #2. **Chưa** download/hash/audit raw, split, fit preprocessing/model, run baseline/Optuna/unit tests, environment check/install hoặc mởTest. Chưa có giá trị hash/schema thực, metrics/model hoặc số tests Scania PASS; ví dụ/test oracles đều ghi là tổng hợp/tính tay.
+
+## Phụ lục phê duyệt owner và kích hoạt SC-G3-C — 2026-10-29
+
+Nguồn: chỉ dẫn trong chat **“OWNER APPROVAL P04/P05 & TASK ASSIGNMENT – SC-G3-C”**, attachment `46930803-a9d5-4cf0-8c4d-68cabdbe89af`, SHA-256 `1c8081d1857ac5561071047fee51a636436ab49eb0b7e0f40a9ddaf34079d672`. Owner nghiệm thu G2 tại [Issue #2 comment6501313014](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6501313014); PR #14 merged tại `f2217c3ea7c56f579ed8b82ef23db703055e6489`, tích hợp HEAD G2 `e65361f5de840f2ee7ce9c211d54bf8958bad398`. Đã fetch/API xác minh.
+
+| Gói | Trạng thái hiện hành và nội dung owner phê duyệt | Giới hạn |
+|---|---|---|
+| P04 | **APPROVED FOR SC-G3-C**. OfficialTrain60000 → Train48000/Validation12000; một `train_test_split` positions theo source order, test_size0.20, shuffleTrue, stratifyy, seed42; giữ returned order. Lưu IDs/membership local, ordered hashes/source/schema/config/version/commit; disjoint/coverage và tái lập100%. | Không thử seed để chọn; duplicate/conflict hoặc source mismatch → STOP/BLOCKED, không tự sửa split. Test không là input. |
+| P05 | **APPROVED FOR SC-G3-C**. Giữ170X và rows có class hợp lệ; chỉ `na` missing. Median imputer keep_empty_features=True, add_indicator=False, copy=True, fitTrain-only. Train-all-missing giữ cột/fallback0 cho ô missing, Validation observed value giữ nguyên. LR StandardScaler sau impute fitTrain-only; tree/RF không scale bắt buộc. | Không drop/SMOTE/KNN/clipping/feature engineering/indicators; outputfinite/shape/order; clone fold-safe; không refitValidation/Test. |
+
+Quyền task: namespace `src/scania/**`, `tests/scania/**`, `configs/scania/**`, `scripts/run_scania_*.py`, `results/scania_aps/g3/**`, tài liệu Scania cần thiết; processed/membership local dưới `data/processed/scania_aps/**`. Owner cho phép tải UCI421 trong worktree Codex, opaqueZIP và chỉ đọc/extractTrain+description; Test SEALED đếnG10. Python3.11 riêng worktree, khóa dependency thực tế trước split/fit. Không sửa file chung/AI4I/sản phẩm hoặc worktree Antigravity.
+
+G301–G310 bắt buộc trước nghiệm thu; source/precision/schema/duplicate/preprocessing/leakage mismatch phải giữ failed evidence và dừng, không đổi policy/seed/version để vượt gate. Đây là quyền triển khai G3 (preprocessing fit được phép), **không** quyền predictive-model training, baseline, optimization, mởTest, G4 hoặc auto-merge. P02/P06/P07/P08/P09 và các quyết định khác không được thay đổi bằng phụ lục này.
+
+Phạm vi này được chủ dự án cấp trực tiếp trong chat; không yêu cầu phê duyệt lại P04/P05 chỉ vì các bảng G1 cũ còn ghi đề xuất. Trạng thái **triển khai/nghiệm thu G3** phải căn cứ kết quả và owner acceptance riêng, không mặc định Done từ phê duyệt này.

@@ -1,0 +1,9 @@
+{
+  "acquisition_helper_sha256": "f655d6e39661e2e29e6b95bbda8ab33b63955175eae945b1d8ad9e0851978dde",
+  "command": "python scripts/run_scania_acquire.py",
+  "entrypoint_snapshot_sha256": "e48eedc80200531022c71b361a0b08cbe97b1d299b8e5d8fb39e22a886ec1250",
+  "execution_base_commit": "f2217c3ea7c56f579ed8b82ef23db703055e6489",
+  "note": "Initial acquisition before source commit; archived entrypoint reconstructed exactly from the executed task patch. Current entrypoint subsequently adds provenance only. Public repeat verification follows from committed code.",
+  "test_members_read": false,
+  "worktree_clean": false
+}
