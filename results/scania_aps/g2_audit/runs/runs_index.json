@@ -41,12 +41,26 @@
       "conflicting_groups": 0,
       "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261027_065833_f68864",
       "lifecycle_state": "COMPLETE"
+    },
+    {
+      "run_id": "run_20261029_035233_62bc35",
+      "timestamp_utc": "2026-10-29T03:52:41.548123+00:00",
+      "duration_seconds": 5.0574,
+      "git_commit_sha": "4da8a77c01c5d4daecf057f18b943ca9252f9fa1",
+      "git_worktree_clean": false,
+      "canonical_code_digest": "f57dd597c84e9b03413cb178b785b472f9576f81e983c4f693d0a936dac23bb6",
+      "g2_technical_gate_status": "PASS",
+      "p03_status": "PASSED",
+      "duplicate_groups": 0,
+      "conflicting_groups": 0,
+      "artifacts_dir": "results/scania_aps/g2_audit/runs/run_20261029_035233_62bc35",
+      "lifecycle_state": "COMPLETE"
     }
   ],
-  "latest_run_id": "run_20261027_065833_f68864",
+  "latest_run_id": "run_20261029_035233_62bc35",
   "rebuild_status": "COMPLETE",
-  "total_verified_runs": 3,
+  "total_verified_runs": 4,
   "total_unverified_runs": 0,
   "unverified_runs": [],
-  "last_updated_utc": "2026-10-27T07:21:32.950126+00:00"
+  "last_updated_utc": "2026-10-29T03:52:41.594855+00:00"
 }

@@ -206,24 +206,32 @@ Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với �
 
 *Tất cả 12 unit tests của Gate logic đều đạt **PASS 100%**, khẳng định quy tắc ưu tiên $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$ được thực thi nghiêm ngặt, không thể bị ghi đè ngầm.*
 
-### 8.3. Kiểm thử Tích hợp Toàn diện Quy trình Kiểm toán (10 Integration Tests - F4)
+### 8.3. Kiểm thử Tích hợp Toàn diện Quy trình Kiểm toán (18 Integration Tests - F4 & Codex D1-D3)
 
-Đáp ứng đầy đủ khuyến nghị F4 từ báo cáo Codex, bộ kiểm thử tích hợp thực chất này kiểm chứng toàn bộ chu trình $\text{Input} \rightarrow \text{Parser} \rightarrow \text{Audit} \rightarrow \text{Gate} \rightarrow \text{Artifact Export} \rightarrow \text{Final Status}$ trên fixtures tổng hợp độc lập (in-memory và temporary directory), sử dụng chung các hàm production (`compute_feature_profiles`, `export_run_artifacts`, `load_or_rebuild_runs_index`):
+Đáp ứng đầy đủ khuyến nghị F4 từ báo cáo Codex và các yêu cầu hoàn thiện sau độc lập review SC-G2-REV-D (D1-D3), bộ kiểm thử tích hợp thực chất này kiểm chứng toàn bộ chu trình $\text{Input} \rightarrow \text{Parser} \rightarrow \text{Audit} \rightarrow \text{Gate} \rightarrow \text{Artifact Export} \rightarrow \text{Final Status}$ trên fixtures tổng hợp độc lập (in-memory và temporary directory), sử dụng chung các hàm production (`compute_feature_profiles`, `export_run_artifacts`, `load_or_rebuild_runs_index`):
 
 | Mã Test | Mô tả Kịch bản Kiểm thử Tích hợp | Trạng thái Kỳ vọng | Kết luận |
 |:---:|---|:---:|:---:|
 | **IT-01** | E2E Pipeline trên dữ liệu sạch $\rightarrow$ Trạng thái `PASS` & Xuất đủ 5 artifacts kèm `run_manifest.json` | `PASS` | **PASS** |
 | **IT-02** | E2E Pipeline trên dữ liệu Duplicate cùng nhãn $\rightarrow$ Trạng thái `BLOCKED`, không crash, xuất đầy đủ 5 artifacts + manifest | `PASS` | **PASS** |
 | **IT-03** | E2E Pipeline trên dữ liệu Xung đột nhãn $\rightarrow$ Trạng thái `BLOCKED`, không crash, xuất đầy đủ nhóm xung đột và ID dòng | `PASS` | **PASS** |
-| **IT-04** | E2E Pipeline dữ liệu hỏng Schema / Token cấm $\rightarrow$ Bị từ chối dừng tại cổng, lưu bằng chứng `FAIL` thực tế vào artifact trên đĩa | `PASS` | **PASS** |
-| **IT-05** | E2E Pipeline thiếu bằng chứng bắt buộc $\rightarrow$ Xuất bằng chứng run với trạng thái `NOT_VERIFIED` | `PASS` | **PASS** |
-| **IT-06** | Run Preservation & Anti-Overwrite: Chạy Run A (`PASS`) và Run B (`BLOCKED`) lưu độc lập; cơ chế exclusive write (`mode_exclusive=True`) chặn đứng ghi đè ở cấp OS | `PASS` | **PASS** |
-| **IT-07** | Atomic Safe Write: Giả lập lỗi ghi giữa chừng, tệp đích không bị hỏng, tệp tạm `.tmp` được dọn sạch | `PASS` | **PASS** |
-| **IT-08** | Synthetic Feature Profiling Accuracy: Gọi hàm production `compute_feature_profiles` kiểm toán chính xác min, max, mean, missing rate và zero-variance trên nghiệm giải tích | `PASS` | **PASS** |
-| **IT-09** | Negative Integration Harness Verification: Xác nhận harness phát hiện và báo lỗi thật khi có sai lệch giả lập | `PASS` | **PASS** |
-| **IT-10** | Index Corruption Resilience & Auto-Rebuild: Giả lập `runs_index.json` bị hỏng cú pháp, kiểm chứng hệ thống tự động sao lưu tệp hỏng thành `.corrupted_<timestamp>` và tái dựng index chính xác từ các `run_manifest.json` hợp lệ trên đĩa | `PASS` | **PASS** |
+| **IT-04** | E2E Pipeline dữ liệu sai Hash $\rightarrow$ Bị từ chối dừng tại Stage 1, lưu chẩn đoán `FAIL` thực tế vào artifact trên đĩa | `PASS` | **PASS** |
+| **IT-05** | E2E Pipeline dữ liệu hỏng Schema / Header missing $\rightarrow$ Bị từ chối dừng tại cổng, lưu bằng chứng `FAIL` thực tế vào artifact trên đĩa | `PASS` | **PASS** |
+| **IT-06** | E2E Pipeline dữ liệu hỏng Numeric Token (`NaN`) $\rightarrow$ Bị từ chối dừng tại cổng, lưu bằng chứng `FAIL` thực tế vào artifact trên đĩa | `PASS` | **PASS** |
+| **IT-07** | E2E Pipeline thiếu bằng chứng bắt buộc $\rightarrow$ Xuất bằng chứng run với trạng thái `NOT_VERIFIED` | `PASS` | **PASS** |
+| **IT-08** | Run Preservation & Anti-Overwrite: Chạy Run A (`PASS`) và Run B (`FAIL`) lưu độc lập; cơ chế exclusive write (`mode_exclusive=True`) chặn đứng ghi đè ở cấp OS | `PASS` | **PASS** |
+| **IT-09** | Atomic Safe Write: Giả lập lỗi ghi giữa chừng, tệp đích không bị hỏng, tệp tạm `.tmp` được dọn sạch | `PASS` | **PASS** |
+| **IT-10** | Synthetic Feature Profiling Accuracy: Gọi hàm production `compute_feature_profiles` kiểm toán chính xác min, max, mean, missing rate và zero-variance trên nghiệm giải tích | `PASS` | **PASS** |
+| **IT-11** | Canonical LF vs CRLF Checksum Equivalence: Kiểm chứng tính tương đương mã băm đa nền tảng | `PASS` | **PASS** |
+| **IT-12** | Runs Index 8-scenario recovery & corruption resilience: Tự động phục hồi và xử lý 8 kịch bản hỏng hóc, thiếu file, sai checksum và xung đột ID | `PASS` | **PASS** |
+| **IT-13** | Missing Source File Handling: Xử lý tệp Train không tồn tại mượt mà, lưu chẩn đoán `FileNotFoundError` an toàn | `PASS` | **PASS** |
+| **IT-14** | Notebook Cell Error Call: Cả `record_stage_failure` và bí danh `record_failure` đều hoạt động không sinh `AttributeError` | `PASS` | **PASS** |
+| **IT-15** | Codex D1 Regression: Fixture tổng hợp 170 đặc trưng không truyền cờ kiểm chứng phải nhận trạng thái `NOT_VERIFIED`, không bao giờ nhận `PASS` | `PASS` | **PASS** |
+| **IT-16** | Codex D2 Missing Source File Provenance: Ghi nhận trung thực `FILE_NOT_FOUND` trong `acquisition_manifest.json`, không tự nhận `VERIFIED_LIVE_IN_THIS_RUN` | `PASS` | **PASS** |
+| **IT-17** | Codex D2 Hash Mismatch Provenance: Ghi nhận trung thực `HASH_MISMATCH` trong `acquisition_manifest.json` khi mã băm sai lệch | `PASS` | **PASS** |
+| **IT-18** | Codex D3 Failure Handling & Root Detection: Khởi tạo an toàn bằng repo marker, đảm bảo `finalize_run` luôn ghi bằng chứng chẩn đoán ra đĩa trước khi dừng | `PASS` | **PASS** |
 
-*Tổng kết Integration Tests:* **10/10 tests đạt PASS 100%**.
+*Tổng kết Integration Tests:* **18/18 tests đạt PASS 100%**.
 
 ### 8.4. Kiến trúc Bảo toàn Bằng chứng Lượt chạy (Run Preservation Architecture - F2 & F3)
 
@@ -271,26 +279,29 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
 
 ## 10. Đánh giá Trạng thái Nghiệm thu & Sẵn sàng
 
-* **Độ đầy đủ sản phẩm bàn giao G2 (Final Corrections):**
+* **Độ đầy đủ sản phẩm bàn giao G2 (Final Corrections & Codex D1-D4 Hardening):**
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
   * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21 (0-based index 20), xác nhận 1 cột `class` và 170 cột đặc trưng số học.
   * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md` kèm ghi chú làm tròn, giới hạn float64 và ranh giới dữ liệu ẩn danh.
-  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên, 12 unit tests cổng logic và 14 bài integration tests end-to-end (bao gồm kiểm thử xử lý thiếu tệp nguồn và tương thích phương thức báo lỗi).
+  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên (12 nhóm), 12 unit tests cổng logic và 18 bài integration tests end-to-end (bao gồm kiểm thử hồi quy Codex D1, D2 missing source, D2 bad hash, và D3 failure finalization).
   * Đã chuẩn hóa quy chuẩn băm SHA-256 đa nền tảng (`CANONICAL_LF_UTF8`), kiểm chứng tính tương đương 100% giữa Windows CRLF và Git LF blobs mà không làm thay đổi hay giả mạo dữ liệu.
   * Đã khử sạch hoàn toàn thông tin cá nhân/đường dẫn tuyệt đối trong outputs về `<workspace_root>` và `<temporary_test_dir>`.
-  * Đã bổ sung provenance đầy đủ: `canonical_code_digest` (`ec2593b303c30f589283f83a6eda9ce8ca1fd3d5f1ccba7a2c90b3d9ca3e4224`), thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
+  * Đã bổ sung provenance đầy đủ: `canonical_code_digest` (`f57dd597c84e9b03413cb178b785b472f9576f81e983c4f693d0a936dac23bb6`), thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
   * Đã tăng cường khả năng phục hồi tự động của `load_or_rebuild_runs_index` qua 8 kịch bản hỏng hóc, thiếu file, sai checksum và xung đột ID.
   * Đã lưu trữ toàn bộ logs, summary JSON, snapshot môi trường và từng run độc lập tại `results/scania_aps/g2_audit/**` và `results/scania_aps/g2_audit/runs/**`.
 * **Cơ chế tính toán Cổng Kỹ thuật G2:**
   * Trạng thái cổng kỹ thuật được tính toán động theo quy tắc ưu tiên nghiêm ngặt: $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$.
-  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ 43 trường hợp kiểm thử (17 synthetic subcases + 12 gate logic tests + 14 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
+  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ 47 trường hợp kiểm thử (17 synthetic subcases + 12 gate logic tests + 18 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
 * **Trạng thái cổng nghiệm thu cuối cùng:**
 
 ```text
-SC-G2-A FINAL CORRECTIONS: PASS
-G2 AUDIT TECHNICAL GATES: PASS
-RUN EVIDENCE INTEGRITY: PASS
-GIT SNAPSHOT CHECKSUM VERIFICATION: PASS
-READY FOR INDEPENDENT CODEX RE-REVIEW: YES
-READY FOR SCANIA G3 EXECUTION: NO – PENDING OWNER ACCEPTANCE AND P04/P05 APPROVAL
+D1 UNSAFE DEFAULTS: PASS
+D2 SOURCE PROVENANCE: PASS
+D3 FAILURE FINALIZATION: PASS
+D4 DOCUMENTATION SYNC: PASS
+G2 REGRESSION TESTS: PASS
+HISTORICAL RUN PRESERVATION: PASS
+READY FOR CODEX INDEPENDENT RE-REVIEW: YES
+PR #14 READY TO MERGE: NO – PENDING CODEX REVIEW AND OWNER ACCEPTANCE
+READY FOR SCANIA G3 EXECUTION: NO
 ```
