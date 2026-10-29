@@ -21,7 +21,8 @@ def code_digest(repository):
 
 
 def verify_artifacts(directory):
+    """Public text artifacts use canonical LF, independent of Git autocrlf."""
     root = Path(directory)
     manifest = json.loads((root / "checksums.json").read_text(encoding="utf-8"))
-    return all((root / p).is_file() and digest((root / p).read_bytes()) == sha
+    return all((root / p).is_file() and digest((root / p).read_bytes().replace(b"\r\n", b"\n")) == sha
                for p, sha in manifest.items())

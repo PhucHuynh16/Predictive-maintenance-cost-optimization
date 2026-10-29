@@ -223,3 +223,14 @@ def test_G310_two_reproductions_and_fold_clone():
     fresh.fit(p.X[a[:20]])
     assert fresh.named_steps["scaler"].n_samples_seen_ == 20
     assert first.named_steps["scaler"].n_samples_seen_ == 80
+
+
+def test_G309_public_checksums_survive_git_crlf_and_detect_tampering(tmp_path):
+    content = b'{"status":"PASS"}\n'
+    (tmp_path / "summary.json").write_bytes(content)
+    write_json(tmp_path / "checksums.json", {"summary.json": digest(content)})
+    assert verify_artifacts(tmp_path)
+    (tmp_path / "summary.json").write_bytes(content.replace(b"\n", b"\r\n"))
+    assert verify_artifacts(tmp_path)
+    (tmp_path / "summary.json").write_bytes(content.replace(b"PASS", b"FAIL"))
+    assert not verify_artifacts(tmp_path)
