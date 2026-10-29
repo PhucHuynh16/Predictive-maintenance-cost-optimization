@@ -1,14 +1,14 @@
 === SCANIA APS SOURCE AUDIT EXECUTION LOG (TASK SC-G2-A) ===
-Run ID: run_20261029_091708_549aa4
-Start Time (UTC): 2026-10-29T09:17:09.103208+00:00
-End Time (UTC):   2026-10-29T09:17:34.804665+00:00
-Train Audit Duration: 16.437 seconds
-Total Notebook Duration: 25.7015 seconds
+Run ID: run_20261029_100159_0e83da
+Start Time (UTC): 2026-10-29T10:01:59.952132+00:00
+End Time (UTC):   2026-10-29T10:02:10.241266+00:00
+Train Audit Duration: 5.0141 seconds
+Total Notebook Duration: 10.2891 seconds
 Executor: Antigravity (Data Audit Specialist)
 Branch: antigravity/sc-g2-source-audit
-Base Commit SHA: fba0640a5f5b41839bb00697b1ec62088ba29c72
+Base Commit SHA: f97faa5a6b7d20983aeb650ad8a9f342206b8797
 Git Worktree Clean: False
-Canonical Code Digest: 2002a1d12ee8c6b26a6107081ffc505dabbff890e7b4a2760f2b1d0c30f1e62e
+Canonical Code Digest: 366c85102dedf1c903777438758b98675208d8db85d90f7006cb4326b156f949
 Code Digest Algorithm: sha256(canonical_code_cells_v1_utf8_lf)
 Execution Command: jupyter nbconvert --to notebook --execute notebooks/scania/00_source_audit.ipynb
 Checksum Protocol: CANONICAL_LF_UTF8

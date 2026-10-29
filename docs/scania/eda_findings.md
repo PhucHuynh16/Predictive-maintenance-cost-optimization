@@ -206,9 +206,9 @@ Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với �
 
 *Tất cả 12 unit tests của Gate logic đều đạt **PASS 100%**, khẳng định quy tắc ưu tiên $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$ được thực thi nghiêm ngặt, không thể bị ghi đè ngầm.*
 
-### 8.3. Kiểm thử Tích hợp Toàn diện Quy trình Kiểm toán (24 Integration Tests - F4 & Codex D1-D3 & E1-E3)
+### 8.3. Kiểm thử Tích hợp Toàn diện Quy trình Kiểm toán (26 Integration Tests - F4 & Codex D1-D3 & E1-E3 Hotfix)
 
-Đáp ứng đầy đủ khuyến nghị F4 từ báo cáo Codex và các yêu cầu hoàn thiện sau các vòng review độc lập SC-G2-REV-D (D1-D3) và SC-G2-REV-E (E1-E3), bộ kiểm thử tích hợp thực chất này kiểm chứng toàn bộ chu trình $\text{Input} \rightarrow \text{Parser} \rightarrow \text{Audit} \rightarrow \text{Gate} \rightarrow \text{Artifact Export} \rightarrow \text{Final Status}$ trên fixtures tổng hợp độc lập (in-memory và temporary directory), sử dụng chung các hàm production (`compute_feature_profiles`, `export_run_artifacts`, `load_or_rebuild_runs_index`, `verify_run_directory`):
+Đáp ứng đầy đủ khuyến nghị F4 từ báo cáo Codex và các yêu cầu hoàn thiện sau các vòng review độc lập SC-G2-REV-D (D1-D3), SC-G2-REV-E (E1-E3) và SC-G2-REV-F (E3 FILE_NOT_FOUND Hotfix), bộ kiểm thử tích hợp thực chất này kiểm chứng toàn bộ chu trình $\text{Input} \rightarrow \text{Parser} \rightarrow \text{Audit} \rightarrow \text{Gate} \rightarrow \text{Artifact Export} \rightarrow \text{Final Status}$ trên fixtures tổng hợp độc lập (in-memory và temporary directory), sử dụng chung các hàm production (`compute_feature_profiles`, `export_run_artifacts`, `load_or_rebuild_runs_index`, `verify_run_directory`):
 
 | Mã Test | Mô tả Kịch bản Kiểm thử Tích hợp | Trạng thái Kỳ vọng | Kết luận |
 |:---:|---|:---:|:---:|
@@ -236,8 +236,10 @@ Bộ kiểm thử được chuẩn hóa thành **12 nhóm kiểm thử** với �
 | **IT-22** | Codex E2 Regression: Ngoại lệ bất ngờ trong các cell kiểm thử được bao đóng an toàn và lưu vết chẩn đoán lỗi xuống đĩa trước khi dừng | `PASS` | **PASS** |
 | **IT-23** | Codex E3 Regression: Archive ZIP giả mạo 32-byte bị phát hiện `SIZE_MISMATCH`, ngăn chặn hoàn toàn cổng P01 | `PASS` | **PASS** |
 | **IT-24** | Codex E3 Regression: File mô tả TXT giả mạo 17-byte bị phát hiện `SIZE_MISMATCH`, ngăn chặn hoàn toàn cổng P01 | `PASS` | **PASS** |
+| **IT-25** | Codex E3 Hotfix: Thiếu file ZIP (`FILE_NOT_FOUND`) $\rightarrow$ Dừng cổng P01, xuất đầy đủ artifacts chẩn đoán lỗi với trạng thái `FAIL`, `lifecycle_state: FAILED` | `PASS` | **PASS** |
+| **IT-26** | Codex E3 Hotfix: Thiếu file TXT (`FILE_NOT_FOUND`) $\rightarrow$ Dừng cổng P01, xuất đầy đủ artifacts chẩn đoán lỗi với trạng thái `FAIL`, `lifecycle_state: FAILED` | `PASS` | **PASS** |
 
-*Tổng kết Integration Tests:* **24/24 tests đạt PASS 100%**.
+*Tổng kết Integration Tests:* **26/26 tests đạt PASS 100%**.
 
 
 ### 8.4. Kiến trúc Bảo toàn Bằng chứng Lượt chạy (Run Preservation Architecture - F2 & F3)
@@ -286,30 +288,30 @@ Dựa trên kết quả kiểm toán thực nghiệm, Antigravity trình Chủ d
 
 ## 10. Đánh giá Trạng thái Nghiệm thu & Sẵn sàng
 
-* **Độ đầy đủ sản phẩm bàn giao G2 (Final Corrections & Codex E1-E4 Hardening):**
+* **Độ đầy đủ sản phẩm bàn giao G2 (Final Minimal E3 Hotfix & Codex SC-G2-REV-F Reconciliation):**
   * Đã xác thực provenance nguồn UCI 421, mã băm SHA-256 các tệp raw và niêm phong tập Test.
   * Đã kiểm toán 100% tệp Train 60.000 mẫu, phát hiện header tại dòng 21 (0-based index 20), xác nhận 1 cột `class` và 170 cột đặc trưng số học.
   * Đã đối chiếu nhị phân tệp nén gốc (`aps+failure+at+scania+trucks.zip` - 56.618.034 bytes) và bản mô tả (`aps_failure_description.txt` - 4.874 bytes) khớp 100% hợp đồng ghim.
+  * Đã xử lý triệt để nhánh `FILE_NOT_FOUND` trong `verify_ancillary_source` và Cell 5, bảo đảm khi thiếu tệp thì `p01_integrity_pass = False`, kích hoạt dừng an toàn và xuất trạng thái cổng `FAIL` (loại bỏ hoàn toàn nguy cơ xuất hiện PASS khi nguồn thiếu).
   * Đã lập Từ điển dữ liệu chi tiết 171 thuộc tính tại `docs/scania/data_dictionary.md` kèm ghi chú làm tròn, giới hạn float64 và ranh giới dữ liệu ẩn danh.
-  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên (12 nhóm), 12 unit tests cổng logic và 24 bài integration tests end-to-end (bao gồm kiểm thử hồi quy Codex D1-D3 và E1-E3: phân biệt production vs fixture, failure finalization trong mọi lỗi, phát hiện ZIP/TXT giả mạo).
+  * Đã xây dựng và kiểm chứng notebook chạy lại được tại `notebooks/scania/00_source_audit.ipynb` với bộ điều phối `ScaniaSourceAuditOrchestrator`, kiến trúc bảo toàn bằng chứng từng run, 17 ca kiểm thử biên (12 nhóm), 12 unit tests cổng logic và 26 bài integration tests end-to-end (bao gồm IT-25 thiếu ZIP, IT-26 thiếu TXT).
   * Đã chuẩn hóa quy chuẩn băm SHA-256 đa nền tảng (`CANONICAL_LF_UTF8`), kiểm chứng tính tương đương 100% giữa Windows CRLF và Git LF blobs mà không làm thay đổi hay giả mạo dữ liệu.
   * Đã khử sạch hoàn toàn thông tin cá nhân/đường dẫn tuyệt đối trong outputs về `<workspace_root>` và `<temporary_test_dir>`.
-  * Đã bổ sung provenance đầy đủ: `canonical_code_digest` (`2002a1d12ee8c6b26a6107081ffc505dabbff890e7b4a2760f2b1d0c30f1e62e`), thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
+  * Đã bổ sung provenance đầy đủ: `canonical_code_digest`, thuật toán băm code cells, lệnh thực thi, kernel, runtime và môi trường.
   * Đã tăng cường khả năng phục hồi tự động của `load_or_rebuild_runs_index` qua 8 kịch bản hỏng hóc, thiếu file, sai checksum và xung đột ID.
   * Đã lưu trữ toàn bộ logs, summary JSON, snapshot môi trường và từng run độc lập tại `results/scania_aps/g2_audit/**` và `results/scania_aps/g2_audit/runs/**`.
 * **Cơ chế tính toán Cổng Kỹ thuật G2:**
   * Trạng thái cổng kỹ thuật được tính toán động theo quy tắc ưu tiên nghiêm ngặt: $\mathbf{FAIL} > \mathbf{BLOCKED} > \mathbf{NOT\_VERIFIED} > \mathbf{PASS}$.
-  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ **53 trường hợp kiểm thử** (17 synthetic subcases + 12 gate logic unit tests + 24 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
+  * Mọi kiểm toán toàn vẹn, schema, nhãn, missingness, histogram và toàn bộ **55 trường hợp kiểm thử** (17 synthetic subcases + 12 gate logic unit tests + 26 integration tests) đều đạt 100% không có lỗi; cổng trùng lặp P03 đạt `PASSED` $\rightarrow$ Trạng thái Cổng Kỹ thuật đạt: **`PASS`**.
 * **Trạng thái cổng nghiệm thu cuối cùng:**
 
 ```text
-E1 PRODUCTION EVIDENCE GATE: PASS
-E2 FAILURE FINALIZATION: PASS
-E3 ZIP/TXT PROVENANCE: PASS
-E4 DOCUMENTATION CONSISTENCY: PASS
-NEGATIVE REGRESSION TESTS: PASS
+E3 FILE_NOT_FOUND HOTFIX: PASS
+IT-25 MISSING ZIP: PASS
+IT-26 MISSING TXT: PASS
+G2 REGRESSION TESTS: PASS
 HISTORICAL SNAPSHOTS PRESERVED: YES
-READY FOR CODEX SC-G2-REV-F: YES
+READY FOR CODEX FINAL TARGETED REVIEW: YES
 PR #14 READY TO MERGE: NO – PENDING INDEPENDENT REVIEW
-READY FOR SCANIA G3: NO
+READY FOR G3: NO
 ```
