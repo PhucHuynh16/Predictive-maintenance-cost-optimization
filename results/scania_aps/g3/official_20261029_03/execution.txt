@@ -1,0 +1,5 @@
+config/environment frozen and verified before source/split/fit
+only official Train opened; source size/hash/schema/tokens verified
+P03 zero duplicates/conflicts; single stratified seed42 split; coverage/disjoint verified
+preprocessors fit Train48000 only; Validation transform only; finite170X; clone unfitted
+status=PASS

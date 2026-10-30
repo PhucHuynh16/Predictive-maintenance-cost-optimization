@@ -1,0 +1,52 @@
+from pathlib import Path
+import json, hashlib, subprocess, sys
+sys.path.insert(0, str(Path.cwd()))
+import numpy as np
+import joblib
+from sklearn.base import clone
+from src.scania.contracts import FEATURES, digest, object_hash
+from src.scania.data import read_train, ordered_ids_hash, array_hash
+from src.scania.artifacts import verify_artifacts, write_json
+root=Path.cwd()
+config=json.loads((root/'configs/scania/g3_pipeline.json').read_text())
+a=root/'results/scania_aps/g3/official_20261029_01'
+b=root/'results/scania_aps/g3/official_20261029_02'
+ma=json.loads((a/'stable_manifest.json').read_text());mb=json.loads((b/'stable_manifest.json').read_text())
+assert ma==mb and verify_artifacts(a) and verify_artifacts(b)
+raw=root/'data/raw/scania_aps'
+p=read_train(raw/config['source']['file'],raw,root,config['source'])
+local=root/'data/processed/scania_aps/official_20261029_01'
+with np.load(local/'membership.npz',allow_pickle=False) as f:
+ t=f['train'];v=f['validation'];yt=f['y_train'];yv=f['y_validation']
+assert len(t)==48000 and len(v)==12000 and not np.intersect1d(t,v).size
+assert np.array_equal(np.sort(np.r_[t,v]),np.arange(60000))
+assert np.array_equal(yt,p.y[t]) and np.array_equal(yv,p.y[v])
+assert ordered_ids_hash(t,p.sha256)==ma['train_ordered_ids_sha256']
+assert ordered_ids_hash(v,p.sha256)==ma['validation_ordered_ids_sha256']
+tree=joblib.load(local/'tree_preprocessor.joblib');lr=joblib.load(local/'lr_preprocessor.joblib')
+expected=np.nanmedian(p.X[t],axis=0);expected=np.where(np.isnan(expected),0,expected)
+assert np.array_equal(expected,tree.named_steps['imputer'].statistics_)
+assert np.array_equal(expected,lr.named_steps['imputer'].statistics_)
+train_tree=np.load(local/'tree_train.npy',allow_pickle=False)
+np.testing.assert_allclose(lr.named_steps['scaler'].mean_,np.mean(train_tree,axis=0),rtol=1e-12,atol=1e-9)
+assert lr.named_steps['scaler'].n_samples_seen_==48000
+assert not hasattr(clone(lr).named_steps['imputer'],'statistics_')
+missing_cols=[FEATURES[i] for i,c in enumerate(np.isnan(p.X).sum(axis=0)) if c>30000]
+assert len(missing_cols)==8
+cd=FEATURES.index('cd_000');assert lr.named_steps['scaler'].scale_[cd]==1
+for kind in ['tree','lr']:
+ for partition,n in [('train',48000),('validation',12000)]:
+  arr=np.load(local/(kind+'_'+partition+'.npy'),allow_pickle=False)
+  assert arr.shape==(n,170) and np.isfinite(arr).all()
+  assert array_hash(arr)==ma['array_sha256'][kind+'_'+partition]
+  if kind=='lr':assert np.all(arr[:,cd]==0)
+changes=subprocess.check_output(['git','diff','--name-only','origin/main']).decode().splitlines()
+# All pre-existing base files except the two specifically authorized documents remain identical.
+base_files=subprocess.check_output(['git','ls-tree','-r','--name-only','origin/main']).decode().splitlines()
+protected=[x for x in base_files if x not in ['docs/scania/decision_register.md','docs/scania/experimental_protocol.md']]
+changed=subprocess.check_output(['git','diff','--name-only','origin/main','--',*protected]).decode().splitlines()
+assert not changed
+assert not (raw/'aps_failure_test_set.csv').exists()
+report={'status':'PASS','stable_manifests_equal':True,'artifact_checksums_valid':True,'source_sha256':p.sha256,'rows':60000,'features':170,'split_disjoint_coverage':True,'train_only_medians_independently_verified':True,'train_only_scaler_mean_independently_verified':True,'scaler_fit_rows':48000,'cd_000_scaled_zero':True,'missing_gt50pct_columns':missing_cols,'all_170_columns_retained':True,'clone_unfitted':True,'all_base_files_except_authorized_documents_unchanged':True,'protected_base_file_count':len(protected),'test_csv_not_extracted':True,'test_content_read':False,'script_sha256':digest(Path(__file__).read_bytes()),'command':'python data/processed/scania_aps/verify_g3.py'}
+write_json(root/'results/scania_aps/g3/validation/real_data_verification.json',report)
+print(json.dumps(report,indent=2))

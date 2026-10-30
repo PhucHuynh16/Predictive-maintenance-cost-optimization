@@ -1,0 +1,25 @@
+from pathlib import Path
+import json, subprocess
+from src.scania.contracts import digest, object_hash
+from src.scania.artifacts import verify_artifacts, code_digest, write_json
+root=Path.cwd();base=root/'results/scania_aps/g3'
+ms=[json.loads((base/f'official_20261029_0{i}'/'stable_manifest.json').read_text()) for i in range(1,5)]
+assert ms[0]==ms[1] and ms[2]==ms[3]
+for key in ['source_sha256','schema_sha256','config_sha256','environment','train_ordered_ids_sha256','validation_ordered_ids_sha256','membership_sha256','array_sha256','imputer_statistics_sha256','scaler_mean_sha256','scaler_scale_sha256']:
+ assert all(m[key]==ms[0][key] for m in ms),key
+assert code_digest(root)==ms[3]['code_digest']
+for i in range(1,5): assert verify_artifacts(base/f'official_20261029_0{i}')
+assert digest((root/'data/raw/scania_aps/aps_failure_training_set.csv').read_bytes())==ms[3]['source_sha256']
+lock=json.loads((root/'data/processed/scania_aps/official_split.json').read_text());assert object_hash(lock)==ms[3]['membership_sha256']
+assert len(lock['train_ids'])==48000 and len(lock['validation_ids'])==12000
+train={tuple(x) for x in lock['train_ids']};val={tuple(x) for x in lock['validation_ids']};assert len(train)==48000 and len(val)==12000 and not train.intersection(val)
+assert {x[2] for x in train.union(val)}==set(range(1,60001))
+source_changes=subprocess.check_output(['git','diff','--name-only','3ff36a5a41cd8680da062a8cf997464f57f1f3ff','4789c0d6b8220a5f70758b019e4f0a639919e67c','--','src','scripts','configs']).decode().splitlines()
+assert source_changes==['src/scania/artifacts.py']
+prior=json.loads((base/'validation/real_data_verification.json').read_text());assert prior['status']=='PASS'
+protected=subprocess.check_output(['git','ls-tree','-r','--name-only','origin/main']).decode().splitlines();protected=[x for x in protected if x not in ['docs/scania/decision_register.md','docs/scania/experimental_protocol.md']]
+assert not subprocess.check_output(['git','diff','--name-only','origin/main','--',*protected]).strip()
+assert not (root/'data/raw/scania_aps/aps_failure_test_set.csv').exists()
+report={'status':'PASS','source_commit':'4789c0d6b8220a5f70758b019e4f0a639919e67c','all_four_runs_same_membership_arrays_and_statistics':True,'final_pair_stable_equal':True,'final_stable_digest':ms[3]['stable_digest'],'current_code_digest_matches_final_pair':True,'four_run_checksums_valid':True,'split_lock_coverage_disjoint':True,'source_hash_reverified':True,'prior_independent_train_statistics_check':'validation/real_data_verification.json; statistics/array hashes unchanged in final pair','only_production_source_change_after_initial_pair':'LF/CRLF verifier in artifacts.py; no parser/split/preprocessing/config/version changes','protected_base_files_unchanged':len(protected),'official_test':'SEALED','script_sha256':digest(Path(__file__).read_bytes())}
+write_json(base/'validation_final/real_data_verification.json',report)
+print(json.dumps(report,indent=2))
