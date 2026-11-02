@@ -1,5 +1,8 @@
 # SC-G1-C — Decision register Scania APS
 
+> **Trạng thái hiện hành 2026-11-02:** G3 ACCEPTED, PR15 MERGED; P02/P06/P07/P08 APPROVED theo Issue #2 comment6527262534. PRIMARY=0.5, SECONDARY=10/510. Owner đã giao G4 GATE A; GATE B NOT AUTHORIZED. Xem các phụ lục cuối; nội dung G1/G2/G3 lịch sử được giữ nguyên.
+
+
 > **Cập nhật SC-G3-C ngày 2026-10-29:** G2 được owner nghiệm thu; PR #14 đã merge. P04/P05 đã được owner phê duyệt và giao triển khai trong task hiện tại. Xem phụ lục phê duyệt cuối tài liệu; các đoạn G1 “chờ duyệt/chưa giao” bên dưới là lịch sử.
 
 Ngày: **2026-10-25 (Asia/Saigon)**. **Dự thảo trình nghiệm thu G1**. Nguồn trạng thái quyết định của bốn tài liệu Scania là register này; nội dung đề xuất ở các tài liệu khác không tự trở thành phê duyệt.
@@ -104,3 +107,35 @@ Quyền task: namespace `src/scania/**`, `tests/scania/**`, `configs/scania/**`,
 G301–G310 bắt buộc trước nghiệm thu; source/precision/schema/duplicate/preprocessing/leakage mismatch phải giữ failed evidence và dừng, không đổi policy/seed/version để vượt gate. Đây là quyền triển khai G3 (preprocessing fit được phép), **không** quyền predictive-model training, baseline, optimization, mởTest, G4 hoặc auto-merge. P02/P06/P07/P08/P09 và các quyết định khác không được thay đổi bằng phụ lục này.
 
 Phạm vi này được chủ dự án cấp trực tiếp trong chat; không yêu cầu phê duyệt lại P04/P05 chỉ vì các bảng G1 cũ còn ghi đề xuất. Trạng thái **triển khai/nghiệm thu G3** phải căn cứ kết quả và owner acceptance riêng, không mặc định Done từ phê duyệt này.
+
+## Phụ lục owner approval P02/P06/P07/P08 — 2026-10-30
+
+Nguồn quyết định: [OWNER APPROVAL — SC-G4-C PRE-ACTIVATION, Issue #2 comment6527262534](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6527262534), phê duyệt hồ sơ [SC-G4-C Preparation](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6516788910) với các quy định bổ sung bên dưới. Đây là phê duyệt protocol, **SC-G4-C EXECUTION: NOT YET AUTHORIZED**. Không tự tạo quyền ghi source/config/results hoặc quyền fit từ phụ lục này.
+
+G2/G3 giữ nguyên lịch sử và bằng chứng. G3 được owner ACCEPTED tại HEAD `0b01dc9fce1e3dbafd1770d481bd77b4098ba84b`; PR #15 đã merge ngày 30/10/2026 lúc22:57:21 ICT (15:57:21 UTC), merge SHA `d78cfcd30601090211003ef3a6a6751f83dd6eb3`, parents `f2217c3ea7c56f579ed8b82ef23db703055e6489` và accepted HEAD. Fetch/API/ancestry đã xác minh; merge tree không khác accepted HEAD. P04/P05, split/preprocessing/membership/hashes/artifacts và official Test lock giữ nguyên.
+
+| Gói | Trạng thái hiện hành | Nội dung được owner phê duyệt |
+|---|---|---|
+| P02 | **APPROVED** | Capacity toàn partition10%, K=N//10; Validation12000/K1200; a=1[p>=tau], không rounding/clip/epsilon/top-k/tách ties. Invalid input ERROR, M>K INFEASIBLE giữ kết quả. B0 a0/no fake p. B1/B2 hai ngưỡng khóa trước: **PRIMARY=0.5**, **SECONDARY=10/510**. Không chọn/tối ưu threshold bằng Validation; threshold lý thuyết không mặc nhiên tối ưu dưới capacity. |
+| P06 | **APPROVED** | DecisionTreeClassifier: criterion=gini, splitter=best, max_depth=1, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features=None, random_state=42, max_leaf_nodes=None, min_impurity_decrease=0.0, class_weight=None, ccp_alpha=0.0, monotonic_cst=None. Chỉ fit frozen Train tree matrix G3; true probability class1; no tuning/calibration/sample weighting/Train+Validation refit. INFEASIBLE giữ nguyên. |
+| P07 | **APPROVED** | LogisticRegression: C=1.0, l1_ratio=0.0 (L2), solver=lbfgs, dual=False, fit_intercept=True, tol=0.0001, max_iter=2000, class_weight=None, random_state=42, warm_start=False, verbose=0. Frozen Train LR matrix G3; không fit lại imputer/scaler, tuning/calibration/refit Validation. ConvergenceWarning/invalid probability => FAILED, giữ diagnostics; không tự đổi solver/C/iterations/seed. |
+| P08 | **APPROVED** | C=10FP+500FN, B0 reference500P; đầy đủ confusion/classification/probability/cost/saving/capacity/runtime metrics. Undefined null+reason; B0 AP/AUC/Brier null/NO_PROBABILITY_MODEL; AP/P0 null/NO_POSITIVES; AUC single-class null/SINGLE_CLASS; saving% zero reference null/ZERO_REFERENCE_COST. FAILED diagnostics + metric chưa tính null/NOT_COMPUTED; INFEASIBLE đủ kết quả, không feasible ranking. Runtime tách load/verify, fit, predict, metrics, total; không dùng thời gian lịch sử G3 làm runtime G4. |
+
+Metric formulas/reasons chi tiết đã nêu trong hồ sơ được phê duyệt và [cost review, phụ lục hiện hành](cost_model_review.md). SECONDARY lưu đúng tỷ số10/510, không dùng số thập phân rút gọn0.019608 làm threshold. Hai ngưỡng là hai policy cố định từ cùng fitted baseline/probability vector, không hai ứng viên để chọn thắng bằng Validation. Model seed42 nay đã được phê duyệt riêng P06/P07, không còn chỉ là seed split.
+
+P02 còn phần candidate/no-feasible/tie-break trong bản thiết kế G1 để kiểm chứng contract trên synthetic; phê duyệt gói không giao chạy search thật ở G4. Miền/thứ tự H và quyền RF/calibration/optimization vẫn chốt ở giai đoạn tương ứng; không tự chuyển các cấu hình AI4I sang Scania. SECONDARY mới thay thế giới hạn lịch sử “baseline chỉ0.5”, không sửa các artifacts G3 hoặc báo cáo cũ để cập nhật hồi tố.
+
+```text
+G3: ACCEPTED / PR15 MERGED
+P02: APPROVED
+P06: APPROVED
+P07: APPROVED
+P08: APPROVED
+SC-G4-C PREPARATION: APPROVED
+SC-G4-C EXECUTION: NOT YET AUTHORIZED
+OFFICIAL TEST: SEALED UNTIL G10
+```
+
+## SC-G4-C Gate A authorization — 2026-11-02
+
+Owner trực tiếp giao “OWNER AUTHORIZATION — SC-G4-C GATE A” trong chat ngày2026-11-02: cho phép áp3docs và15files tại packet6527632450§5.1/5.2, fixtures/logs/tests G4, regression G3, API/env/input checks, read-only real preflight, branch `codex/sc-g4-baselines`, commit/push/Draft PR và Issue2 report. Không sửa code/config/data/artifacts G3, G2 hoặc AI4I. Chỉ fit/predict synthetic; real input route dừng trước estimator/Validation scoring. **GATE B NOT AUTHORIZED**, cần independent Gate A review và quyết định owner riêng. Chưa nghiệm thu G4 hoặc mởG5/Test. Chi tiết implementation/evidence: [g4_execution.md](g4_execution.md).

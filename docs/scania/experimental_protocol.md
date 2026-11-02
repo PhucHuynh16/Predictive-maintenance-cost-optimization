@@ -1,5 +1,8 @@
 # SC-G1-C — Experimental protocol design Scania APS
 
+> **Trạng thái hiện hành 2026-11-02:** G3 ACCEPTED, PR15 MERGED; P02/P06/P07/P08 APPROVED theo Issue #2 comment6527262534. PRIMARY=0.5, SECONDARY=10/510. GATE A AUTHORIZED; GATE B NOT AUTHORIZED. Xem phụ lục authorization và [G4 handoff](g4_execution.md); nội dung G1/G2/G3 lịch sử giữ nguyên.
+
+
 > **Cập nhật SC-G3-C ngày 2026-10-29:** G2 được owner nghiệm thu; PR #14 đã merge. P04/P05 đã được owner phê duyệt và giao triển khai trong task hiện tại. Xem phụ lục phê duyệt cuối tài liệu; các đoạn G1 “chờ duyệt/chưa giao” bên dưới là lịch sử.
 
 Ngày: **2026-10-25 (Asia/Saigon)**. **Thiết kế chờ nghiệm thu, không lệnh thực thi.** [Decision register](decision_register.md) là nguồn trạng thái D/P/A/L và các gói P01–P10. P0 đã nghiệm thu/PR #12 merge ở `c52d89ef7d9d0ee8f5e35f12c2f0f63777835d4b`; SC-G1-C hiện chỉ tạo bốn Markdown này, không sửa file chung/AI4I/code/config/tests/results/data hoặc sản phẩm Antigravity.
@@ -132,3 +135,18 @@ Quyền task: namespace `src/scania/**`, `tests/scania/**`, `configs/scania/**`,
 G301–G310 bắt buộc trước nghiệm thu; source/precision/schema/duplicate/preprocessing/leakage mismatch phải giữ failed evidence và dừng, không đổi policy/seed/version để vượt gate. Đây là quyền triển khai G3 (preprocessing fit được phép), **không** quyền predictive-model training, baseline, optimization, mởTest, G4 hoặc auto-merge. P02/P06/P07/P08/P09 và các quyết định khác không được thay đổi bằng phụ lục này.
 
 Phạm vi này được chủ dự án cấp trực tiếp trong chat; không yêu cầu phê duyệt lại P04/P05 chỉ vì các bảng G1 cũ còn ghi đề xuất. Trạng thái **triển khai/nghiệm thu G3** phải căn cứ kết quả và owner acceptance riêng, không mặc định Done từ phê duyệt này.
+
+## Phụ lục pre-activation G4 — 2026-10-30
+
+Owner đã [phê duyệt P02/P06/P07/P08 và Preparation tại Issue #2 comment6527262534](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6527262534). Chi tiết/params nguồn tại [decision register, phụ lục P02/P06/P07/P08](decision_register.md). G3 ACCEPTED; PR15 merge `d78cfcd30601090211003ef3a6a6751f83dd6eb3`, accepted HEAD `0b01dc9fce1e3dbafd1770d481bd77b4098ba84b`. **G4 EXECUTION: NOT YET AUTHORIZED.** Các mục G1 “chờ duyệt/chưa thực hiện” giữ làm lịch sử; không được dùng để phủ nhận phê duyệt mới hoặc tự cấp quyền thực thi.
+
+1. Dùng đúng frozen Train48000/Validation12000, IDs/order/source/schema/membership/matrix/statistics hashes G3 đã nghiệm thu. Không chạy lại official_split hoặc runner G3; không fit/refit/transform lại preprocessing để tạo inputs mới. B1 dùng tree matrix, B2 dùng LR matrix, chỉ estimator mới được fit sau task thực thi riêng.
+2. B0 all-zero/no probability model. B1/B2 fit một lần mỗi baseline trong mỗi lượt chạy được cấp quyền, lấy true p class1 theo classes_. Đánh giá hai policy: **PRIMARY tau=0.5; SECONDARY tau=10/510**. Không rounding tỷ số hoặc thay bằng0.019608. Cùng probability vector cho hai threshold; không fit lại theo threshold, không dùng Validation chọn primary/secondary/winner threshold.
+3. Bảng mặc định gồm5 rows: B0 reference, B1_PRIMARY, B2_PRIMARY, B1_SECONDARY, B2_SECONDARY; B0 có threshold=null/NOT_APPLICABLE. Đây là đề xuất output schema cho task thực thi; PRIMARY/SECONDARY đã được owner khóa. Tách comparison theo role, không gộp hai threshold thành “best baseline”; AP/AUC/Brier của cùng baseline dùng cùng p nên không là hai thí nghiệm probability độc lập.
+4. Capacity K=N//10 tính toàn Validation12000/K1200. Ties giữ nguyên, không top-k/retune; INFEASIBLE vẫn báo metrics/cost/excess. Threshold10/510 chỉ reference lý thuyết, không bảo đảm calibrated hoặc optimal dưới capacity. Không recall constraint hoặc thay cost10FP+500FN.
+5. Trước real fit cần task/quyền file/config/log cụ thể, frozen config/env, preflight input provenance, G301–G310 regression và16 nhóm C01–R02 đạt. Failure finalization cần end-to-end synthetic; model ConvergenceWarning/invalid p FAILED và không retry đổi params. Kiểm thử boundary cả0.5 và10/510; candidates/tie-break chỉ synthetic contract, không real Validation search.
+6. Chỉ đọc raw official Train khi được cấp trong task mới để xác minh labels theo frozen source positions; không đọc ZIP/Test. Không sửa y/membership/matrices để vượt gate. Inputs thiếu/mismatch => BLOCKED, giữ evidence và xin nhiệm vụ khôi phục riêng, không re-split hoặc regenerate G3.
+7. Output G4 namespace/run_id mới, exclusive writes; failed/infeasible giữ nguyên. Runtime load/verify/fit/predict/metrics/total đo mới, không thay bằng lịch sử G3; fit/predict của baseline được chia sẻ cho hai policy, không tính hai lần vào total. Reproduction budget/threads/runtime cap/source manifest cụ thể phải được giao trước real run.
+8. Official Test16000 tiếp tục SEALED UNTIL G10: dev loader chỉ allow G3 Train/Validation artifacts và rawTrain được pin; không Test argument, archive member, Test cache/labels hoặc generic path bypass; không transform/evaluate Test. Independent review do Antigravity thực hiện khi được giao; không tự merge hoặc giao G5–G10.
+
+Các cơ chế kỹ thuật mới/output schema ở phụ lục là kế hoạch thực thi, chưa là code đã chạy hoặc quyền ghi. Chỉ status P02/P06/P07/P08 và hai fixed thresholds được ghi APPROVED từ bằng chứng owner. Quyền/budget/read paths và nghiệm thu thực thi cần task riêng.
