@@ -1,0 +1,1 @@
+{"attempts":[{"failed":0,"passed":36,"seconds":5.37,"stage":"initial_B1_suite"},{"failed":0,"passed":36,"seconds":4.08,"stage":"IO_and_diagnostics_upgrade"},{"failed":0,"passed":46,"seconds":4.65,"stage":"expanded_B1_suite"}],"kind":"TERMINAL_OBSERVATIONS_NO_PREEXEC_SOURCE_BINDING","source_binding":"NOT_CAPTURED_DO_NOT_USE_AS_FINAL_SOURCE_EVIDENCE","source_commit":null}

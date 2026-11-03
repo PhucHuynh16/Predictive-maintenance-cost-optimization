@@ -1,0 +1,1 @@
+{"details":"Regression execution.txt SHA matches original CRLF bytes; qualification records use canonical LF. No source/runtime/test outcome changed.","kind":"DELIVERY_METADATA_VERIFICATION_ABORTED","reason":"ASSUMED_CANONICAL_LF_FOR_RAW_BYTE_PYTEST_CAPTURE","source_binding":"METADATA_ONLY_NOT_EXECUTION","status":"FAILED"}
