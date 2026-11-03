@@ -1,5 +1,8 @@
 # SC-G1-C — Cost model, constraints và đặc tả kiểm thử
 
+> **Trạng thái hiện hành 2026-11-02:** P02/P06/P07/P08 APPROVED theo Issue #2 comment6527262534; PRIMARY=0.5, SECONDARY=10/510. Owner giao GATE A code/synthetic/tests/preflight; GATE B NOT AUTHORIZED. [Register](decision_register.md) ghi quyền; [G4 handoff](g4_execution.md) ghi evidence. Nội dung G1/G2/G3 lịch sử giữ nguyên.
+
+
 Ngày: **2026-10-25 (Asia/Saigon)**. Đây là thiết kế tài liệu, chưa có source/tests Scania được viết hoặc chạy. Quyền và trạng thái D/P/A/L theo [decision register](decision_register.md); chỉ D04/D05 là objective/unit/capacity đã duyệt, các API/edge cases/metric conventions phía dưới thuộc **P02/P08, CHỜ DUYỆT**.
 
 ## 1. Ma trận benchmark và đại số — D04
@@ -111,3 +114,17 @@ Mỗi run thật về sau cần dataset/protocol/cost-model IDs, source/config h
 Trước code/run cần P02/P08 và params/missing/split liên quan được phê duyệt, audit findings được giải quyết, task/quyền riêng; lỗi formula/constraint/tests thì dừng true runs. Nếu có X duplicates/label conflicts/schema/missing chưa có contract thì dừng trước split/fit theo P03/P05; không sửa y/raw/drop rows hoặc đổi ratio/seed để vượt gate. Baseline infeasible không phải lý do tự thay τ hoặc adding top-k. Test bị xem ngoài scope phải báo exposure, không che bằng đổi split.
 
 **READY FOR SCANIA G1 REVIEW: YES** cho phần cost/tests specification, chưa nghiệm thu hoặc mở code G3/G4. Không chạy test/model trong SC-G1-C. Nguồn API tham khảo metric: [AP](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html), [ROC-AUC](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html), [Brier](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.brier_score_loss.html); các convention cụ thể vẫn phải được chủ dự án duyệt, không do tài liệu API tự cấp quyền.
+
+## Phụ lục P02/P08 APPROVED và hai policy G4 — 2026-10-30
+
+Nguồn hiện hành: [owner approval Issue #2 comment6527262534](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/2#issuecomment-6527262534), phê duyệt hồ sơ Preparation, P02/P06/P07/P08; ghi nhận tại [decision register](decision_register.md). **Chưa có quyền thực thi G4**. Lịch sử ma trận/ví dụ/specification G1 giữ nguyên; câu tại §1 rằng10/510 chưa được duyệt làm threshold là trạng thái lịch sử, nay được thay bằng SECONDARY cố định đã duyệt. Objective/cost units không thay đổi.
+
+- C=10FP+500FN; TN/TP benchmark cost0; C_B0=500P, saving_absolute=C_B0-C có thể âm; saving_pct=100*absolute/C_B0 nếu C_B0>0, ngược lại null/ZERO_REFERENCE_COST. Không dùng expected cost thay observed cost, không diễn giải thành tiền thật.
+- PRIMARY threshold0.5; SECONDARY tỷ số10/510, so sánh p>=tau exact binary64 theo giá trị tỷ số, không rounding thành0.019608/epsilon/clip. Không chọn threshold theo Validation. B0 policy riêng, không fake p hoặc giả là tau1. Không cost/metric phụ nào đổi role PRIMARY/SECONDARY sau thấy kết quả.
+- N>0, vectors cùng thứ tự/shape, y/actions binary, p/tau finite trong[0,1]. Invalid input ERROR/no repair; N0 không là feasible cost0. K=N//10 toàn partition, excess=max(0,M-K), excess_rate=excess/N; M>K INFEASIBLE và giữ toàn bộ cost/metrics/actions, không top-k/tuning.
+- Precision=TP/M khi M>0, ngược lại null/NO_PREDICTED_POSITIVES; Recall=TP/P khi P>0, ngược lại null/NO_POSITIVES; F1=2TP/(P+M), P=M=0 thì null/NO_TRUE_OR_PREDICTED_POSITIVES; một trong P/M bằng0 thì F1=0.
+- B1/B2 dùng true p lớp1: Average Precision không nội suy theo average_precision_score, P0 null/NO_POSITIVES, P=N AP1 với score hợp lệ; ROC-AUC single-class null/SINGLE_CLASS; Brier=mean((p-y)^2), vẫn xác định khi một lớp. B0 AP/AUC/Brier null/NO_PROBABILITY_MODEL, ưu tiên reason không có probability model. Không dùng actions thay scores hoặc PR trapezoid thay AP.
+- FAILED: diagnostics/warning/error giữ nguyên; metrics chưa tính null/NOT_COMPUTED. INFEASIBLE không là FAILED và không vào feasible ranking. JSON null/CSV empty có reason; không NaN/Inf hoặc bịa0. Runtime đo mới, tách load/verify, fit, predict, metrics, total; G3 elapsed time chỉ provenance, không runtime G4.
+- C01–R02 vẫn là16 nhóm cần thực thi sau giao quyền, không phải16 tests PASS. K02/B01/R01 phải bổ sung cả hai ngưỡng khóa và kiểm runner không chọn ngưỡng theo Validation; K03/K04 chỉ synthetic contract trước search thật về sau. G4 không gọi selector để chọn PRIMARY/SECONDARY. Failure/integrity/reproduction E2E cần evidence riêng, giữ mọi run cũ.
+
+G3 ACCEPTED/PR15 merged đúng HEAD, P04/P05 và source/schema/membership/ordered IDs/preprocessing/matrices/hashes/artifacts bảo toàn. Chưa chạy cost code/tests/baseline thật/optimization/Test trong lượt ghi nhận này; không cập nhật hồi tố logs G2/G3.

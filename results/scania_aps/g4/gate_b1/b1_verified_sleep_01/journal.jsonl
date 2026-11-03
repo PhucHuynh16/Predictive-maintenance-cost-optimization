@@ -1,0 +1,5 @@
+{"stage":"PROFILE_GATE","utc":"2026-11-02T16:34:42.660709+00:00"}
+{"job_limits":{"active_process_limit":2,"flags":8712,"job_memory_bytes":536870912,"peak_job_memory_bytes":507904},"stage":"JOB_VERIFIED_BEFORE_RESUME","utc":"2026-11-02T16:34:43.119504+00:00"}
+{"pid":31092,"stage":"WORKER_RUNNING","utc":"2026-11-02T16:34:43.120509+00:00"}
+{"reason":"RUN_WALL_TIMEOUT","stage":"STOPPED","stage_failed":"WORKER_RUNNING","utc":"2026-11-02T16:34:44.115651+00:00"}
+{"stage":"FINALIZING","status":"FAILED","utc":"2026-11-02T16:34:44.564115+00:00"}

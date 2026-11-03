@@ -1,0 +1,156 @@
+"""SC-G4 Gate A only: synthetic fixture validation or read-only real preflight.
+
+No command for official fitting/scoring exists. Gate B requires a new owner task.
+"""
+import argparse
+import os
+from pathlib import Path
+import sys
+import subprocess
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from src.scania.contracts import object_hash, environment
+from src.scania import baselines
+from src.scania.g4_contract import (Blocked, CONFIG_SHA, code_digest, git, load_config,
+                                    protected_snapshot, verify_frozen_inputs, verify_test_evidence)
+from src.scania.g4_artifacts import EvidenceRun, summarize_junit, utc
+
+
+def run_gate_a(root=ROOT, *, run_id, mode, test_evidence=None):
+    out = EvidenceRun(root, run_id)
+    start = time.perf_counter()
+    report = dict(run_id=run_id, mode=mode, status="RUNNING", lifecycle="RUNNING", started_utc=utc(),
+                  gate_b_authorized=False, official_test="SEALED_UNTIL_G10",
+                  real_estimator_fits=0, real_validation_scored=False,
+                  thread_control="PROCESS_DEFAULT_GATE_B_POLICY_PENDING",
+                  runtime={"load_verify_seconds": None, "fit_seconds": None, "predict_seconds": None,
+                           "metrics_seconds": None, "total_seconds": None})
+    events, errors, stage = [], [], "MODE_GATE"
+    report["runtime_reasons"] = {key: "NOT_COMPUTED" for key in report["runtime"]}
+    try:
+        if mode not in {"SYNTHETIC_FIXTURE", "READ_ONLY_PREFLIGHT"}:
+            raise Blocked("GATE_B_NOT_AUTHORIZED")
+        stage = "CONFIG_ENVIRONMENT"
+        config = load_config(root)
+        report.update(code_digest=code_digest(root), config_sha256=CONFIG_SHA,
+                      execution_base_commit=git(root, "rev-parse", "HEAD").decode().strip(),
+                      worktree_clean=not bool(git(root, "status", "--porcelain").strip()))
+        out.json("config.json", config)
+        out.json("environment.json", environment())
+        if mode == "READ_ONLY_PREFLIGHT":
+            stage = "TEST_EVIDENCE"
+            out.json("tests_summary.json", verify_test_evidence(root, test_evidence))
+            stage = "READ_ONLY_INPUT_PREFLIGHT"
+            inputs = verify_frozen_inputs(root)
+            out.json("input_manifest.json", inputs)
+            out.json("preflight.json", dict(status="VERIFIED_READ_ONLY", estimator_fit=False, validation_scored=False))
+            # Recheck tracked assets; inputs were mmap/parsed only, never written.
+            if protected_snapshot(root) != inputs["protected"]:
+                raise Blocked("PROTECTED_POSTCHECK_MISMATCH")
+            stable = dict(mode=mode, config_sha256=CONFIG_SHA, code_digest=report["code_digest"], inputs=inputs)
+            report["runtime"]["load_verify_seconds"] = time.perf_counter() - start
+            report["runtime_reasons"].pop("load_verify_seconds")
+            report["status"] = "PREFLIGHT_VERIFIED_GATE_B_LOCKED"
+        else:
+            stage = "SYNTHETIC_FIXTURE"
+            x, y, v, yv = baselines.synthetic_fixture()
+            scores, model_runtime = {}, {}
+            report["runtime"]["load_verify_seconds"] = time.perf_counter() - start
+            report["runtime_reasons"].pop("load_verify_seconds")
+            for name in ("B1", "B2"):
+                stage = "SYNTHETIC_FIT_PREDICT_" + name
+                scores[name], model_runtime[name] = baselines.fit_predict_synthetic(name, x, y, v,
+                                                           mode="SYNTHETIC_FIXTURE")
+            stage = "SYNTHETIC_METRICS"
+            t = time.perf_counter()
+            rows = baselines.fixed_policy_rows(yv, scores)
+            report["runtime"].update(metrics_seconds=time.perf_counter() - t,
+                                    fit_seconds=sum(r["fit_seconds"] for r in model_runtime.values()),
+                                    predict_seconds=sum(r["predict_seconds"] for r in model_runtime.values()))
+            for key in ("fit_seconds", "predict_seconds", "metrics_seconds"):
+                report["runtime_reasons"].pop(key)
+            model_runtime["B0"] = dict(fit_seconds=0, predict_seconds=0, reason="NOT_APPLICABLE",
+                                       probability_model=False)
+            report["synthetic_model_runtime"] = model_runtime
+            out.json("baseline_metrics.json", dict(kind="SYNTHETIC_FIXTURE_NOT_REAL_RESULTS", rows=rows))
+            out.csv("baseline_metrics.csv", rows)
+            stable = dict(mode=mode, config_sha256=CONFIG_SHA, code_digest=report["code_digest"], rows=rows,
+                          probabilities={k: object_hash(p.tolist()) for k, p in scores.items()})
+            report["status"] = "SYNTHETIC_VALIDATED_NOT_PRODUCTION"
+        out.json("stable_manifest.json", dict(**stable, stable_digest=object_hash(stable)))
+        report["lifecycle"] = "COMPLETE"
+        events.append("Gate A completed; Gate B remains locked; no real baseline results")
+    except Exception as exc:
+        status = "BLOCKED" if isinstance(exc, (Blocked, FileNotFoundError)) else "ERROR" if isinstance(exc, ValueError) else "FAILED"
+        report.update(status=status, lifecycle="FAILED")
+        errors.append(dict(stage=stage, error_type=type(exc).__name__, reason=str(exc).replace(str(Path(root)), "<repository>"),
+                           warnings=getattr(exc, "warnings", []),
+                           uncomputed_metrics=dict(value=None, reason="NOT_COMPUTED")))
+        events.append("Stopped at " + stage + "; error evidence saved before re-raise")
+        raise
+    finally:
+        report["ended_utc"] = utc()
+        report["runtime"]["total_seconds"] = time.perf_counter() - start
+        report["runtime_reasons"].pop("total_seconds", None)
+        out.json("run_summary.json", report)
+        out.json("failure_diagnostics.json", dict(errors=errors))
+        out.text("execution.txt", "\n".join(events + ["status=" + report["status"]]) + "\n")
+        out.finalize()
+    return out.path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["synthetic", "preflight", "tests", "summarize-tests"])
+    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--test-evidence")
+    parser.add_argument("--junit")
+    args = parser.parse_args()
+    if args.action == "tests":
+        result, exit_code = run_tests(ROOT, args.run_id)
+        print(Path(result).relative_to(ROOT).as_posix())
+        return exit_code
+    elif args.action == "summarize-tests":
+        result = summarize_junit(ROOT, args.junit or "", args.run_id)
+    else:
+        result = run_gate_a(run_id=args.run_id, mode="SYNTHETIC_FIXTURE" if args.action == "synthetic"
+                            else "READ_ONLY_PREFLIGHT", test_evidence=args.test_evidence)
+    print(Path(result).relative_to(ROOT).as_posix())
+    return 0
+
+
+def run_tests(root, run_id):
+    """Capture source BEFORE pytest; never bind historical XML to today's code."""
+    root = Path(root).resolve()
+    load_config(root)
+    # Reserve a private local XML path; public summary remains small/sanitized.
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", run_id): raise Blocked("INVALID_RUN_ID")
+    local = root / "data/processed/scania_aps/g4/gate_a_tests"
+    if local.resolve() != local.absolute(): raise Blocked("JUNIT_ALIAS")
+    local.mkdir(parents=True, exist_ok=True)
+    xml = local / (run_id + ".xml")
+    if xml.exists(): raise Blocked("JUNIT_ALREADY_EXISTS")
+    execution = dict(code_digest=code_digest(root), environment=environment(), started_utc=utc(),
+                     execution_base_commit=git(root,"rev-parse","HEAD").decode().strip(),
+                     worktree_clean=not bool(git(root,"status","--porcelain").strip()),
+                     command="python -m pytest tests/scania -q -p no:cacheprovider --junitxml=<G4_LOCAL_XML>")
+    proc = subprocess.run([sys.executable,"-m","pytest","tests/scania","-q","-p","no:cacheprovider",
+                           "--junitxml="+str(xml)],cwd=root,
+                          env={**os.environ,"PYTHONDONTWRITEBYTECODE":"1"})
+    execution["ended_utc"] = utc()
+    execution["pytest_exit_code"] = proc.returncode
+    if not xml.is_file():
+        out = EvidenceRun(root, run_id)
+        out.json("run_summary.json",dict(status="FAILED",lifecycle="FAILED",mode="TEST_EXECUTION"))
+        out.json("failure_diagnostics.json",dict(reason="JUNIT_NOT_PRODUCED",exit_code=proc.returncode))
+        out.text("execution.txt","pytest did not produce XML; no PASS\n")
+        out.finalize()
+        return out.path, proc.returncode or 1
+    return summarize_junit(root,xml,run_id,execution), proc.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

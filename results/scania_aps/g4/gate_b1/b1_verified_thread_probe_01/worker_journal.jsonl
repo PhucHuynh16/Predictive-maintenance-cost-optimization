@@ -1,0 +1,8 @@
+{"pid":29440,"stage":"STARTED_NO_DATA_NO_FIT"}
+{"pid":29440,"stage":"IMPORT_NUMPY"}
+{"pid":29440,"stage":"IMPORT_SCIPY"}
+{"pid":29440,"stage":"IMPORT_SKLEARN_TREE"}
+{"pid":29440,"stage":"IMPORT_SKLEARN_LR"}
+{"pid":29440,"stage":"NATIVE_INVENTORY"}
+{"pid":29440,"stage":"NATIVE_POOL_DISCOVERY"}
+{"pid":29440,"stage":"STOPPED_THREAD_POLICY_NOT_VERIFIED"}
