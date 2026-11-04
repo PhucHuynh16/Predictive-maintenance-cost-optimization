@@ -1,0 +1,1 @@
+{"b2_authorized":false,"error_type":"NativeBlocked","native_verification":"NOT_VERIFIED","official_test":"SEALED_UNTIL_G10","real_estimator_fits":0,"reason":"UNKNOWN_NATIVE_RUNTIME:_fblas.cp311-win_amd64.pyd","scenario":"normal","stage_failed":"DISCOVERY_AND_CONTEXT","status":"BLOCKED","validation_scored":false}
