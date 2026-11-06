@@ -37,13 +37,10 @@ def thread_probe(event=lambda stage: None):
     if any(n in sys.modules for n in ("numpy", "scipy", "sklearn")):
         raise SafetyBlocked("NUMERIC_IMPORT_TOO_EARLY")
 
-    # Handshake with env discovery before numeric imports
-    try:
-        from . import g4_env_discovery as _env_disc
-        if getattr(_env_disc, "_PREPARED_PID", None) != os.getpid():
-            _env_disc.prepare_imports()
-    except Exception:
-        pass
+    # Handshake with env discovery before numeric imports: fail-closed, no silent pass
+    from . import g4_env_discovery as _env_disc
+    if getattr(_env_disc, "_PREPARED_PID", None) != os.getpid():
+        _env_disc.prepare_imports()
 
     # Imports load the same native stacks needed by the two approved estimators.
     event("IMPORT_NUMPY")
@@ -55,15 +52,12 @@ def thread_probe(event=lambda stage: None):
     event("IMPORT_SKLEARN_LR")
     from sklearn.linear_model import LogisticRegression
 
+    # Pre-warming verification: fail-closed, no silent pass
+    event("ESTIMATOR_PREWARM")
+    import scipy.optimize
+
     def public(pools):
         return [{k: (Path(v).name if k == "filepath" else v) for k, v in p.items()} for p in pools]
-
-    # Pre-warming verification
-    event("ESTIMATOR_PREWARM")
-    try:
-        import scipy.optimize
-    except Exception:
-        pass
 
     event("NATIVE_INVENTORY")
     libraries = []
