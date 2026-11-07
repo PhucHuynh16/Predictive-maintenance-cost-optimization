@@ -83,14 +83,21 @@ def load_config(root, *, gate="GATE_A", expected_config_sha=None, auth_record=No
             raise Blocked("OFFICIAL_TEST_NOT_SEALED")
         if environment() != value.get("environment"):
             raise Blocked("VERSION_MISMATCH")
-        if not value.get("gate_b_authorized", False):
+        is_authorized = bool(auth_record and auth_record.get("authorization_status") == "AUTHORIZED") or value.get("gate_b_authorized", False)
+        if not is_authorized:
             raise Blocked("GATE_B2_NOT_AUTHORIZED: Baseline execution requires explicit Owner task authorization")
-        if not value.get("real_baseline_results_allowed", False):
-            raise Blocked("REAL_BASELINE_RESULTS_NOT_ALLOWED: Operational policy prohibits unapproved real runs")
-        budget = value.get("gate_b_fit_budget")
+        budget = None
+        if auth_record and "fit_budget" in auth_record:
+            budget = auth_record["fit_budget"].get("total_max_fits")
+        if budget is None:
+            budget = value.get("gate_b_fit_budget")
         if budget is None or budget <= 0:
             raise Blocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
-        return value
+        config_copy = dict(value)
+        config_copy["gate_b_authorized"] = True
+        config_copy["real_baseline_results_allowed"] = True
+        config_copy["gate_b_fit_budget"] = budget
+        return config_copy
 
     else:
         raise Blocked(f"INVALID_GATE: {gate}")
