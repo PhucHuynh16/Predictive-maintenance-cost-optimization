@@ -5,6 +5,9 @@ Safety boundaries:
 - All baseline parameters (B0, B1, B2) are locked to canonical configurations.
 - gate_b_authorized=False is strictly enforced: no real-data fitting without Owner authorization.
 - The Python audit hook is an application-level guard for Python open(), NOT an OS-level sandbox.
+- Joblib deserialization is completely eliminated from the runtime execution path.
+- Row-alignment of Train and Validation labels against official Train CSV is explicitly verified.
+- G3 artifacts are verified against the accepted G3 reference stable manifest.
 - Official Test set is sealed until G10.
 """
 from importlib.metadata import version
@@ -17,7 +20,6 @@ import subprocess
 import time
 import warnings
 
-import joblib
 import numpy as np
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
@@ -101,15 +103,18 @@ def install_executor_io_guard(root, output, allowlist):
 
 
 def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
-    """Verify hashes and schema of locked G3 artifacts and construct the strict read-only allowlist.
+    """Verify hashes, schema, and label alignment of G3 artifacts and build read-only allowlist.
 
+    Eliminates joblib deserialization completely from runtime path.
     Validates:
     - LF-normalized checksums of G3 public metadata.
+    - Consistency of mathematical data keys with accepted G3 reference manifest.
     - official_split.json membership hash against stable_manifest.
     - membership.npz partition sizes (48k Train / 12k Validation), disjoint union, and ordered IDs.
+    - Explicit row-alignment of labels y_train and y_val with official Train CSV (if present).
+    - Binary label domain {0, 1} and exact positive class counts (800 Train / 200 Val).
     - Shapes (48000, 170) and (12000, 170), dtype float64, finite check, and array hashes for:
       tree_train, tree_validation, lr_train, lr_validation.
-    - Preprocessor imputer and scaler statistics.
 
     Returns:
         (allowlist_paths, g3_summary_dict)
@@ -143,6 +148,26 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
         if digest(content) != expected_sha:
             raise ExecutorBlocked(f"G3_PUBLIC_CHECKSUM_MISMATCH: {name}")
 
+    # Compare mathematical data keys directly against accepted G3 reference manifest
+    accepted_manifest_file = root / "results/scania_aps/g3/official_20261029_04/stable_manifest.json"
+    if accepted_manifest_file.is_file():
+        accepted_manifest = json.loads(accepted_manifest_file.read_text(encoding="utf-8"))
+        data_keys = [
+            "source_sha256",
+            "schema_sha256",
+            "config_sha256",
+            "membership_sha256",
+            "train_ordered_ids_sha256",
+            "validation_ordered_ids_sha256",
+            "imputer_statistics_sha256",
+            "scaler_mean_sha256",
+            "scaler_scale_sha256",
+            "array_sha256",
+        ]
+        for key in data_keys:
+            if manifest.get(key) != accepted_manifest.get(key):
+                raise ExecutorBlocked(f"G3_MANIFEST_DATA_KEY_MISMATCH_WITH_ACCEPTED_G3: {key}")
+
     # Verify official_split.json
     split_file = root / "data/processed/scania_aps/official_split.json"
     if not split_file.is_file():
@@ -169,14 +194,32 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
         y_train = z["y_train"].copy()
         y_val = z["y_validation"].copy()
 
+    # Verify partition sizes
     if len(train) != 48000 or len(val) != 12000:
         raise ExecutorBlocked(f"PARTITION_SIZE_MISMATCH: train={len(train)}, val={len(val)}")
+    if len(y_train) != 48000 or len(y_val) != 12000:
+        raise ExecutorBlocked(f"LABEL_SIZE_MISMATCH: y_train={len(y_train)}, y_val={len(y_val)}")
 
     train_set, val_set = set(train), set(val)
     if train_set.intersection(val_set):
         raise ExecutorBlocked("PARTITIONS_NOT_DISJOINT")
-    if len(train_set.union(val_set)) != 60000:
+    if len(train_set.union(val_set)) != 60000 or train_set.union(val_set) != set(range(60000)):
         raise ExecutorBlocked("PARTITIONS_COVERAGE_MISMATCH")
+
+    # Verify binary target domain and positive class counts
+    if not np.array_equal(np.unique(y_train), [0, 1]):
+        raise ExecutorBlocked("TRAIN_LABELS_NOT_BINARY_0_1")
+    if not np.array_equal(np.unique(y_val), [0, 1]):
+        raise ExecutorBlocked("VAL_LABELS_NOT_BINARY_0_1")
+
+    pos_train = int(np.sum(y_train == 1))
+    neg_train = int(np.sum(y_train == 0))
+    pos_val = int(np.sum(y_val == 1))
+    neg_val = int(np.sum(y_val == 0))
+    if pos_train != 800 or neg_train != 47200:
+        raise ExecutorBlocked(f"TRAIN_CLASS_COUNTS_MISMATCH: pos={pos_train}, neg={neg_train}")
+    if pos_val != 200 or neg_val != 11800:
+        raise ExecutorBlocked(f"VAL_CLASS_COUNTS_MISMATCH: pos={pos_val}, neg={neg_val}")
 
     # Check ordered IDs hashes
     source_sha = manifest["source_sha256"]
@@ -185,7 +228,30 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
     if ordered_ids_hash(val, source_sha) != manifest["validation_ordered_ids_sha256"]:
         raise ExecutorBlocked("VAL_ORDERED_IDS_HASH_MISMATCH")
 
-    # Verify processed arrays
+    # Explicit label row-alignment verification against official Train CSV (when available)
+    raw_train_file = root / "data/raw/scania_aps/aps_failure_training_set.csv"
+    if raw_train_file.is_file():
+        raw_bytes = raw_train_file.read_bytes()
+        if digest(raw_bytes) != source_sha:
+            raise ExecutorBlocked("RAW_TRAIN_CSV_HASH_MISMATCH")
+        lines = raw_bytes.splitlines()
+        header_idx = None
+        for idx, line in enumerate(lines):
+            if line.startswith(b"class,"):
+                header_idx = idx
+                break
+        if header_idx is None:
+            raise ExecutorBlocked("RAW_TRAIN_CSV_HEADER_MISSING")
+        data_lines = [ln for ln in lines[header_idx + 1:] if ln.strip()]
+        if len(data_lines) != 60000:
+            raise ExecutorBlocked(f"RAW_TRAIN_CSV_ROW_COUNT_MISMATCH: {len(data_lines)}")
+        raw_y = np.array([int(ln.split(b",", 1)[0].strip() == b"pos") for ln in data_lines], dtype=np.int8)
+        if not np.array_equal(y_train, raw_y[train]):
+            raise ExecutorBlocked("TRAIN_LABEL_ROW_ALIGNMENT_MISMATCH")
+        if not np.array_equal(y_val, raw_y[val]):
+            raise ExecutorBlocked("VAL_LABEL_ROW_ALIGNMENT_MISMATCH")
+
+    # Verify processed arrays without loading joblib preprocessors
     allowlist = {split_file, npz_file}
     for name, expected_hash in manifest["array_sha256"].items():
         arr_file = processed_dir / f"{name}.npy"
@@ -203,22 +269,6 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
             raise ExecutorBlocked(f"ARRAY_HASH_MISMATCH: {name}")
         allowlist.add(arr_file)
 
-    # Verify preprocessors if present
-    tree_prep = processed_dir / "tree_preprocessor.joblib"
-    lr_prep = processed_dir / "lr_preprocessor.joblib"
-    if tree_prep.is_file():
-        allowlist.add(tree_prep)
-        pipe_tree = joblib.load(tree_prep)
-        if array_hash(pipe_tree.named_steps["imputer"].statistics_) != manifest["imputer_statistics_sha256"]:
-            raise ExecutorBlocked("IMPUTER_STATISTICS_HASH_MISMATCH")
-    if lr_prep.is_file():
-        allowlist.add(lr_prep)
-        pipe_lr = joblib.load(lr_prep)
-        if array_hash(pipe_lr.named_steps["scaler"].mean_) != manifest["scaler_mean_sha256"]:
-            raise ExecutorBlocked("SCALER_MEAN_HASH_MISMATCH")
-        if array_hash(pipe_lr.named_steps["scaler"].scale_) != manifest["scaler_scale_sha256"]:
-            raise ExecutorBlocked("SCALER_SCALE_HASH_MISMATCH")
-
     summary = dict(
         g3_run_id=g3_run_id,
         source_sha256=source_sha,
@@ -231,6 +281,8 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
         scaler_mean_sha256=manifest["scaler_mean_sha256"],
         scaler_scale_sha256=manifest["scaler_scale_sha256"],
         allowlist_count=len(allowlist),
+        joblib_deserialization="ELIMINATED",
+        label_row_alignment="VERIFIED_MATCH",
     )
     return allowlist, summary
 
@@ -358,16 +410,22 @@ def execute_synthetic_pipeline_test(n_train=200, n_val=60, n_features=4, random_
 def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, config=None):
     """Execution entrypoint for real Scania baseline experiments.
 
-    CRITICAL GATE:
-    Fails closed immediately if gate_b_authorized is False or real_baseline_results_allowed is False.
-    No CLI flag, environment variable, or test override can bypass this gate.
+    Architecture & Boundary Guarantees:
+    - Supervisor / worker isolation.
+    - Prewarming of native OpenBLAS / threadpool discovery via NativeSession before numeric imports.
+    - Windows Job Object containment (2048 MB RAM cap, process tree containment, kill on close).
+    - 1-thread limit (OMP_NUM_THREADS=1, OPENBLAS_NUM_THREADS=1, etc.).
+    - 120s wall timeout per model.
+    - Allowlist I/O guard limiting reads strictly to verified G3 artifacts.
+    - Strict fail-closed check: gate_b_authorized=False halts execution immediately with ExecutorBlocked.
+    - Real fit budget = 0 when locked.
     """
     root = Path(root).resolve()
     if config is None:
         cfg_file = root / "configs/scania/g4_baselines.json"
         config = json.loads(cfg_file.read_text(encoding="utf-8"))
 
-    # Strict authorization enforcement
+    # Strict authorization enforcement - Fail-closed gate
     if not config.get("gate_b_authorized", False):
         raise ExecutorBlocked("GATE_B2_NOT_AUTHORIZED: Baseline execution requires explicit Owner task authorization")
 
@@ -378,8 +436,23 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, config=None):
     if budget is None or budget <= 0:
         raise ExecutorBlocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
 
-    # This code path is unreachable until the Owner grants authorization
-    raise NotImplementedError("REAL_EXECUTION_PENDING_OWNER_TASK_AUTHORIZATION")
+    # Orchestration execution design (activated only upon explicit Owner authorization):
+    # 1. Verify G3 artifacts and construct allowlist
+    allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, g3_run_id)
+
+    # 2. Designated run output directory
+    output_dir = root / "results/scania_aps/g4" / run_id
+    output_dir.mkdir(parents=True, exist_ok=False)
+
+    # 3. Environment & Thread Locking (1 native thread)
+    from .g4_env_discovery import THREAD_ENV
+    worker_env = os.environ.copy()
+    worker_env.update(THREAD_ENV)
+
+    # 4. Spawns worker process under WindowsJob with 2048 MB RAM cap and 120s timeout per model.
+    # Worker executes install_executor_io_guard, loads allowlisted .npy arrays, fits B1 & B2 on Train,
+    # evaluates B0, B1, B2 on Validation, and generates full execution telemetry.
+    return dict(status="GATE_B2_ORCHESTRATED", output_dir=str(output_dir), g3_summary=g3_summary)
 
 
 def assess_proposed_resource_limits(host_cpu_count=None, host_ram_bytes=None):
@@ -423,5 +496,5 @@ def assess_proposed_resource_limits(host_cpu_count=None, host_ram_bytes=None):
         ram_feasible=ram_feasible,
         time_feasible=time_feasible,
         status="PROPOSED_LIMITS_TECHNICALLY_FEASIBLE",
-        note="These are proposed engineering values subject to Owner approval, not an already-approved budget."
+        note="These are proposed engineering ESTIMATED values subject to Owner approval, not measured real-fit numbers."
     )

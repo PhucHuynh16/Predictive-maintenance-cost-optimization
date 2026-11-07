@@ -7,8 +7,10 @@ import copy
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import time
 import numpy as np
 import pytest
 
@@ -24,6 +26,8 @@ from src.scania.g4_b2_executor import (
 )
 from src.scania.baselines import STUMP_PARAMS, LR_PARAMS, BaselineFailure
 from src.scania.constraints import PRIMARY, SECONDARY, capacity_report
+from src.scania.contracts import canonical, digest, object_hash
+from src.scania.data import array_hash, ordered_ids_hash, source_ids
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -142,14 +146,20 @@ def test_EX03_io_guard_blocks_unauthorized_reads_and_allows_allowlist(tmp_path):
 
 
 def test_EX04_verify_g3_artifacts_and_build_allowlist_matches_recreated_run():
-    """Verify G3 artifact verification succeeds and populates allowlist for verified run."""
+    """[READ-ONLY G3 ARTIFACT CHECK] Verify G3 artifact verification succeeds and populates allowlist for verified run.
+
+    Performs read-only validation of persisted G3 artifacts against accepted G3 stable manifest.
+    Does NOT perform model training, validation scoring, or test set access.
+    """
     allowlist, summary = verify_g3_artifacts_and_build_allowlist(ROOT, g3_run_id="recreate_antigravity_20261107_01")
     assert summary["train_rows"] == 48000
     assert summary["validation_rows"] == 12000
     assert summary["features"] == 170
-    assert len(allowlist) >= 7
+    assert summary["joblib_deserialization"] == "ELIMINATED"
+    assert summary["label_row_alignment"] == "VERIFIED_MATCH"
+    assert len(allowlist) == 6
 
-    # Verify key expected files are in allowlist
+    # Verify expected files in allowlist (joblib files eliminated)
     file_names = {p.name for p in allowlist}
     assert "official_split.json" in file_names
     assert "membership.npz" in file_names
@@ -157,12 +167,186 @@ def test_EX04_verify_g3_artifacts_and_build_allowlist_matches_recreated_run():
     assert "tree_validation.npy" in file_names
     assert "lr_train.npy" in file_names
     assert "lr_validation.npy" in file_names
+    assert "tree_preprocessor.joblib" not in file_names
+    assert "lr_preprocessor.joblib" not in file_names
+
+
+def _build_synthetic_g3_fixture(tmp_path, run_id="synth_g3"):
+    """Helper to construct a valid synthetic G3 artifact environment in tmp_path."""
+    meta_dir = tmp_path / "results/scania_aps/g3" / run_id
+    proc_dir = tmp_path / "data/processed/scania_aps" / run_id
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    proc_dir.mkdir(parents=True, exist_ok=True)
+
+    source_sha = "bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da"
+    train = np.arange(48000, dtype=np.int64)
+    val = np.arange(48000, 60000, dtype=np.int64)
+    y_train = np.zeros(48000, dtype=np.int8)
+    y_train[:800] = 1
+    y_val = np.zeros(12000, dtype=np.int8)
+    y_val[:200] = 1
+
+    membership = {
+        "source_sha256": source_sha,
+        "train_ids": source_ids(train, source_sha),
+        "validation_ids": source_ids(val, source_sha),
+    }
+    split_file = tmp_path / "data/processed/scania_aps/official_split.json"
+    split_file.write_text(json.dumps(membership), encoding="utf-8")
+
+    npz_file = proc_dir / "membership.npz"
+    np.savez(npz_file, train=train, validation=val, y_train=y_train, y_validation=y_val)
+
+    arrays = {}
+    dummy_train = np.zeros((48000, 170), dtype=np.float64)
+    dummy_val = np.zeros((12000, 170), dtype=np.float64)
+
+    for name, arr in [("tree_train", dummy_train), ("tree_validation", dummy_val),
+                      ("lr_train", dummy_train), ("lr_validation", dummy_val)]:
+        np.save(proc_dir / f"{name}.npy", arr, allow_pickle=False)
+        arrays[name] = array_hash(arr)
+
+    manifest = {
+        "source_sha256": source_sha,
+        "schema_sha256": "dummy_schema",
+        "config_sha256": "dummy_config",
+        "membership_sha256": object_hash(membership),
+        "train_ordered_ids_sha256": ordered_ids_hash(train, source_sha),
+        "validation_ordered_ids_sha256": ordered_ids_hash(val, source_sha),
+        "imputer_statistics_sha256": "dummy_imputer",
+        "scaler_mean_sha256": "dummy_scaler_mean",
+        "scaler_scale_sha256": "dummy_scaler_scale",
+        "array_sha256": arrays,
+    }
+    manifest_bytes = json.dumps(manifest).encode("utf-8")
+    (meta_dir / "stable_manifest.json").write_bytes(manifest_bytes)
+    checksums = {"stable_manifest.json": digest(manifest_bytes)}
+    (meta_dir / "checksums.json").write_bytes(json.dumps(checksums).encode("utf-8"))
+    return dict(meta_dir=meta_dir, proc_dir=proc_dir, split_file=split_file, npz_file=npz_file, manifest=manifest)
 
 
 def test_EX05_verify_g3_artifacts_fails_closed_on_tampering(tmp_path):
-    """Verify verify_g3_artifacts fails closed when metadata, hash, or membership is tampered."""
+    """Verify verify_g3_artifacts fails closed with specific errors when G3 artifacts are tampered.
+
+    Negative test cases run entirely on synthetic fixtures without altering repository artifacts.
+    """
+    run_id = "test_tamper_g3"
+
+    # 1. Non-existent metadata directory
     with pytest.raises(ExecutorBlocked, match="G3_METADATA_DIR_MISSING"):
-        verify_g3_artifacts_and_build_allowlist(ROOT, g3_run_id="non_existent_run_99999")
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id="non_existent_9999")
+
+    # 2. Checksum mismatch in public metadata
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    (fix["meta_dir"] / "stable_manifest.json").write_bytes(b'{"corrupted": true}')
+    with pytest.raises(ExecutorBlocked, match="G3_PUBLIC_CHECKSUM_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 3. Missing official_split.json
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    fix["split_file"].unlink()
+    with pytest.raises(ExecutorBlocked, match="G3_OFFICIAL_SPLIT_JSON_MISSING"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 4. Membership hash mismatch
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    fix["split_file"].write_text('{"tampered": 1}', encoding="utf-8")
+    with pytest.raises(ExecutorBlocked, match="MEMBERSHIP_HASH_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 5. Partition size mismatch (e.g. 47999 rows)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    np.savez(fix["npz_file"], train=np.arange(47999), validation=np.arange(12000),
+             y_train=np.zeros(47999, dtype=np.int8), y_validation=np.zeros(12000, dtype=np.int8))
+    with pytest.raises(ExecutorBlocked, match="PARTITION_SIZE_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 6. Partitions not disjoint (overlapping rows)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    bad_val = np.arange(47999, 59999)  # overlaps with train[47999]
+    np.savez(fix["npz_file"], train=np.arange(48000), validation=bad_val,
+             y_train=np.zeros(48000, dtype=np.int8), y_validation=np.zeros(12000, dtype=np.int8))
+    with pytest.raises(ExecutorBlocked, match="PARTITIONS_NOT_DISJOINT"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 7. Non-binary labels (values != 0, 1)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    bad_y_train = np.zeros(48000, dtype=np.int8)
+    bad_y_train[0] = 2  # Invalid target
+    np.savez(fix["npz_file"], train=np.arange(48000), validation=np.arange(48000, 60000),
+             y_train=bad_y_train, y_validation=np.zeros(12000, dtype=np.int8))
+    with pytest.raises(ExecutorBlocked, match="TRAIN_LABELS_NOT_BINARY_0_1"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 8. Class count mismatch (e.g. 801 pos instead of 800)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    bad_y_train = np.zeros(48000, dtype=np.int8)
+    bad_y_train[:801] = 1  # 801 positives
+    bad_y_val = np.zeros(12000, dtype=np.int8)
+    bad_y_val[:200] = 1
+    np.savez(fix["npz_file"], train=np.arange(48000), validation=np.arange(48000, 60000),
+             y_train=bad_y_train, y_validation=bad_y_val)
+    with pytest.raises(ExecutorBlocked, match="TRAIN_CLASS_COUNTS_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 9. Ordered IDs hash mismatch (e.g. inverted IDs ordering)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    rev_train = np.arange(47999, -1, -1)  # Reversed ordering
+    y_t = np.zeros(48000, dtype=np.int8)
+    y_t[:800] = 1
+    y_v = np.zeros(12000, dtype=np.int8)
+    y_v[:200] = 1
+    np.savez(fix["npz_file"], train=rev_train, validation=np.arange(48000, 60000),
+             y_train=y_t, y_validation=y_v)
+    with pytest.raises(ExecutorBlocked, match="TRAIN_ORDERED_IDS_HASH_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 10. Processed array hash mismatch (tampered array values)
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    tampered_arr = np.ones((48000, 170), dtype=np.float64)  # Modified from zeros
+    np.save(fix["proc_dir"] / "tree_train.npy", tampered_arr, allow_pickle=False)
+    with pytest.raises(ExecutorBlocked, match="ARRAY_HASH_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 11. Missing processed array
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    (fix["proc_dir"] / "tree_train.npy").unlink()
+    with pytest.raises(ExecutorBlocked, match="PROCESSED_ARRAY_MISSING"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
+
+    # 12. Label row-alignment mismatch against raw train CSV
+    shutil.rmtree(tmp_path)
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    raw_dir = tmp_path / "data/raw/scania_aps"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_lines = [b"class," + b",".join(f"f{i}".encode() for i in range(170))]
+    # Generate 60,000 lines where row 0 is pos, but y_train[0] expects pos.
+    # We will flip row 0 in raw CSV to neg so row-alignment fails!
+    for r in range(60000):
+        # In fix: y_train[:800] are pos (rows 0..799). Let's make row 0 "neg" in raw CSV
+        cls = b"pos" if (1 <= r < 801) else b"neg"
+        raw_lines.append(cls + b"," + b",".join(b"0" for _ in range(170)))
+    raw_bytes = b"\n".join(raw_lines)
+    (raw_dir / "aps_failure_training_set.csv").write_bytes(raw_bytes)
+    # Update source_sha in manifest and checksums so it reads the CSV
+    csv_sha = digest(raw_bytes)
+    fix["manifest"]["source_sha256"] = csv_sha
+    fix["manifest"]["train_ordered_ids_sha256"] = ordered_ids_hash(np.arange(48000), csv_sha)
+    fix["manifest"]["validation_ordered_ids_sha256"] = ordered_ids_hash(np.arange(48000, 60000), csv_sha)
+    m_bytes = json.dumps(fix["manifest"]).encode("utf-8")
+    (fix["meta_dir"] / "stable_manifest.json").write_bytes(m_bytes)
+    (fix["meta_dir"] / "checksums.json").write_bytes(json.dumps({"stable_manifest.json": digest(m_bytes)}).encode("utf-8"))
+    with pytest.raises(ExecutorBlocked, match="TRAIN_LABEL_ROW_ALIGNMENT_MISMATCH"):
+        verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
 
 
 def test_EX06_b0_majority_dummy_contract():
@@ -301,11 +485,57 @@ def test_EX11_end_to_end_synthetic_pipeline_execution():
 
 
 def test_EX12_proposed_resource_limits_feasibility_assessment():
-    """Verify assess_proposed_resource_limits confirms technical feasibility of proposed limits."""
+    """Verify assess_proposed_resource_limits confirms technical feasibility of proposed limits.
+
+    Confirms that memory and runtime figures are explicitly labeled as ESTIMATED engineering
+    projections, not measured real-fit figures.
+    """
     assessment = assess_proposed_resource_limits()
     assert assessment["proposed_thread_limit"] == 1
     assert assessment["proposed_timeout_seconds"] == 120.0
     assert assessment["proposed_ram_cap_mb"] == 2048.0
+    assert assessment["estimated_peak_ram_mb"] == 450.0
+    assert assessment["estimated_b1_seconds"] == 1.0
+    assert assessment["estimated_b2_seconds"] == 25.0
     assert assessment["ram_feasible"] is True
     assert assessment["time_feasible"] is True
     assert assessment["status"] == "PROPOSED_LIMITS_TECHNICALLY_FEASIBLE"
+    assert "ESTIMATED" in assessment["note"]
+
+
+def test_EX13_cli_gate_b2_fails_closed(tmp_path):
+    """Verify scripts/run_scania_baselines.py gate-b2 fails closed with 0 fits and sealed test set."""
+    run_id = f"test_gate_b2_locked_{int(time.time())}"
+    run_dir = ROOT / "results/scania_aps/g4" / run_id
+    try:
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/run_scania_baselines.py"),
+            "gate-b2",
+            "--run-id",
+            run_id,
+        ]
+        proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
+        assert proc.returncode != 0, f"Expected non-zero exit code, got {proc.returncode}"
+
+        # Verify evidence run recorded fail-closed status
+        assert run_dir.is_dir()
+        summary_file = run_dir / "run_summary.json"
+        assert summary_file.is_file()
+        summary = json.loads(summary_file.read_text(encoding="utf-8"))
+        assert summary["status"] == "BLOCKED"
+        assert summary["lifecycle"] == "FAILED"
+        assert summary["gate_b_authorized"] is False
+        assert summary["real_estimator_fits"] == 0
+        assert summary["real_validation_scored"] is False
+        assert summary["official_test"] == "SEALED_UNTIL_G10"
+
+        diag_file = run_dir / "failure_diagnostics.json"
+        assert diag_file.is_file()
+        diag = json.loads(diag_file.read_text(encoding="utf-8"))
+        errors = diag.get("errors", [])
+        assert len(errors) > 0
+        assert "GATE_B2_NOT_AUTHORIZED" in errors[0]["reason"]
+    finally:
+        if run_dir.is_dir():
+            shutil.rmtree(run_dir, ignore_errors=True)

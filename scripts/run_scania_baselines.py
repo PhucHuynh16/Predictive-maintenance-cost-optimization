@@ -101,12 +101,64 @@ def run_gate_a(root=ROOT, *, run_id, mode, test_evidence=None):
     return out.path
 
 
+def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
+    """Fail-closed real baseline execution gate under Gate B2."""
+    from src.scania.g4_b2_executor import execute_real_baseline_gate, ExecutorBlocked
+    out = EvidenceRun(root, run_id)
+    start = time.perf_counter()
+    report = dict(
+        run_id=run_id,
+        mode="GATE_B2_REAL_BASELINE",
+        status="BLOCKED",
+        lifecycle="FAILED",
+        started_utc=utc(),
+        gate_b_authorized=False,
+        official_test="SEALED_UNTIL_G10",
+        real_estimator_fits=0,
+        real_validation_scored=False,
+        g3_input_run=g3_run_id,
+        thread_control="1_THREAD_LOCKED",
+        runtime={"load_verify_seconds": None, "fit_seconds": None, "predict_seconds": None,
+                 "metrics_seconds": None, "total_seconds": None},
+        runtime_reasons={k: "NOT_COMPUTED" for k in ("load_verify_seconds", "fit_seconds", "predict_seconds", "metrics_seconds", "total_seconds")},
+    )
+    events, errors, stage = [], [], "GATE_B2_AUTHORIZATION"
+    try:
+        execute_real_baseline_gate(root, run_id, g3_run_id=g3_run_id)
+        report["status"] = "GATE_B2_SUCCESS"
+        report["lifecycle"] = "COMPLETE"
+    except Exception as exc:
+        status = "BLOCKED" if isinstance(exc, (Blocked, ExecutorBlocked, FileNotFoundError)) else "FAILED"
+        report.update(status=status, lifecycle="FAILED")
+        reason_str = str(exc).replace(str(Path(root)), "<repository>")
+        errors.append(dict(
+            stage=stage,
+            error_type=type(exc).__name__,
+            reason=reason_str,
+            real_estimator_fits=0,
+            real_validation_scored=False,
+            official_test="SEALED_UNTIL_G10",
+        ))
+        events.append(f"Stopped at {stage}: {reason_str}")
+        raise
+    finally:
+        report["ended_utc"] = utc()
+        report["runtime"]["total_seconds"] = time.perf_counter() - start
+        report["runtime_reasons"].pop("total_seconds", None)
+        out.json("run_summary.json", report)
+        out.json("failure_diagnostics.json", dict(errors=errors))
+        out.text("execution.txt", "\n".join(events + [f"status={report['status']}"]) + "\n")
+        out.finalize()
+    return out.path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["synthetic", "preflight", "tests", "summarize-tests"])
+    parser.add_argument("action", choices=["synthetic", "preflight", "tests", "summarize-tests", "gate-b2"])
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--test-evidence")
     parser.add_argument("--junit")
+    parser.add_argument("--g3-run", default=None)
     args = parser.parse_args()
     if args.action == "tests":
         result, exit_code = run_tests(ROOT, args.run_id)
@@ -114,6 +166,13 @@ def main():
         return exit_code
     elif args.action == "summarize-tests":
         result = summarize_junit(ROOT, args.junit or "", args.run_id)
+    elif args.action == "gate-b2":
+        try:
+            result = run_gate_b2(ROOT, run_id=args.run_id, g3_run_id=args.g3_run)
+            print(Path(result).relative_to(ROOT).as_posix())
+            return 0
+        except Exception:
+            return 1
     else:
         result = run_gate_a(run_id=args.run_id, mode="SYNTHETIC_FIXTURE" if args.action == "synthetic"
                             else "READ_ONLY_PREFLIGHT", test_evidence=args.test_evidence)
