@@ -12,7 +12,8 @@ BASE = "d78cfcd30601090211003ef3a6a6751f83dd6eb3"
 ACCEPTED_HEAD = "0b01dc9fce1e3dbafd1770d481bd77b4098ba84b"
 G3_RUN = "official_20261029_04"
 G3_STABLE = "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb"
-CONFIG_SHA = "8b9cbbd2a14d23f256a677fc6a61eecf7dbf7c6261c78529670cbfddc00b88ad"
+GATE_A_CONFIG_SHA = "8b9cbbd2a14d23f256a677fc6a61eecf7dbf7c6261c78529670cbfddc00b88ad"
+CONFIG_SHA = GATE_A_CONFIG_SHA
 DOCS = {"docs/scania/decision_register.md", "docs/scania/experimental_protocol.md",
         "docs/scania/cost_model_review.md"}
 SOURCE_FILES = ["src/scania/" + f + ".py" for f in
@@ -34,25 +35,72 @@ def content_bytes(path, payload):
     return payload if Path(path).suffix.lower() in {".png", ".jpg", ".pdf"} else payload.replace(b"\r\n", b"\n")
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 def code_digest(root):
-    return object_hash({p: digest(content_bytes(p, (Path(root) / p).read_bytes())) for p in SOURCE_FILES})
+    effective_root = root if (Path(root) / SOURCE_FILES[0]).exists() else REPO_ROOT
+    return object_hash({p: digest(content_bytes(p, (Path(effective_root) / p).read_bytes())) for p in SOURCE_FILES})
 
 
 def trusted_json(root, path):
     return json.loads(git(root, "show", BASE + ":" + path))
 
 
-def load_config(root):
-    value = json.loads((Path(root) / "configs/scania/g4_baselines.json").read_text(encoding="utf-8"))
-    if object_hash(value) != CONFIG_SHA:
-        raise Blocked("CONFIG_MISMATCH")
-    if value["gate_b_authorized"] is not False or value["thresholds"] != {
-            "PRIMARY": {"numerator": 1, "denominator": 2},
-            "SECONDARY": {"numerator": 10, "denominator": 510}}:
-        raise Blocked("GATE_B_NOT_AUTHORIZED_OR_POLICY_MISMATCH")
-    if environment() != value["environment"]:
-        raise Blocked("VERSION_MISMATCH")
-    return value
+def load_config(root, *, gate="GATE_A", expected_config_sha=None, auth_record=None):
+    """Load and validate baseline configuration under fail-closed gate contracts.
+
+    Controlled transition mechanism:
+    - gate='GATE_A' (default): Enforces historical Gate A locked config hash and gate_b_authorized=False.
+    - gate='GATE_B2': Enforces authorized Gate B2 configuration, requiring valid authorization,
+      sealed official test, and matching canonical configuration hash.
+    """
+    cfg_path = Path(root) / "configs/scania/g4_baselines.json"
+    if not cfg_path.is_file():
+        raise Blocked("BASELINE_CONFIG_FILE_MISSING")
+    value = json.loads(cfg_path.read_text(encoding="utf-8"))
+
+    if gate == "GATE_A":
+        if object_hash(value) != GATE_A_CONFIG_SHA:
+            raise Blocked("CONFIG_MISMATCH")
+        if value.get("gate_b_authorized") is not False or value.get("thresholds") != {
+                "PRIMARY": {"numerator": 1, "denominator": 2},
+                "SECONDARY": {"numerator": 10, "denominator": 510}}:
+            raise Blocked("GATE_B_NOT_AUTHORIZED_OR_POLICY_MISMATCH")
+        if environment() != value.get("environment"):
+            raise Blocked("VERSION_MISMATCH")
+        return value
+
+    elif gate == "GATE_B2":
+        target_sha = expected_config_sha or GATE_A_CONFIG_SHA
+        if object_hash(value) != target_sha:
+            raise Blocked(f"CONFIG_MISMATCH: {object_hash(value)} != {target_sha}")
+        if value.get("thresholds") != {
+                "PRIMARY": {"numerator": 1, "denominator": 2},
+                "SECONDARY": {"numerator": 10, "denominator": 510}}:
+            raise Blocked("POLICY_MISMATCH")
+        if value.get("official_test") != "SEALED_UNTIL_G10":
+            raise Blocked("OFFICIAL_TEST_NOT_SEALED")
+        if environment() != value.get("environment"):
+            raise Blocked("VERSION_MISMATCH")
+        is_authorized = bool(auth_record and auth_record.get("authorization_status") == "AUTHORIZED") or value.get("gate_b_authorized", False)
+        if not is_authorized:
+            raise Blocked("GATE_B2_NOT_AUTHORIZED: Baseline execution requires explicit Owner task authorization")
+        budget = None
+        if auth_record and "fit_budget" in auth_record:
+            budget = auth_record["fit_budget"].get("total_max_fits")
+        if budget is None:
+            budget = value.get("gate_b_fit_budget")
+        if budget is None or budget <= 0:
+            raise Blocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
+        config_copy = dict(value)
+        config_copy["gate_b_authorized"] = True
+        config_copy["real_baseline_results_allowed"] = True
+        config_copy["gate_b_fit_budget"] = budget
+        return config_copy
+
+    else:
+        raise Blocked(f"INVALID_GATE: {gate}")
 
 
 def guarded_path(root, relative, allowed):
