@@ -18,6 +18,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import secrets
 import subprocess
 import sys
@@ -36,6 +37,9 @@ from .contracts import canonical, digest, environment, object_hash
 from .cost_model import binary_vector, observed_aps_cost
 from .data import array_hash, ordered_ids_hash
 from .evaluation import evaluate_aps_policy
+from .g4_contract import CONFIG_SHA
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class SafetyBlocked(ValueError):
@@ -46,6 +50,13 @@ class SafetyBlocked(ValueError):
 class ExecutorBlocked(ValueError):
     """Raised when pipeline preconditions, authorization gates, or contract invariants fail."""
     pass
+
+
+class ExecutorFailure(ExecutorBlocked):
+    """Raised when worker execution fails, preserving partial telemetry and error context."""
+    def __init__(self, message, worker_result=None):
+        super().__init__(message)
+        self.worker_result = worker_result or {}
 
 
 def install_executor_io_guard(root, output, allowlist):
@@ -418,10 +429,10 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
     output_dir.mkdir(parents=True, exist_ok=True)
 
     task_path = output_dir / "task_config.json"
-    task_path.write_text(json.dumps(task_config, indent=2), encoding="utf-8")
+    task_path.write_bytes(json.dumps(task_config, indent=2).encode("utf-8"))
 
     allowlist_path = output_dir / "allowlist.json"
-    allowlist_path.write_text(json.dumps([str(p) for p in allowlist], indent=2), encoding="utf-8")
+    allowlist_path.write_bytes(json.dumps([str(p) for p in allowlist], indent=2).encode("utf-8"))
 
     result_path = output_dir / "worker_result.json"
     if result_path.is_file():
@@ -429,6 +440,7 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
 
     child_env = os.environ.copy()
     child_env.update(THREAD_ENV)
+    child_env["PYTHONPATH"] = str(REPO_ROOT)
     child_env.update(
         SC_G4_B2_RUN=run_id,
         SC_G4_B2_TASK_PATH=str(task_path),
@@ -472,16 +484,19 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
 
     if exit_code != 0 or worker_result.get("status") != "PASS":
         err_msg = worker_result.get("reason", f"Exit code {exit_code}")
-        raise ExecutorBlocked(f"WORKER_EXECUTION_FAILED: {err_msg}")
+        raise ExecutorFailure(f"WORKER_EXECUTION_FAILED: {err_msg}", worker_result=worker_result)
 
-    # Build report evidence
+    # Build report evidence with truthful distinction between real and synthetic (F3)
+    is_real = (mode == "REAL")
     report = dict(
         run_id=run_id,
         mode=mode,
         status="COMPLETE",
         lifecycle="COMPLETE",
-        real_estimator_fits=worker_result["total_estimator_fits"],
-        real_validation_scored=worker_result["validation_scored"],
+        real_estimator_fits=worker_result["total_estimator_fits"] if is_real else 0,
+        synthetic_estimator_fits=worker_result["total_estimator_fits"] if not is_real else 0,
+        real_validation_scored=worker_result["validation_scored"] if is_real else False,
+        synthetic_validation_scored=worker_result["validation_scored"] if not is_real else False,
         rows=worker_result["rows"],
         telemetry=worker_result["telemetry"],
         observed_timings=worker_result["observed_timings"],
@@ -491,7 +506,115 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
     return report
 
 
-def execute_real_baseline_gate(root, run_id, *, g3_run_id=None):
+def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expected_config_sha=None,
+                                        expected_g3_run_id=None, mode="REAL"):
+    """Enforce schema and semantic validation of an Owner baseline authorization record (F2).
+
+    Schema & Invariants:
+    - Exact run ID match.
+    - Owner approval reference must resolve to an actual Owner decision (not self-conferred).
+    - Authorized source commit (40-char hex SHA) and canonical configuration SHA-256.
+    - Accepted G3 input run and manifest hash match.
+    - Approved models: exactly B0, B1, B2.
+    - Fit budget: B0=0, B1=1, B2=1 (total approved fits <= 2).
+    - Resource limits: max_native_threads=1, max_ram_mb=2048, max_wall_seconds=120.
+    - Allowed partitions: train, validation only.
+    - Official Test remains sealed: official_test_sealed=True.
+    - Authorization status: AUTHORIZED.
+    - Permitted operation: BASELINE_FITTING_VALIDATION_ONLY (REAL) or SYNTHETIC_BASELINE_TESTING_ONLY (SYNTHETIC).
+    - Mode distinction: SYNTHETIC_ONLY records can NEVER authorize real Scania data access.
+    """
+    if isinstance(auth_path_or_dict, (str, Path)):
+        p = Path(auth_path_or_dict).resolve()
+        if not p.is_file():
+            raise ExecutorBlocked(f"GATE_B2_OWNER_AUTHORIZATION_RECORD_MISSING: {p.name}")
+        try:
+            record = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise ExecutorBlocked(f"INVALID_AUTHORIZATION_JSON: {exc}")
+    elif isinstance(auth_path_or_dict, dict):
+        record = auth_path_or_dict
+    else:
+        raise ExecutorBlocked("INVALID_AUTHORIZATION_RECORD_TYPE")
+
+    # 1. Exact Run ID
+    if record.get("run_id") != expected_run_id:
+        raise ExecutorBlocked(f"AUTHORIZATION_RUN_ID_MISMATCH: {record.get('run_id')} != {expected_run_id}")
+
+    # 2. Authorization status
+    if record.get("authorization_status") != "AUTHORIZED":
+        raise ExecutorBlocked(f"AUTHORIZATION_NOT_GRANTED: Status is {record.get('authorization_status')}")
+
+    # 3. Mode check and permitted operation
+    auth_mode = record.get("mode")
+    if mode == "REAL":
+        if auth_mode == "SYNTHETIC_ONLY":
+            raise ExecutorBlocked("SYNTHETIC_AUTHORIZATION_CANNOT_AUTHORIZE_REAL_DATA")
+        if auth_mode != "REAL":
+            raise ExecutorBlocked(f"INVALID_AUTHORIZATION_MODE_FOR_REAL: {auth_mode}")
+        if record.get("permitted_operation") != "BASELINE_FITTING_VALIDATION_ONLY":
+            raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: {record.get('permitted_operation')}")
+    elif mode == "SYNTHETIC":
+        if auth_mode not in {"SYNTHETIC_ONLY", "REAL"}:
+            raise ExecutorBlocked(f"INVALID_SYNTHETIC_AUTHORIZATION_MODE: {auth_mode}")
+        if record.get("permitted_operation") not in {"SYNTHETIC_BASELINE_TESTING_ONLY", "BASELINE_FITTING_VALIDATION_ONLY"}:
+            raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: {record.get('permitted_operation')}")
+
+    # 4. Owner approval reference check (Must not be self-conferred by agents)
+    owner_app = record.get("owner_approval")
+    if not isinstance(owner_app, dict):
+        raise ExecutorBlocked("INVALID_OWNER_APPROVAL_OBJECT")
+    ref = str(owner_app.get("reference", ""))
+    approved_by = owner_app.get("approved_by", "")
+    if approved_by != "OWNER":
+        raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Approved by '{approved_by}' is not recognized")
+    if not ref or not (ref.startswith("https://github.com/") or (mode == "SYNTHETIC" and ref.startswith("SYNTHETIC_FIXTURE_"))):
+        raise ExecutorBlocked("INVALID_OWNER_APPROVAL_REFERENCE")
+
+    # 5. Source integrity
+    src_int = record.get("source_integrity", {})
+    auth_commit = str(src_int.get("authorized_commit", ""))
+    if not re.fullmatch(r"[0-9a-f]{40}", auth_commit):
+        raise ExecutorBlocked("INVALID_AUTHORIZED_COMMIT_SHA")
+    if expected_config_sha is not None:
+        cfg_sha = src_int.get("canonical_config_sha256", "")
+        if cfg_sha != expected_config_sha:
+            raise ExecutorBlocked(f"AUTHORIZED_CONFIG_SHA_MISMATCH: {cfg_sha} != {expected_config_sha}")
+
+    # 6. Data scope and partition boundaries
+    data_scope = record.get("data_scope", {})
+    if mode == "REAL":
+        if expected_g3_run_id is not None and data_scope.get("accepted_g3_run_id") != expected_g3_run_id:
+            raise ExecutorBlocked("ACCEPTED_G3_RUN_ID_MISMATCH")
+        if not data_scope.get("accepted_g3_manifest_sha256"):
+            raise ExecutorBlocked("MISSING_ACCEPTED_G3_MANIFEST_SHA")
+    if set(data_scope.get("allowed_partitions", [])) != {"train", "validation"}:
+        raise ExecutorBlocked("INVALID_ALLOWED_PARTITIONS: Only train and validation allowed")
+    if data_scope.get("official_test_sealed") is not True:
+        raise ExecutorBlocked("OFFICIAL_TEST_NOT_SEALED: Test partition must be sealed")
+
+    # 7. Approved models & fit budget
+    if record.get("approved_models") != ["B0", "B1", "B2"]:
+        raise ExecutorBlocked("INVALID_APPROVED_MODELS: Exactly B0, B1, B2 required")
+    fit_budget = record.get("fit_budget", {})
+    if fit_budget.get("B0") != 0 or fit_budget.get("B1") != 1 or fit_budget.get("B2") != 1:
+        raise ExecutorBlocked("INVALID_FIT_BUDGET_ALLOCATION: Must be B0=0, B1=1, B2=1")
+    if fit_budget.get("total_max_fits", 0) > 2:
+        raise ExecutorBlocked("EXCESSIVE_FIT_BUDGET: Total max fits cannot exceed 2")
+
+    # 8. Resource limits
+    limits = record.get("resource_limits", {})
+    if limits.get("max_native_threads") != 1:
+        raise ExecutorBlocked("INVALID_MAX_NATIVE_THREADS: Must be 1")
+    if limits.get("max_ram_mb", 0) > 2048:
+        raise ExecutorBlocked("RAM_LIMIT_EXCEEDS_CAP: Max 2048 MB allowed")
+    if limits.get("max_wall_seconds", 0) > 120:
+        raise ExecutorBlocked("WALL_LIMIT_EXCEEDS_CAP: Max 120s allowed")
+
+    return record
+
+
+def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, run_reservation=None):
     """Execution entrypoint for real Scania baseline experiments.
 
     CRITICAL GATE:
@@ -499,6 +622,22 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None):
     Does NOT accept caller-supplied config overrides. Reads strictly from configs/scania/g4_baselines.json.
     """
     root = Path(root).resolve()
+
+    # 1. Output directory setup & single-owner run reservation check (F1)
+    output_dir = root / "results/scania_aps/g4" / run_id
+    if run_reservation is not None:
+        if not hasattr(run_reservation, "validate_reservation_contract"):
+            raise ExecutorBlocked("INVALID_RUN_RESERVATION_TYPE: Expected EvidenceRun instance")
+        run_reservation.validate_reservation_contract(root, run_id)
+        if Path(run_reservation.path).resolve() != output_dir.resolve():
+            raise ExecutorBlocked(f"RESERVATION_PATH_MISMATCH: {run_reservation.path} != {output_dir}")
+        existing = {p.name for p in output_dir.iterdir()}
+        if {"checksums.json", "run_summary.json", "baseline_metrics.json"}.intersection(existing):
+            raise ExecutorBlocked(f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {run_id}")
+    else:
+        if output_dir.exists():
+            raise ExecutorBlocked(f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {run_id}")
+
     cfg_file = root / "configs/scania/g4_baselines.json"
     if not cfg_file.is_file():
         raise ExecutorBlocked("BASELINE_CONFIG_FILE_MISSING")
@@ -516,33 +655,33 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None):
     if budget is None or budget <= 0:
         raise ExecutorBlocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
 
-    # Explicit run-specific Owner authorization record check
+    # Explicit run-specific Owner authorization record schema & semantic validation (F2)
     auth_file = root / "configs/scania/authorizations" / f"{run_id}.json"
-    if not auth_file.is_file():
-        raise ExecutorBlocked("GATE_B2_OWNER_AUTHORIZATION_RECORD_MISSING: Explicit Owner authorization record required")
+    auth_record = validate_owner_authorization_record(
+        auth_file, run_id, expected_config_sha=CONFIG_SHA, expected_g3_run_id=g3_run_id, mode="REAL"
+    )
 
-    # 1. Verify G3 artifacts and construct allowlist
+    if run_reservation is None:
+        output_dir.mkdir(parents=True, exist_ok=False)
+
+    # 2. Verify G3 artifacts and construct allowlist
     allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, g3_run_id)
 
-    # 2. Output directory setup
-    output_dir = root / "results/scania_aps/g4" / run_id
-    if output_dir.exists():
-        raise ExecutorBlocked(f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {run_id}")
-
-    # 3. Setup task configuration
+    # 3. Setup task configuration with locked parameters (F4)
     if g3_run_id is None:
         g3_run_id = config.get("g3_input_run", "official_20261029_04")
     proc_dir = root / "data/processed/scania_aps" / g3_run_id
 
     task_config = dict(
         run_id=run_id,
+        mode="REAL",
         membership_path=str(proc_dir / "membership.npz"),
         tree_train_path=str(proc_dir / "tree_train.npy"),
         tree_val_path=str(proc_dir / "tree_validation.npy"),
         lr_train_path=str(proc_dir / "lr_train.npy"),
         lr_val_path=str(proc_dir / "lr_validation.npy"),
-        b1_params=STUMP_PARAMS,
-        b2_params=LR_PARAMS,
+        b1_params=dict(config.get("B1", STUMP_PARAMS)),
+        b2_params=dict(config.get("B2", LR_PARAMS)),
     )
 
     # 4. Launch real worker under Windows Job Object
@@ -551,6 +690,7 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None):
 
 
 def execute_synthetic_baseline_orchestration(root, run_id, *, synthetic_dir=None,
+                                             run_reservation=None, auth_record=None,
                                              wall_seconds=120, ram_cap_bytes=2048 * 1024 * 1024,
                                              n_train=200, n_val=60, n_features=10, random_state=42):
     """Synthetic-only integration entrypoint exercising the actual supervisor/worker orchestration.
@@ -559,6 +699,9 @@ def execute_synthetic_baseline_orchestration(root, run_id, *, synthetic_dir=None
     Constructs isolated synthetic arrays and runs the actual worker subprocess under WindowsJob.
     """
     root = Path(root).resolve()
+    if auth_record is not None:
+        validate_owner_authorization_record(auth_record, run_id, mode="SYNTHETIC")
+
     if synthetic_dir is None:
         synthetic_dir = root / "results/scania_aps/g4/synthetic_test" / run_id
     synthetic_dir = Path(synthetic_dir).resolve()
@@ -590,10 +733,19 @@ def execute_synthetic_baseline_orchestration(root, run_id, *, synthetic_dir=None
     np.save(lr_val_p, x_val, allow_pickle=False)
 
     allowlist = [npz_path, tree_tr_p, tree_val_p, lr_tr_p, lr_val_p]
-    output_dir = synthetic_dir / "output"
+
+    if run_reservation is not None:
+        if not hasattr(run_reservation, "validate_reservation_contract"):
+            raise ExecutorBlocked("INVALID_RUN_RESERVATION_TYPE")
+        run_reservation.validate_reservation_contract(root, run_id)
+        output_dir = Path(run_reservation.path).resolve()
+    else:
+        output_dir = synthetic_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     task_config = dict(
         run_id=run_id,
+        mode="SYNTHETIC",
         membership_path=str(npz_path),
         tree_train_path=str(tree_tr_p),
         tree_val_path=str(tree_val_p),

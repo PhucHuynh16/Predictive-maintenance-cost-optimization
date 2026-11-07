@@ -64,6 +64,11 @@ def execute_worker():
 
     result_path = output_dir / "worker_result.json"
 
+    fits_count = 0
+    attempted_fits = 0
+    telemetry = {}
+    caught_warnings_list = []
+
     try:
         # 1. Thread env verification
         verify_thread_environment()
@@ -94,6 +99,7 @@ def execute_worker():
 
         # 6. Read task config
         task_config = json.loads(task_path.read_text(encoding="utf-8"))
+        worker_mode = task_config.get("mode", "SYNTHETIC")
 
         # 7. Initialize NativeSession and verify 1 thread
         session = NativeSession()
@@ -103,7 +109,34 @@ def execute_worker():
                 if p.get("num_threads") != 1:
                     raise ValueError(f"NATIVE_THREAD_NOT_ONE: {p.get('filepath')} has {p.get('num_threads')}")
 
-            # 8. Load labels from membership.npz
+            # 8. Locked model configuration verification (F4)
+            if worker_mode == "REAL":
+                cfg_file = root_dir / "configs/scania/g4_baselines.json"
+                if not cfg_file.is_file():
+                    raise ValueError("BASELINE_CONFIG_FILE_MISSING")
+                locked_cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+                expected_b1 = locked_cfg.get("B1", {})
+                expected_b2 = locked_cfg.get("B2", {})
+
+                # Verify task_config has not tampered with locked canonical parameters
+                if task_config.get("b1_params") != expected_b1:
+                    raise ValueError("B1_PARAMETERS_TAMPERED: task_config deviates from locked canonical config")
+                if task_config.get("b2_params") != expected_b2:
+                    raise ValueError("B2_PARAMETERS_TAMPERED: task_config deviates from locked canonical config")
+
+                b1_params = dict(expected_b1)
+                b2_params = dict(expected_b2)
+            else:
+                b1_params = task_config.get("b1_params", {"max_depth": 1, "random_state": 42})
+                b2_params = task_config.get("b2_params", {
+                    "solver": "lbfgs",
+                    "max_iter": 2000,
+                    "random_state": 42,
+                    "tol": 1e-4,
+                    "C": 1.0,
+                })
+
+            # 9. Load labels from membership.npz
             npz_path = Path(task_config["membership_path"]).resolve()
             with np.load(npz_path, allow_pickle=False) as z:
                 y_train_raw = z["y_train"].copy()
@@ -114,11 +147,8 @@ def execute_worker():
 
             n_train = len(y_train)
             n_val = len(y_val)
-            p_val = int(np.sum(y_val == 1))
 
             all_rows = []
-            telemetry = {}
-            fits_count = 0
 
             # --- Model B0: Majority Dummy (0 fits, fixed rule) ---
             t0_b0 = time.perf_counter()
@@ -132,7 +162,7 @@ def execute_worker():
                 warnings=[],
                 parameters=None,
                 classes=[0],
-                real_estimator_fits=0,
+                estimator_fits=0,
                 validation_scored=True,
             )
 
@@ -145,9 +175,14 @@ def execute_worker():
             if x_tree_train.shape[0] != n_train or x_tree_val.shape[0] != n_val:
                 raise ValueError("B1_INPUT_SHAPE_MISMATCH")
 
-            b1_params = task_config.get("b1_params", {"max_depth": 1, "random_state": 42})
             model_b1 = DecisionTreeClassifier(**b1_params)
+            # Verify instantiated parameters
+            actual_b1_params = model_b1.get_params()
+            for pk, pv in b1_params.items():
+                if actual_b1_params.get(pk) != pv:
+                    raise ValueError(f"B1_PARAM_MISMATCH: {pk}={actual_b1_params.get(pk)}, expected {pv}")
 
+            attempted_fits += 1
             t0_b1_fit = time.perf_counter()
             with warnings.catch_warnings(record=True) as caught_b1:
                 warnings.simplefilter("always")
@@ -155,12 +190,22 @@ def execute_worker():
             b1_fit_sec = time.perf_counter() - t0_b1_fit
             fits_count += 1
 
+            for w in caught_b1:
+                caught_warnings_list.append(str(w.message))
+
             t0_b1_pred = time.perf_counter()
             proba_b1 = np.asarray(model_b1.predict_proba(x_tree_val))
             b1_pred_sec = time.perf_counter() - t0_b1_pred
 
             if proba_b1.shape != (n_val, 2) or not np.isfinite(proba_b1).all():
                 raise ValueError("B1_PROBABILITY_INVALID")
+            if not np.all((proba_b1 >= 0.0) & (proba_b1 <= 1.0)):
+                raise ValueError("B1_PROBABILITY_OUT_OF_BOUNDS")
+            if not np.allclose(np.sum(proba_b1, axis=1), 1.0, atol=1e-5):
+                raise ValueError("B1_PROBABILITY_ROW_SUM_INVALID")
+            if list(model_b1.classes_) != [0, 1]:
+                raise ValueError(f"B1_CLASSES_INVALID: {model_b1.classes_}")
+
             scores_b1 = probabilities(proba_b1[:, 1])
 
             for role, tau in POLICIES.items():
@@ -175,7 +220,7 @@ def execute_worker():
                 warnings=[str(w.message) for w in caught_b1],
                 parameters=model_b1.get_params(deep=False),
                 classes=[int(c) for c in model_b1.classes_],
-                real_estimator_fits=1,
+                estimator_fits=1,
                 validation_scored=True,
             )
 
@@ -188,21 +233,23 @@ def execute_worker():
             if x_lr_train.shape[0] != n_train or x_lr_val.shape[0] != n_val:
                 raise ValueError("B2_INPUT_SHAPE_MISMATCH")
 
-            b2_params = task_config.get("b2_params", {
-                "solver": "lbfgs",
-                "max_iter": 2000,
-                "random_state": 42,
-                "tol": 1e-4,
-                "C": 1.0,
-            })
             model_b2 = LogisticRegression(**b2_params)
+            # Verify instantiated parameters
+            actual_b2_params = model_b2.get_params()
+            for pk, pv in b2_params.items():
+                if actual_b2_params.get(pk) != pv:
+                    raise ValueError(f"B2_PARAM_MISMATCH: {pk}={actual_b2_params.get(pk)}, expected {pv}")
 
+            attempted_fits += 1
             t0_b2_fit = time.perf_counter()
             with warnings.catch_warnings(record=True) as caught_b2:
                 warnings.simplefilter("always")
                 model_b2.fit(x_lr_train, y_train)
             b2_fit_sec = time.perf_counter() - t0_b2_fit
             fits_count += 1
+
+            for w in caught_b2:
+                caught_warnings_list.append(str(w.message))
 
             conv_w = [w for w in caught_b2 if issubclass(w.category, ConvergenceWarning)]
             if conv_w:
@@ -214,6 +261,13 @@ def execute_worker():
 
             if proba_b2.shape != (n_val, 2) or not np.isfinite(proba_b2).all():
                 raise ValueError("B2_PROBABILITY_INVALID")
+            if not np.all((proba_b2 >= 0.0) & (proba_b2 <= 1.0)):
+                raise ValueError("B2_PROBABILITY_OUT_OF_BOUNDS")
+            if not np.allclose(np.sum(proba_b2, axis=1), 1.0, atol=1e-5):
+                raise ValueError("B2_PROBABILITY_ROW_SUM_INVALID")
+            if list(model_b2.classes_) != [0, 1]:
+                raise ValueError(f"B2_CLASSES_INVALID: {model_b2.classes_}")
+
             scores_b2 = probabilities(proba_b2[:, 1])
 
             for role, tau in POLICIES.items():
@@ -228,7 +282,7 @@ def execute_worker():
                 warnings=[str(w.message) for w in caught_b2],
                 parameters=model_b2.get_params(deep=False),
                 classes=[int(c) for c in model_b2.classes_],
-                real_estimator_fits=1,
+                estimator_fits=1,
                 validation_scored=True,
             )
 
@@ -236,10 +290,13 @@ def execute_worker():
         worker_output = dict(
             status="PASS",
             run_id=run_id,
+            mode=worker_mode,
             total_estimator_fits=fits_count,
+            attempted_estimator_fits=attempted_fits,
             validation_scored=True,
             rows=all_rows,
             telemetry=telemetry,
+            warnings=caught_warnings_list,
             observed_timings=dict(
                 b0_predict_seconds=telemetry["B0"]["predict_seconds"],
                 b1_fit_seconds=b1_fit_sec,
@@ -249,7 +306,7 @@ def execute_worker():
                 total_fit_seconds=b1_fit_sec + b2_fit_sec,
             ),
         )
-        result_path.write_text(json.dumps(worker_output, indent=2), encoding="utf-8")
+        result_path.write_bytes(json.dumps(worker_output, indent=2).encode("utf-8"))
         return 0
 
     except Exception as exc:
@@ -258,11 +315,14 @@ def execute_worker():
             run_id=run_id,
             error_type=type(exc).__name__,
             reason=str(exc),
-            total_estimator_fits=locals().get("fits_count", 0),
+            total_estimator_fits=fits_count,
+            attempted_estimator_fits=attempted_fits,
             validation_scored=False,
+            telemetry=telemetry,
+            warnings=caught_warnings_list,
         )
         try:
-            result_path.write_text(json.dumps(failure_output, indent=2), encoding="utf-8")
+            result_path.write_bytes(json.dumps(failure_output, indent=2).encode("utf-8"))
         except Exception:
             pass
         sys.stderr.write(f"WORKER_ERROR: {type(exc).__name__}: {exc}\n")

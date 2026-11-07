@@ -3,6 +3,7 @@ import csv
 import datetime
 import io
 import json
+import os
 from pathlib import Path
 import re
 import uuid
@@ -34,6 +35,22 @@ class EvidenceRun:
             attempt.text("execution.txt", "RUN_ID_EXISTS: previous run preserved\n")
             attempt.finalize()
             raise Blocked("RUN_ID_EXISTS")
+        self.reservation_token = uuid.uuid4().hex
+        self._reserved_root = root
+        self._reserved_run_id = run_id
+        self._reserved_pid = os.getpid()
+
+    def validate_reservation_contract(self, expected_root, expected_run_id):
+        expected_root = Path(expected_root).resolve()
+        if self._reserved_run_id != expected_run_id:
+            raise Blocked(f"RESERVATION_RUN_ID_MISMATCH: {self._reserved_run_id} != {expected_run_id}")
+        if self._reserved_root.resolve() != expected_root:
+            raise Blocked("RESERVATION_ROOT_MISMATCH")
+        if self._reserved_pid != os.getpid():
+            raise Blocked("RESERVATION_PID_MISMATCH")
+        if not self.path.is_dir():
+            raise Blocked("RESERVATION_DIRECTORY_NOT_FOUND")
+        return True
 
     def _file(self, name):
         if not re.fullmatch(r"[a-z0-9_]+\.(json|txt|csv)", name):
@@ -59,7 +76,7 @@ class EvidenceRun:
 
     def finalize(self):
         files = list(self.path.iterdir())
-        self.json("checksums.json", {p.name: digest(p.read_bytes()) for p in sorted(files) if p.is_file()})
+        self.json("checksums.json", {p.name: digest(p.read_bytes().replace(b"\r\n", b"\n")) for p in sorted(files) if p.is_file()})
 
 
 def verify_run(path):
@@ -82,6 +99,8 @@ def verify_run(path):
             required |= {"baseline_metrics.json", "baseline_metrics.csv"}
         elif summary["mode"] == "READ_ONLY_PREFLIGHT":
             required |= {"input_manifest.json", "preflight.json", "tests_summary.json"}
+        elif summary["mode"] in {"GATE_B2_REAL_BASELINE", "GATE_B2_SYNTHETIC"}:
+            required |= {"baseline_metrics.json", "baseline_metrics.csv"}
         else:
             return False
         return required.issubset(manifest)

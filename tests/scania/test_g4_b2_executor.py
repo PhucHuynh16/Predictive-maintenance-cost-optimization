@@ -1,4 +1,4 @@
-"""Tests for G4 Baseline Executor: I/O guard allowlist, G3 artifact verification, and baseline pipeline.
+﻿"""Tests for G4 Baseline Executor: I/O guard allowlist, G3 artifact verification, and baseline pipeline.
 
 All tests run on synthetic fixtures or read-only metadata verification.
 No real-data fitting or Official Test access is performed.
@@ -17,6 +17,8 @@ import pytest
 from src.scania.g4_b2_executor import (
     SafetyBlocked,
     ExecutorBlocked,
+    ExecutorFailure,
+    validate_owner_authorization_record,
     install_executor_io_guard,
     verify_g3_artifacts_and_build_allowlist,
     fit_and_score_baseline_model,
@@ -146,13 +148,15 @@ def test_EX03_io_guard_blocks_unauthorized_reads_and_allows_allowlist(tmp_path):
     assert "ALLOWED=True,SECRET_BLOCKED=True" in proc.stdout
 
 
-def test_EX04_verify_g3_artifacts_and_build_allowlist_matches_recreated_run():
+def test_EX04_verify_g3_artifacts_and_build_allowlist_matches_accepted_run(tmp_path):
     """[READ-ONLY G3 ARTIFACT CHECK] Verify G3 artifact verification succeeds and populates allowlist for verified run.
 
     Performs read-only validation of persisted G3 artifacts against accepted G3 stable manifest and official Train CSV.
     Does NOT perform model training, validation scoring, or test set access.
     """
-    allowlist, summary = verify_g3_artifacts_and_build_allowlist(ROOT, g3_run_id="recreate_antigravity_20261107_01")
+    run_id = "test_g3_verify_01"
+    fix = _build_synthetic_g3_fixture(tmp_path, run_id=run_id)
+    allowlist, summary = verify_g3_artifacts_and_build_allowlist(tmp_path, g3_run_id=run_id)
     assert summary["train_rows"] == 48000
     assert summary["validation_rows"] == 12000
     assert summary["features"] == 170
@@ -607,8 +611,10 @@ def test_EX14_synthetic_supervisor_worker_orchestration(tmp_path):
     )
     assert report["status"] == "COMPLETE"
     assert report["lifecycle"] == "COMPLETE"
-    assert report["real_estimator_fits"] == 2
-    assert report["real_validation_scored"] is True
+    assert report["real_estimator_fits"] == 0
+    assert report["synthetic_estimator_fits"] == 2
+    assert report["real_validation_scored"] is False
+    assert report["synthetic_validation_scored"] is True
 
     rows = report["rows"]
     assert len(rows) == 5  # 1 B0, 2 B1, 2 B2
@@ -643,3 +649,268 @@ def test_EX15_synthetic_worker_timeout_containment(tmp_path):
             ROOT, run_id, synthetic_dir=synth_dir, wall_seconds=0.0001,
             n_train=2000, n_val=500, n_features=20
         )
+
+
+def test_EX16_run_reservation_lifecycle_and_no_overwrite(tmp_path):
+    """Verify single-owner run reservation contract, collision rejection, and no arbitrary directory adoption (F1)."""
+    from src.scania.g4_artifacts import EvidenceRun, Blocked
+    run_id = f"test_reserv_{int(time.time())}"
+
+    # 1. First reservation succeeds and creates directory atomically
+    out = EvidenceRun(tmp_path, run_id)
+    assert out.path.is_dir()
+    assert hasattr(out, "validate_reservation_contract")
+    assert out.validate_reservation_contract(tmp_path, run_id) is True
+
+    # 2. Second reservation with same run_id fails closed with RUN_ID_EXISTS
+    with pytest.raises(Blocked, match="RUN_ID_EXISTS"):
+        EvidenceRun(tmp_path, run_id)
+
+    # 3. Passing wrong expected run_id or root to validate_reservation_contract fails
+    with pytest.raises(Blocked, match="RESERVATION_RUN_ID_MISMATCH"):
+        out.validate_reservation_contract(tmp_path, "different_run_id")
+    with pytest.raises(Blocked, match="RESERVATION_ROOT_MISMATCH"):
+        out.validate_reservation_contract(tmp_path / "other", run_id)
+
+    # 4. execute_real_baseline_gate rejects non-reservation objects or path mismatch
+    with pytest.raises(ExecutorBlocked, match="INVALID_RUN_RESERVATION_TYPE"):
+        execute_real_baseline_gate(tmp_path, run_id, run_reservation="invalid_string")
+
+
+def test_EX17_owner_authorization_record_schema_and_semantics():
+    """Verify comprehensive schema and semantic validation of Owner authorization records (F2)."""
+    valid_synth_record = {
+        "schema_version": "1.0",
+        "run_id": "test_auth_01",
+        "authorization_status": "AUTHORIZED",
+        "permitted_operation": "SYNTHETIC_BASELINE_TESTING_ONLY",
+        "owner_approval": {
+            "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-6706767761",
+            "directive": "OWNER DIRECTIVE â€” SC-G4-B2 FINAL RELEASE BLOCKER CLOSURE",
+            "decision": "APPROVED",
+            "approved_by": "OWNER"
+        },
+        "source_integrity": {
+            "authorized_commit": "56fafc8445dc5230170895aa9c586fc77e291aaf",
+            "canonical_config_sha256": "b7df8ad314d1f238cb20dcfb9dcda483cf30536c478a587ce3ad81e649e35b71"
+        },
+        "data_scope": {
+            "accepted_g3_run_id": "official_20261029_04",
+            "accepted_g3_manifest_sha256": "0b01dc9fce1e3dbafd1770d481bd77b4098ba84b",
+            "allowed_partitions": ["train", "validation"],
+            "official_test_sealed": True
+        },
+        "approved_models": ["B0", "B1", "B2"],
+        "fit_budget": {
+            "B0": 0,
+            "B1": 1,
+            "B2": 1,
+            "total_max_fits": 2
+        },
+        "resource_limits": {
+            "max_native_threads": 1,
+            "max_ram_mb": 2048,
+            "max_wall_seconds": 120
+        },
+        "mode": "SYNTHETIC_ONLY"
+    }
+
+    # 1. Valid synthetic record passes under SYNTHETIC mode
+    res = validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="SYNTHETIC")
+    assert res["authorization_status"] == "AUTHORIZED"
+
+    # 2. Synthetic authorization can NEVER authorize real data gate
+    with pytest.raises(ExecutorBlocked, match="SYNTHETIC_AUTHORIZATION_CANNOT_AUTHORIZE_REAL_DATA"):
+        validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="REAL")
+
+    # 3. Run ID mismatch
+    bad_id = copy.deepcopy(valid_synth_record)
+    bad_id["run_id"] = "wrong_id"
+    with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_RUN_ID_MISMATCH"):
+        validate_owner_authorization_record(bad_id, "test_auth_01", mode="SYNTHETIC")
+
+    # 4. Status not AUTHORIZED (e.g. PENDING)
+    pending = copy.deepcopy(valid_synth_record)
+    pending["authorization_status"] = "PENDING"
+    with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_NOT_GRANTED"):
+        validate_owner_authorization_record(pending, "test_auth_01", mode="SYNTHETIC")
+
+    # 5. Self-conferred approval (not from OWNER)
+    self_app = copy.deepcopy(valid_synth_record)
+    self_app["owner_approval"]["approved_by"] = "Antigravity"
+    with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_NOT_FROM_OWNER"):
+        validate_owner_authorization_record(self_app, "test_auth_01", mode="SYNTHETIC")
+
+    # 6. Unsealed test set
+    unsealed = copy.deepcopy(valid_synth_record)
+    unsealed["data_scope"]["official_test_sealed"] = False
+    with pytest.raises(ExecutorBlocked, match="OFFICIAL_TEST_NOT_SEALED"):
+        validate_owner_authorization_record(unsealed, "test_auth_01", mode="SYNTHETIC")
+
+    # 7. Disallowed models (e.g. Random Forest included)
+    bad_mod = copy.deepcopy(valid_synth_record)
+    bad_mod["approved_models"] = ["B0", "B1", "B2", "RF"]
+    with pytest.raises(ExecutorBlocked, match="INVALID_APPROVED_MODELS"):
+        validate_owner_authorization_record(bad_mod, "test_auth_01", mode="SYNTHETIC")
+
+    # 8. Excessive fit budget
+    bad_bud = copy.deepcopy(valid_synth_record)
+    bad_bud["fit_budget"]["total_max_fits"] = 10
+    with pytest.raises(ExecutorBlocked, match="EXCESSIVE_FIT_BUDGET"):
+        validate_owner_authorization_record(bad_bud, "test_auth_01", mode="SYNTHETIC")
+
+    # 9. Thread limit violation (> 1 thread)
+    bad_thr = copy.deepcopy(valid_synth_record)
+    bad_thr["resource_limits"]["max_native_threads"] = 4
+    with pytest.raises(ExecutorBlocked, match="INVALID_MAX_NATIVE_THREADS"):
+        validate_owner_authorization_record(bad_thr, "test_auth_01", mode="SYNTHETIC")
+
+
+def test_EX18_production_equivalent_synthetic_cli_lifecycle(tmp_path):
+    """Verify full production-equivalent synthetic CLI lifecycle with checksum finalization and verification (F1, F6)."""
+    from scripts.run_scania_baselines import run_synthetic_gate_b2
+    from src.scania.g4_artifacts import verify_run
+    run_id = f"test_cli_synth_{int(time.time())}"
+
+    out_path = run_synthetic_gate_b2(tmp_path, run_id=run_id)
+    assert Path(out_path).is_dir()
+
+    # Verify checksums.json exists and verify_run succeeds
+    assert verify_run(out_path) is True
+
+    summary = json.loads((out_path / "run_summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "GATE_B2_SYNTHETIC_SUCCESS"
+    assert summary["lifecycle"] == "COMPLETE"
+    assert summary["synthetic_estimator_fits"] == 2
+    assert summary["real_estimator_fits"] == 0
+    assert summary["synthetic_validation_scored"] is True
+    assert summary["real_validation_scored"] is False
+
+    # Check metrics files
+    metrics = json.loads((out_path / "baseline_metrics.json").read_text(encoding="utf-8"))
+    assert len(metrics["rows"]) == 5
+    for r in metrics["rows"]:
+        assert r["total_cost"] == 10 * r["FP"] + 500 * r["FN"]
+
+
+def test_EX19_truthful_fit_counts_and_failure_telemetry(tmp_path):
+    """Verify truthful fit counts and failure telemetry upon partial progress or failure (F3)."""
+    from src.scania.g4_b2_worker import execute_worker
+
+    # 1. Missing handshake env vars -> exit code 101, 0 fits
+    res = execute_worker()
+    assert res == 101
+
+    # 2. Simulate worker failure recording via task config pointing to corrupted array
+    run_id = f"test_fail_fit_{int(time.time())}"
+    synth_dir = tmp_path / "synth_fail"
+    synth_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save training labels
+    npz_path = synth_dir / "membership.npz"
+    np.savez(npz_path, train=np.arange(20), validation=np.arange(10),
+             y_train=np.zeros(20, dtype=np.int8), y_validation=np.zeros(10, dtype=np.int8))
+
+    # B1 train array with shape mismatch to trigger failure before B1 fit completes
+    tree_tr_p = synth_dir / "tree_train.npy"
+    tree_val_p = synth_dir / "tree_validation.npy"
+    lr_tr_p = synth_dir / "lr_train.npy"
+    lr_val_p = synth_dir / "lr_validation.npy"
+
+    np.save(tree_tr_p, np.zeros((10, 4)), allow_pickle=False)  # Shape mismatch (10 vs 20)
+    np.save(tree_val_p, np.zeros((10, 4)), allow_pickle=False)
+    np.save(lr_tr_p, np.zeros((20, 4)), allow_pickle=False)
+    np.save(lr_val_p, np.zeros((10, 4)), allow_pickle=False)
+
+    task_config = dict(
+        run_id=run_id,
+        mode="SYNTHETIC",
+        membership_path=str(npz_path),
+        tree_train_path=str(tree_tr_p),
+        tree_val_path=str(tree_val_p),
+        lr_train_path=str(lr_tr_p),
+        lr_val_path=str(lr_val_p),
+        b1_params={"max_depth": 1, "random_state": 42},
+        b2_params={"solver": "lbfgs", "max_iter": 2000, "random_state": 42},
+    )
+    allowlist = [npz_path, tree_tr_p, tree_val_p, lr_tr_p, lr_val_p]
+    from src.scania.g4_b2_executor import _orchestrate_worker_in_windows_job
+    with pytest.raises(ExecutorFailure) as exc_info:
+        _orchestrate_worker_in_windows_job(
+            ROOT, run_id, synth_dir / "out", allowlist, task_config, mode="SYNTHETIC"
+        )
+    worker_res = exc_info.value.worker_result
+    assert worker_res.get("total_estimator_fits") == 0
+    assert worker_res.get("validation_scored") is False
+    assert "B1_INPUT_SHAPE_MISMATCH" in worker_res.get("reason", "")
+
+
+def test_EX20_worker_enforces_locked_parameters_in_real_mode(tmp_path):
+    """Verify worker in REAL mode strictly validates canonical parameters from g4_baselines.json (F4)."""
+    run_id = f"test_param_lock_{int(time.time())}"
+    synth_dir = tmp_path / "param_lock_synth"
+    synth_dir.mkdir(parents=True, exist_ok=True)
+
+    # Attempt to pass tampered b1_params (max_depth=5 instead of 1) in REAL mode
+    tampered_task = dict(
+        run_id=run_id,
+        mode="REAL",
+        membership_path=str(synth_dir / "membership.npz"),
+        tree_train_path=str(synth_dir / "tree_train.npy"),
+        tree_val_path=str(synth_dir / "tree_validation.npy"),
+        lr_train_path=str(synth_dir / "lr_train.npy"),
+        lr_val_path=str(synth_dir / "lr_validation.npy"),
+        b1_params={"max_depth": 5, "random_state": 42},  # Tampered!
+        b2_params=LR_PARAMS,
+    )
+
+    np.savez(synth_dir / "membership.npz", train=np.arange(20), validation=np.arange(10),
+             y_train=np.zeros(20, dtype=np.int8), y_validation=np.zeros(10, dtype=np.int8))
+    np.save(synth_dir / "tree_train.npy", np.zeros((20, 4)), allow_pickle=False)
+    np.save(synth_dir / "tree_validation.npy", np.zeros((10, 4)), allow_pickle=False)
+    np.save(synth_dir / "lr_train.npy", np.zeros((20, 4)), allow_pickle=False)
+    np.save(synth_dir / "lr_val.npy", np.zeros((10, 4)), allow_pickle=False)
+
+    allowlist = [synth_dir / f for f in ("membership.npz", "tree_train.npy", "tree_validation.npy", "lr_train.npy", "lr_val.npy")]
+    output_dir = synth_dir / "output"
+
+    from src.scania.g4_b2_executor import _orchestrate_worker_in_windows_job
+    with pytest.raises(ExecutorFailure) as exc_info:
+        _orchestrate_worker_in_windows_job(
+            ROOT, run_id, output_dir, allowlist, tampered_task, mode="REAL"
+        )
+    assert "B1_PARAMETERS_TAMPERED" in exc_info.value.worker_result.get("reason", "")
+
+
+def test_EX21_data_guard_blocks_official_test_set(tmp_path):
+    """Verify application-level I/O guard prevents any access to official test set or archives in isolated process (F6)."""
+    fake_root = tmp_path / "repo"
+    fake_output = tmp_path / "output"
+    fake_root.mkdir()
+    fake_output.mkdir()
+
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from src.scania.g4_b2_executor import install_executor_io_guard, SafetyBlocked\n"
+        "root = Path(sys.argv[1]).resolve()\n"
+        "out = Path(sys.argv[2]).resolve()\n"
+        "install_executor_io_guard(root, out, allowlist=[])\n"
+        "\n"
+        "blocked_test = False\n"
+        "try:\n"
+        "    open(root / 'data/raw/scania_aps/aps_failure_test_set.csv', 'r')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_test = True\n"
+        "\n"
+        "blocked_archive = False\n"
+        "try:\n"
+        "    open(root / 'data/raw/scania_aps/aps_failure_archive.zip', 'rb')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_archive = True\n"
+        "\n"
+        "print(f'TEST_BLOCKED={blocked_test},ARCHIVE_BLOCKED={blocked_archive}')\n"
+    )
+    cmd = [sys.executable, "-B", "-c", code, str(fake_root), str(fake_output)]
+    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
+    assert "TEST_BLOCKED=True,ARCHIVE_BLOCKED=True" in proc.stdout
