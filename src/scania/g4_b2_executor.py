@@ -6,17 +6,21 @@ Safety boundaries:
 - gate_b_authorized=False is strictly enforced: no real-data fitting without Owner authorization.
 - The Python audit hook is an application-level guard for Python open(), NOT an OS-level sandbox.
 - Joblib deserialization is completely eliminated from the runtime execution path.
-- Row-alignment of Train and Validation labels against official Train CSV is explicitly verified.
-- G3 artifacts are verified against the accepted G3 reference stable manifest.
+- Row-alignment of Train and Validation labels against official Train CSV is MANDATORY.
+- G3 artifacts are verified against the accepted G3 reference stable manifest (MANDATORY).
+- Supervisor/worker architecture runs under Windows Job Object with strict memory & time limits.
 - Official Test set is sealed until G10.
 """
+import csv
 from importlib.metadata import version
 import json
 import math
 import os
 from pathlib import Path
 import platform
+import secrets
 import subprocess
+import sys
 import time
 import warnings
 
@@ -106,12 +110,13 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
     """Verify hashes, schema, and label alignment of G3 artifacts and build read-only allowlist.
 
     Eliminates joblib deserialization completely from runtime path.
-    Validates:
+    MANDATORY Validations:
     - LF-normalized checksums of G3 public metadata.
-    - Consistency of mathematical data keys with accepted G3 reference manifest.
+    - Consistency of mathematical data keys with accepted G3 reference manifest (MANDATORY).
     - official_split.json membership hash against stable_manifest.
     - membership.npz partition sizes (48k Train / 12k Validation), disjoint union, and ordered IDs.
-    - Explicit row-alignment of labels y_train and y_val with official Train CSV (if present).
+    - Explicit row-alignment of labels y_train and y_val with official Train CSV (MANDATORY).
+    - Strict parsing of 'pos' and 'neg' labels only (reject unknown or malformed tokens).
     - Binary label domain {0, 1} and exact positive class counts (800 Train / 200 Val).
     - Shapes (48000, 170) and (12000, 170), dtype float64, finite check, and array hashes for:
       tree_train, tree_validation, lr_train, lr_validation.
@@ -148,25 +153,27 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
         if digest(content) != expected_sha:
             raise ExecutorBlocked(f"G3_PUBLIC_CHECKSUM_MISMATCH: {name}")
 
-    # Compare mathematical data keys directly against accepted G3 reference manifest
+    # MANDATORY: Compare mathematical data keys directly against accepted G3 reference manifest
     accepted_manifest_file = root / "results/scania_aps/g3/official_20261029_04/stable_manifest.json"
-    if accepted_manifest_file.is_file():
-        accepted_manifest = json.loads(accepted_manifest_file.read_text(encoding="utf-8"))
-        data_keys = [
-            "source_sha256",
-            "schema_sha256",
-            "config_sha256",
-            "membership_sha256",
-            "train_ordered_ids_sha256",
-            "validation_ordered_ids_sha256",
-            "imputer_statistics_sha256",
-            "scaler_mean_sha256",
-            "scaler_scale_sha256",
-            "array_sha256",
-        ]
-        for key in data_keys:
-            if manifest.get(key) != accepted_manifest.get(key):
-                raise ExecutorBlocked(f"G3_MANIFEST_DATA_KEY_MISMATCH_WITH_ACCEPTED_G3: {key}")
+    if not accepted_manifest_file.is_file():
+        raise ExecutorBlocked("ACCEPTED_G3_MANIFEST_MISSING: Reference G3 manifest official_20261029_04 must exist")
+
+    accepted_manifest = json.loads(accepted_manifest_file.read_text(encoding="utf-8"))
+    data_keys = [
+        "source_sha256",
+        "schema_sha256",
+        "config_sha256",
+        "membership_sha256",
+        "train_ordered_ids_sha256",
+        "validation_ordered_ids_sha256",
+        "imputer_statistics_sha256",
+        "scaler_mean_sha256",
+        "scaler_scale_sha256",
+        "array_sha256",
+    ]
+    for key in data_keys:
+        if manifest.get(key) != accepted_manifest.get(key):
+            raise ExecutorBlocked(f"G3_MANIFEST_DATA_KEY_MISMATCH_WITH_ACCEPTED_G3: {key}")
 
     # Verify official_split.json
     split_file = root / "data/processed/scania_aps/official_split.json"
@@ -228,28 +235,42 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
     if ordered_ids_hash(val, source_sha) != manifest["validation_ordered_ids_sha256"]:
         raise ExecutorBlocked("VAL_ORDERED_IDS_HASH_MISMATCH")
 
-    # Explicit label row-alignment verification against official Train CSV (when available)
+    # MANDATORY: Explicit label row-alignment verification against official Train CSV
     raw_train_file = root / "data/raw/scania_aps/aps_failure_training_set.csv"
-    if raw_train_file.is_file():
-        raw_bytes = raw_train_file.read_bytes()
-        if digest(raw_bytes) != source_sha:
-            raise ExecutorBlocked("RAW_TRAIN_CSV_HASH_MISMATCH")
-        lines = raw_bytes.splitlines()
-        header_idx = None
-        for idx, line in enumerate(lines):
-            if line.startswith(b"class,"):
-                header_idx = idx
-                break
-        if header_idx is None:
-            raise ExecutorBlocked("RAW_TRAIN_CSV_HEADER_MISSING")
-        data_lines = [ln for ln in lines[header_idx + 1:] if ln.strip()]
-        if len(data_lines) != 60000:
-            raise ExecutorBlocked(f"RAW_TRAIN_CSV_ROW_COUNT_MISMATCH: {len(data_lines)}")
-        raw_y = np.array([int(ln.split(b",", 1)[0].strip() == b"pos") for ln in data_lines], dtype=np.int8)
-        if not np.array_equal(y_train, raw_y[train]):
-            raise ExecutorBlocked("TRAIN_LABEL_ROW_ALIGNMENT_MISMATCH")
-        if not np.array_equal(y_val, raw_y[val]):
-            raise ExecutorBlocked("VAL_LABEL_ROW_ALIGNMENT_MISMATCH")
+    if not raw_train_file.is_file():
+        raise ExecutorBlocked("RAW_TRAIN_CSV_MISSING: Official Train CSV required for label row-alignment")
+
+    raw_bytes = raw_train_file.read_bytes()
+    if digest(raw_bytes) != source_sha:
+        raise ExecutorBlocked("RAW_TRAIN_CSV_HASH_MISMATCH")
+
+    lines = raw_bytes.splitlines()
+    header_idx = None
+    for idx, line in enumerate(lines):
+        if line.startswith(b"class,"):
+            header_idx = idx
+            break
+    if header_idx is None:
+        raise ExecutorBlocked("RAW_TRAIN_CSV_HEADER_MISSING")
+
+    data_lines = [ln for ln in lines[header_idx + 1:] if ln.strip()]
+    if len(data_lines) != 60000:
+        raise ExecutorBlocked(f"RAW_TRAIN_CSV_ROW_COUNT_MISMATCH: {len(data_lines)}")
+
+    raw_y = np.empty(60000, dtype=np.int8)
+    for idx, ln in enumerate(data_lines):
+        tok = ln.split(b",", 1)[0].strip()
+        if tok == b"pos":
+            raw_y[idx] = 1
+        elif tok == b"neg":
+            raw_y[idx] = 0
+        else:
+            raise ExecutorBlocked(f"INVALID_RAW_TARGET_LABEL: row {idx + 1} has token '{tok.decode(errors='replace')}'")
+
+    if not np.array_equal(y_train, raw_y[train]):
+        raise ExecutorBlocked("TRAIN_LABEL_ROW_ALIGNMENT_MISMATCH")
+    if not np.array_equal(y_val, raw_y[val]):
+        raise ExecutorBlocked("VAL_LABEL_ROW_ALIGNMENT_MISMATCH")
 
     # Verify processed arrays without loading joblib preprocessors
     allowlist = {split_file, npz_file}
@@ -288,18 +309,7 @@ def verify_g3_artifacts_and_build_allowlist(root, g3_run_id=None):
 
 
 def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *, b1_params=None, b2_params=None):
-    """Execute a single baseline model pipeline with strict Train-only fit and Validation-only scoring.
-
-    Parameters:
-        baseline_id: "B0", "B1", or "B2"
-        x_train: (N_train, D) float array (Train only)
-        y_train: (N_train,) binary label array (Train only)
-        x_val: (N_val, D) float array (Validation only)
-        y_val: (N_val,) binary label array (Validation only)
-
-    Returns:
-        (policy_rows, telemetry_dict)
-    """
+    """Execute a single baseline model pipeline with strict Train-only fit and Validation-only scoring."""
     if baseline_id not in ("B0", "B1", "B2"):
         raise ValueError(f"UNKNOWN_BASELINE_ID: {baseline_id}")
 
@@ -307,7 +317,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
     y_val = binary_vector(y_val, "val_labels")
 
     if baseline_id == "B0":
-        # B0: Majority Dummy (predicts 0, no fit, no proba)
         actions = np.zeros(len(y_val), dtype=np.int8)
         row = evaluate_aps_policy(y_val, actions, scores=None, baseline_id="B0", role="REFERENCE")
         telemetry = dict(
@@ -322,7 +331,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
         )
         return [row], telemetry
 
-    # Model configuration
     if baseline_id == "B1":
         params = STUMP_PARAMS if b1_params is None else b1_params
         model = DecisionTreeClassifier(**params)
@@ -330,7 +338,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
         params = LR_PARAMS if b2_params is None else b2_params
         model = LogisticRegression(**params)
 
-    # Train-only fit with warning capture
     t0 = time.perf_counter()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -338,7 +345,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
 
     fit_sec = time.perf_counter() - t0
 
-    # Fail-closed on convergence failure
     conv_warnings = [w for w in caught if issubclass(w.category, ConvergenceWarning)]
     if conv_warnings:
         raise BaselineFailure(f"FAILED_CONVERGENCE_WARNING: {conv_warnings[0].message}", caught)
@@ -347,7 +353,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
     if classes != [0, 1]:
         raise BaselineFailure(f"FAILED_CLASS_MAPPING: got {classes}, expected [0, 1]", caught)
 
-    # Validation-only scoring
     t1 = time.perf_counter()
     proba = np.asarray(model.predict_proba(x_val))
     pred_sec = time.perf_counter() - t1
@@ -361,7 +366,6 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
 
     scores = probabilities(proba[:, 1])
 
-    # Evaluate at approved fixed policies: PRIMARY (0.5) and SECONDARY (10/510)
     rows = []
     for role, tau in POLICIES.items():
         acts = actions_from_probabilities(scores, tau)
@@ -382,13 +386,9 @@ def fit_and_score_baseline_model(baseline_id, x_train, y_train, x_val, y_val, *,
 
 
 def execute_synthetic_pipeline_test(n_train=200, n_val=60, n_features=4, random_state=42):
-    """Run an isolated end-to-end synthetic test of the G4 baseline execution pipeline.
-
-    Used for synthetic verification and contract validation only, without real data.
-    """
+    """Run an isolated end-to-end synthetic test of the G4 baseline execution pipeline."""
     rng = np.random.RandomState(random_state)
     x_train = rng.randn(n_train, n_features).astype(np.float64)
-    # Ensure both classes present in train and validation
     y_train = (rng.rand(n_train) < 0.1).astype(np.int8)
     y_train[0], y_train[1] = 0, 1
 
@@ -407,25 +407,105 @@ def execute_synthetic_pipeline_test(n_train=200, n_val=60, n_features=4, random_
     return dict(rows=all_rows, telemetry=all_telemetry, status="SYNTHETIC_TEST_PASSED")
 
 
-def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, config=None):
+def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task_config, *,
+                                       wall_seconds=120, ram_cap_bytes=2048 * 1024 * 1024, mode="REAL"):
+    """Launch isolated worker subprocess under Windows Job Object with strict containment."""
+    from .g4_b1_windows import WindowsJob
+    from .g4_env_discovery import THREAD_ENV
+
+    output_dir = Path(output_dir).resolve()
+    root = Path(root).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    task_path = output_dir / "task_config.json"
+    task_path.write_text(json.dumps(task_config, indent=2), encoding="utf-8")
+
+    allowlist_path = output_dir / "allowlist.json"
+    allowlist_path.write_text(json.dumps([str(p) for p in allowlist], indent=2), encoding="utf-8")
+
+    result_path = output_dir / "worker_result.json"
+    if result_path.is_file():
+        result_path.unlink()
+
+    child_env = os.environ.copy()
+    child_env.update(THREAD_ENV)
+    child_env.update(
+        SC_G4_B2_RUN=run_id,
+        SC_G4_B2_TASK_PATH=str(task_path),
+        SC_G4_B2_ALLOWLIST_PATH=str(allowlist_path),
+        SC_G4_B2_OUTPUT_DIR=str(output_dir),
+        SC_G4_B2_ROOT_DIR=str(root),
+        SC_G4_B2_NONCE=secrets.token_hex(24),
+    )
+
+    argv = [sys.executable, "-B", "-X", "utf8", "-m", "src.scania.g4_b2_worker"]
+    job = WindowsJob(argv, child_env, root, ram_cap_bytes, active_limit=2)
+
+    t0 = time.perf_counter()
+    deadline = t0 + wall_seconds
+    timed_out = False
+    exit_code = None
+
+    try:
+        job.resume()
+        while True:
+            exit_code = job.poll()
+            now = time.perf_counter()
+            if now >= deadline:
+                timed_out = True
+                job.terminate()
+                raise TimeoutError(f"RUN_WALL_TIMEOUT: Worker exceeded wall limit of {wall_seconds}s")
+            if exit_code is not None:
+                break
+            time.sleep(0.02)
+
+        peak_ram_bytes = job.limits().get("peak_job_memory_bytes", 0)
+    finally:
+        job.close()
+
+    elapsed = time.perf_counter() - t0
+
+    if not result_path.is_file():
+        raise ExecutorBlocked(f"WORKER_CRASHED_NO_RESULT: Exit code {exit_code}")
+
+    worker_result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    if exit_code != 0 or worker_result.get("status") != "PASS":
+        err_msg = worker_result.get("reason", f"Exit code {exit_code}")
+        raise ExecutorBlocked(f"WORKER_EXECUTION_FAILED: {err_msg}")
+
+    # Build report evidence
+    report = dict(
+        run_id=run_id,
+        mode=mode,
+        status="COMPLETE",
+        lifecycle="COMPLETE",
+        real_estimator_fits=worker_result["total_estimator_fits"],
+        real_validation_scored=worker_result["validation_scored"],
+        rows=worker_result["rows"],
+        telemetry=worker_result["telemetry"],
+        observed_timings=worker_result["observed_timings"],
+        measured_wall_seconds=elapsed,
+        measured_peak_ram_mb=peak_ram_bytes / (1024**2),
+    )
+    return report
+
+
+def execute_real_baseline_gate(root, run_id, *, g3_run_id=None):
     """Execution entrypoint for real Scania baseline experiments.
 
-    Architecture & Boundary Guarantees:
-    - Supervisor / worker isolation.
-    - Prewarming of native OpenBLAS / threadpool discovery via NativeSession before numeric imports.
-    - Windows Job Object containment (2048 MB RAM cap, process tree containment, kill on close).
-    - 1-thread limit (OMP_NUM_THREADS=1, OPENBLAS_NUM_THREADS=1, etc.).
-    - 120s wall timeout per model.
-    - Allowlist I/O guard limiting reads strictly to verified G3 artifacts.
-    - Strict fail-closed check: gate_b_authorized=False halts execution immediately with ExecutorBlocked.
-    - Real fit budget = 0 when locked.
+    CRITICAL GATE:
+    Fails closed immediately if gate_b_authorized is False or real_baseline_results_allowed is False.
+    Does NOT accept caller-supplied config overrides. Reads strictly from configs/scania/g4_baselines.json.
     """
     root = Path(root).resolve()
-    if config is None:
-        cfg_file = root / "configs/scania/g4_baselines.json"
-        config = json.loads(cfg_file.read_text(encoding="utf-8"))
+    cfg_file = root / "configs/scania/g4_baselines.json"
+    if not cfg_file.is_file():
+        raise ExecutorBlocked("BASELINE_CONFIG_FILE_MISSING")
 
-    # Strict authorization enforcement - Fail-closed gate
+    config = json.loads(cfg_file.read_text(encoding="utf-8"))
+
+    # Strict authorization enforcement
     if not config.get("gate_b_authorized", False):
         raise ExecutorBlocked("GATE_B2_NOT_AUTHORIZED: Baseline execution requires explicit Owner task authorization")
 
@@ -436,49 +516,109 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, config=None):
     if budget is None or budget <= 0:
         raise ExecutorBlocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
 
-    # Orchestration execution design (activated only upon explicit Owner authorization):
+    # Explicit run-specific Owner authorization record check
+    auth_file = root / "configs/scania/authorizations" / f"{run_id}.json"
+    if not auth_file.is_file():
+        raise ExecutorBlocked("GATE_B2_OWNER_AUTHORIZATION_RECORD_MISSING: Explicit Owner authorization record required")
+
     # 1. Verify G3 artifacts and construct allowlist
     allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, g3_run_id)
 
-    # 2. Designated run output directory
+    # 2. Output directory setup
     output_dir = root / "results/scania_aps/g4" / run_id
-    output_dir.mkdir(parents=True, exist_ok=False)
+    if output_dir.exists():
+        raise ExecutorBlocked(f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {run_id}")
 
-    # 3. Environment & Thread Locking (1 native thread)
-    from .g4_env_discovery import THREAD_ENV
-    worker_env = os.environ.copy()
-    worker_env.update(THREAD_ENV)
+    # 3. Setup task configuration
+    if g3_run_id is None:
+        g3_run_id = config.get("g3_input_run", "official_20261029_04")
+    proc_dir = root / "data/processed/scania_aps" / g3_run_id
 
-    # 4. Spawns worker process under WindowsJob with 2048 MB RAM cap and 120s timeout per model.
-    # Worker executes install_executor_io_guard, loads allowlisted .npy arrays, fits B1 & B2 on Train,
-    # evaluates B0, B1, B2 on Validation, and generates full execution telemetry.
-    return dict(status="GATE_B2_ORCHESTRATED", output_dir=str(output_dir), g3_summary=g3_summary)
+    task_config = dict(
+        run_id=run_id,
+        membership_path=str(proc_dir / "membership.npz"),
+        tree_train_path=str(proc_dir / "tree_train.npy"),
+        tree_val_path=str(proc_dir / "tree_validation.npy"),
+        lr_train_path=str(proc_dir / "lr_train.npy"),
+        lr_val_path=str(proc_dir / "lr_validation.npy"),
+        b1_params=STUMP_PARAMS,
+        b2_params=LR_PARAMS,
+    )
+
+    # 4. Launch real worker under Windows Job Object
+    report = _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task_config, mode="REAL")
+    return report
+
+
+def execute_synthetic_baseline_orchestration(root, run_id, *, synthetic_dir=None,
+                                             wall_seconds=120, ram_cap_bytes=2048 * 1024 * 1024,
+                                             n_train=200, n_val=60, n_features=10, random_state=42):
+    """Synthetic-only integration entrypoint exercising the actual supervisor/worker orchestration.
+
+    Does NOT bypass Gate B2 authorization for real Scania data.
+    Constructs isolated synthetic arrays and runs the actual worker subprocess under WindowsJob.
+    """
+    root = Path(root).resolve()
+    if synthetic_dir is None:
+        synthetic_dir = root / "results/scania_aps/g4/synthetic_test" / run_id
+    synthetic_dir = Path(synthetic_dir).resolve()
+    synthetic_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate synthetic data
+    rng = np.random.RandomState(random_state)
+    x_train = rng.randn(n_train, n_features).astype(np.float64)
+    y_train = (rng.rand(n_train) < 0.1).astype(np.int8)
+    y_train[0], y_train[1] = 0, 1
+
+    x_val = rng.randn(n_val, n_features).astype(np.float64)
+    y_val = (rng.rand(n_val) < 0.1).astype(np.int8)
+    y_val[0], y_val[1] = 0, 1
+
+    # Save synthetic arrays
+    npz_path = synthetic_dir / "membership.npz"
+    np.savez(npz_path, train=np.arange(n_train), validation=np.arange(n_val),
+             y_train=y_train, y_validation=y_val)
+
+    tree_tr_p = synthetic_dir / "tree_train.npy"
+    tree_val_p = synthetic_dir / "tree_validation.npy"
+    lr_tr_p = synthetic_dir / "lr_train.npy"
+    lr_val_p = synthetic_dir / "lr_validation.npy"
+
+    np.save(tree_tr_p, x_train, allow_pickle=False)
+    np.save(tree_val_p, x_val, allow_pickle=False)
+    np.save(lr_tr_p, x_train, allow_pickle=False)
+    np.save(lr_val_p, x_val, allow_pickle=False)
+
+    allowlist = [npz_path, tree_tr_p, tree_val_p, lr_tr_p, lr_val_p]
+    output_dir = synthetic_dir / "output"
+
+    task_config = dict(
+        run_id=run_id,
+        membership_path=str(npz_path),
+        tree_train_path=str(tree_tr_p),
+        tree_val_path=str(tree_val_p),
+        lr_train_path=str(lr_tr_p),
+        lr_val_path=str(lr_val_p),
+        b1_params={"max_depth": 1, "random_state": 42},
+        b2_params={"solver": "lbfgs", "max_iter": 2000, "random_state": 42, "tol": 1e-4, "C": 1.0},
+    )
+
+    report = _orchestrate_worker_in_windows_job(
+        root, run_id, output_dir, allowlist, task_config,
+        wall_seconds=wall_seconds, ram_cap_bytes=ram_cap_bytes, mode="SYNTHETIC"
+    )
+    return report
 
 
 def assess_proposed_resource_limits(host_cpu_count=None, host_ram_bytes=None):
-    """Evaluate technical feasibility of the proposed execution resource limits.
-
-    Proposed limits:
-    - 1 native compute thread
-    - 120s wall timeout per model
-    - 2 GB memory cap per worker Job
-    """
+    """Evaluate technical feasibility of the proposed execution resource limits."""
     data_size_bytes = 48000 * 170 * 8  # 65.28 MB float64
     val_size_bytes = 12000 * 170 * 8   # 16.32 MB float64
 
-    # Memory requirement analysis
-    # mmap_mode="r" avoids loading all arrays into private working set.
-    # Python runtime + sklearn structures require ~200-350 MB.
     estimated_peak_ram_mb = 450.0
     ram_cap_mb = 2048.0
     ram_feasible = estimated_peak_ram_mb < ram_cap_mb
 
-    # CPU / Runtime requirement analysis
-    # B1 (Decision Stump, max_depth=1): single threshold search across 170 features:
-    # 48,000 * 170 ~ 8.16M operations -> typically < 0.5s on modern CPU.
-    # B2 (Logistic Regression, lbfgs, max_iter=2000, 1 thread):
-    # Each lbfgs iteration: gradient evaluation 48,000 * 170 ~ 8.16M float ops.
-    # ~20-50 iterations to converge -> typically 2 to 15 seconds.
     estimated_b1_time_sec = 1.0
     estimated_b2_time_sec = 25.0
     timeout_sec = 120.0

@@ -124,9 +124,18 @@ def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
     )
     events, errors, stage = [], [], "GATE_B2_AUTHORIZATION"
     try:
-        execute_real_baseline_gate(root, run_id, g3_run_id=g3_run_id)
-        report["status"] = "GATE_B2_SUCCESS"
-        report["lifecycle"] = "COMPLETE"
+        real_result = execute_real_baseline_gate(root, run_id, g3_run_id=g3_run_id)
+        report.update(
+            status="GATE_B2_SUCCESS",
+            lifecycle="COMPLETE",
+            gate_b_authorized=True,
+            real_estimator_fits=real_result.get("real_estimator_fits", 2),
+            real_validation_scored=real_result.get("real_validation_scored", True),
+            rows=real_result.get("rows"),
+            observed_timings=real_result.get("observed_timings"),
+            measured_peak_ram_mb=real_result.get("measured_peak_ram_mb"),
+        )
+        events.append("Gate B2 baseline execution completed successfully")
     except Exception as exc:
         status = "BLOCKED" if isinstance(exc, (Blocked, ExecutorBlocked, FileNotFoundError)) else "FAILED"
         report.update(status=status, lifecycle="FAILED")
