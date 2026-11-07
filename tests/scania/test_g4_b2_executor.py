@@ -18,6 +18,7 @@ from src.scania.g4_b2_executor import (
     SafetyBlocked,
     ExecutorBlocked,
     ExecutorFailure,
+    verify_owner_approval_reference,
     validate_owner_authorization_record,
     install_executor_io_guard,
     verify_g3_artifacts_and_build_allowlist,
@@ -777,7 +778,7 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
     bad_g3["mode"] = "REAL"
     bad_g3["permitted_operation"] = "BASELINE_FITTING_VALIDATION_ONLY"
     bad_g3["data_scope"]["accepted_g3_manifest_sha256"] = "0" * 64
-    monkeypatch.setattr("src.scania.g4_b2_executor.verify_owner_approval_reference", lambda ref, mode="REAL": True)
+    monkeypatch.setattr("src.scania.g4_b2_executor.verify_owner_approval_reference", lambda *a, **kw: True)
     with pytest.raises(ExecutorBlocked, match="ACCEPTED_G3_MANIFEST_SHA_MISMATCH"):
         validate_owner_authorization_record(bad_g3, "test_auth_01", mode="REAL")
 
@@ -801,7 +802,91 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
     with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_NOT_FROM_OWNER"):
         validate_owner_authorization_record(self_app, "test_auth_01", mode="SYNTHETIC")
 
-    # 11. Controlled configuration transition contract
+    # 11. Missing explicit approved_models fails closed
+    missing_models = copy.deepcopy(valid_synth_record)
+    del missing_models["approved_models"]
+    with pytest.raises(ExecutorBlocked, match="MISSING_EXPLICIT_APPROVED_MODELS"):
+        validate_owner_authorization_record(missing_models, "test_auth_01", mode="SYNTHETIC")
+
+    # 12. Missing explicit fit_budget fields fails closed
+    missing_budget = copy.deepcopy(valid_synth_record)
+    del missing_budget["fit_budget"]["total_max_fits"]
+    with pytest.raises(ExecutorBlocked, match="MISSING_EXPLICIT_FIT_BUDGET_FIELDS"):
+        validate_owner_authorization_record(missing_budget, "test_auth_01", mode="SYNTHETIC")
+
+    # 13. Git HEAD verification failure fails closed
+    orig_check_output = subprocess.check_output
+    def mock_git_fail(cmd, *a, **kw):
+        if "rev-parse" in cmd:
+            raise subprocess.CalledProcessError(128, cmd)
+        return orig_check_output(cmd, *a, **kw)
+    monkeypatch.setattr(subprocess, "check_output", mock_git_fail)
+    with pytest.raises(ExecutorBlocked, match="GIT_HEAD_VERIFICATION_FAILED"):
+        validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="SYNTHETIC", root=ROOT)
+    monkeypatch.undo()
+
+    # 14. Comment body inspection & rejection of agent report
+    class MockCommentResponse:
+        def __init__(self, data):
+            self.data = data
+        def read(self):
+            return json.dumps(self.data).encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    import urllib.request
+    monkeypatch.setattr("src.scania.g4_b2_executor._get_github_token", lambda: "fake_github_token")
+
+    # 14a. Rejection of agent report
+    agent_body = "## ANTIGRAVITY TECHNICAL REPORT\n# OWNER TASK AUTHORIZATION\nDecision: APPROVED"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": agent_body}))
+    with pytest.raises(ExecutorBlocked, match="AGENT_REPORT_CANNOT_AUTHORIZE"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=valid_synth_record, mode="REAL"
+        )
+
+    # 14b. Rejection of unexecuted template inside code fences
+    template_body = "Here is the template:\n```markdown\n# OWNER TASK AUTHORIZATION\nDecision: APPROVED\n```"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": template_body}))
+    with pytest.raises(ExecutorBlocked, match="MISSING_OWNER_DIRECTIVE_HEADER"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=valid_synth_record, mode="REAL"
+        )
+
+    # 14c. Rejection of commit SHA mismatch
+    mismatch_commit_body = f"# OWNER TASK AUTHORIZATION\nDecision: APPROVED\nTarget Run ID: test_auth_01\nAuthorized Commit: {'0'*40}\nPermitted Operation: BASELINE_FITTING_VALIDATION_ONLY\nApproved Models: B0, B1, B2\nFit Budget: total_max_fits 2\nofficial test sealed"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": mismatch_commit_body}))
+    real_expected = copy.deepcopy(valid_synth_record)
+    real_expected["mode"] = "REAL"
+    real_expected["permitted_operation"] = "BASELINE_FITTING_VALIDATION_ONLY"
+    with pytest.raises(ExecutorBlocked, match="COMMENT_COMMIT_MISMATCH"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    # 14d. Authentic human Owner comment passes
+    authentic_body = (
+        f"# OWNER TASK AUTHORIZATION — SC-G4-B2 REAL BASELINE FITTING\n"
+        f"Decision: APPROVED\n"
+        f"Authorized Commit: {current_head}\n"
+        f"Target Run ID: test_auth_01\n"
+        f"Permitted Operation: BASELINE_FITTING_VALIDATION_ONLY\n"
+        f"Approved Models: B0, B1, B2\n"
+        f"Fit Budget: B0=0, B1=1, B2=1, total_max_fits=2\n"
+        f"Data Scope: train, validation (official test sealed until G10)\n"
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": authentic_body}))
+    assert verify_owner_approval_reference(
+        "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+        expected_record=real_expected, mode="REAL"
+    ) is True
+
+    # 15. Controlled configuration transition contract
     cfg_a = load_config(ROOT, gate="GATE_A")
     assert cfg_a["gate_b_authorized"] is False
     with pytest.raises(Blocked, match="GATE_B2_NOT_AUTHORIZED"):

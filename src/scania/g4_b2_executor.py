@@ -509,6 +509,9 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
 
 
 def _get_github_token():
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        return token
     try:
         proc = subprocess.Popen(
             ["git", "credential", "fill"],
@@ -523,18 +526,30 @@ def _get_github_token():
         return None
 
 
-def verify_owner_approval_reference(ref, mode="REAL"):
-    """Verify that the referenced Owner approval is genuine and verifiable.
+def _strip_markdown_code_blocks(text: str) -> str:
+    """Remove fenced code blocks (```...```) to prevent matching template strings."""
+    return re.sub(r"```[\s\S]*?```", "", text)
+
+
+def verify_owner_approval_reference(ref, expected_record=None, mode="REAL", **kwargs):
+    """Verify that the referenced Owner approval is genuine, verifiable, and matches record scope.
 
     Trust boundary rules:
     - No authorization inferred from an agent-generated document.
     - An unverifiable GitHub link must fail closed.
     - Real mode requires reference on official repository with verified Owner author (PhucHuynh16).
+    - Inspects actual GitHub approval comment body:
+      * Rejects agent reports and milestone updates.
+      * Rejects template blocks enclosed in markdown code fences.
+      * Verifies explicit '# OWNER ...' directive header and 'Decision: APPROVED'.
+      * Verifies exact matching tokens if expected_record provided: commit SHA, run ID,
+        permitted operation, approved models, fit budget, and sealed official test.
     - Synthetic boundary: permits SYNTHETIC_FIXTURE_ tokens in synthetic mode only.
     """
     if not isinstance(ref, str) or not ref:
         raise ExecutorBlocked("INVALID_OWNER_APPROVAL_REFERENCE: Reference must be a non-empty string URL")
 
+    ref = ref.strip()
     if mode == "SYNTHETIC":
         if ref.startswith("SYNTHETIC_FIXTURE_"):
             return True
@@ -543,14 +558,14 @@ def verify_owner_approval_reference(ref, mode="REAL"):
         raise ExecutorBlocked(f"INVALID_SYNTHETIC_APPROVAL_REFERENCE: {ref}")
 
     # REAL MODE: Strictly bind to genuine Owner decision on official repository
-    pattern = r"^https://github\.com/PhucHuynh16/Predictive-maintenance-cost-optimization/(issues|pull)/\d+(#issuecomment-(\d+))?$"
+    pattern = r"^https://github\.com/PhucHuynh16/Predictive-maintenance-cost-optimization/(?:issues|pull)/\d+#issuecomment-(\d+)$"
     m = re.match(pattern, ref)
     if not m:
+        if re.match(r"^https://github\.com/PhucHuynh16/Predictive-maintenance-cost-optimization/(?:issues|pull)/\d+/?$", ref):
+            raise ExecutorBlocked(f"UNVERIFIABLE_OWNER_APPROVAL: Must reference specific comment ID: {ref}")
         raise ExecutorBlocked(f"INVALID_OWNER_APPROVAL_REFERENCE: {ref}")
 
-    comment_id = m.group(3)
-    if not comment_id:
-        raise ExecutorBlocked(f"UNVERIFIABLE_OWNER_APPROVAL: Must reference specific comment ID: {ref}")
+    comment_id = m.group(1)
 
     try:
         token = _get_github_token()
@@ -569,6 +584,56 @@ def verify_owner_approval_reference(ref, mode="REAL"):
         author = data.get("user", {}).get("login", "")
         if author != "PhucHuynh16":
             raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Comment author '{author}' is not repository owner PhucHuynh16")
+
+        comment_body = data.get("body", "")
+
+        # 1. Reject agent reports and updates
+        if re.search(r"##\s+ANTIGRAVITY", comment_body, re.IGNORECASE):
+            raise ExecutorBlocked("AGENT_REPORT_CANNOT_AUTHORIZE: Comment is an agent report, not an authentic human Owner decision")
+
+        # 2. Strip code blocks to reject template examples
+        clean_body = _strip_markdown_code_blocks(comment_body)
+
+        # 3. Check for explicit Owner directive header
+        if not re.search(r"#\s+OWNER\s+(TASK\s+AUTHORIZATION|DECISION|DIRECTIVE)", clean_body, re.IGNORECASE):
+            raise ExecutorBlocked("MISSING_OWNER_DIRECTIVE_HEADER: Approval comment must have an explicit '# OWNER ...' directive header")
+
+        # 4. Check for explicit approval decision
+        if not re.search(r"\bdecision\s*:\s*approved\b", clean_body, re.IGNORECASE):
+            raise ExecutorBlocked("MISSING_EXPLICIT_APPROVAL_DECISION: Comment body must state 'Decision: APPROVED'")
+
+        # 5. Semantic token verification against expected record if provided
+        if expected_record is not None:
+            src_int = expected_record.get("source_integrity") if isinstance(expected_record.get("source_integrity"), dict) else expected_record
+            auth_commit = str(src_int.get("authorized_commit") or "")
+            if auth_commit and auth_commit.lower() not in clean_body.lower():
+                raise ExecutorBlocked(f"COMMENT_COMMIT_MISMATCH: Authorized commit {auth_commit} not found in approval comment body")
+
+            target_run = expected_record.get("run_id") or expected_record.get("target_run_id")
+            if target_run and target_run not in clean_body:
+                raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Target run ID '{target_run}' not found in approval comment body")
+
+            op = expected_record.get("permitted_operation") or expected_record.get("operation")
+            if op and op not in clean_body:
+                raise ExecutorBlocked(f"COMMENT_OPERATION_MISMATCH: Permitted operation '{op}' not found in approval comment body")
+
+            models = expected_record.get("approved_models")
+            if models:
+                for mod in models:
+                    if not re.search(rf"\b{re.escape(mod)}\b", clean_body):
+                        raise ExecutorBlocked(f"COMMENT_MODEL_MISMATCH: Approved model '{mod}' not found in approval comment body")
+
+            fit_budget = expected_record.get("fit_budget")
+            if isinstance(fit_budget, dict):
+                total_fits = fit_budget.get("total_max_fits")
+                if total_fits is not None and str(total_fits) not in clean_body:
+                    raise ExecutorBlocked(f"COMMENT_FIT_BUDGET_MISMATCH: Fit budget total '{total_fits}' not found in approval comment body")
+
+            data_scope = expected_record.get("data_scope") if isinstance(expected_record.get("data_scope"), dict) else expected_record
+            if data_scope.get("official_test_sealed") is True:
+                if not re.search(r"\b(official\s+test\s+sealed|test\s+(?:set|partition)?\s*sealed|sealed\s+until\s+g10)\b", clean_body, re.IGNORECASE):
+                    raise ExecutorBlocked("COMMENT_TEST_SEAL_MISMATCH: Comment body must explicitly state that the official test partition is sealed")
+
     except Exception as exc:
         if isinstance(exc, ExecutorBlocked):
             raise
@@ -645,7 +710,7 @@ def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expe
     if decision != "APPROVED":
         raise ExecutorBlocked(f"AUTHORIZATION_NOT_APPROVED: Decision is '{decision}'")
 
-    verify_owner_approval_reference(ref, mode=mode)
+    verify_owner_approval_reference(ref, expected_record=record, mode=mode)
 
     # 5. Source integrity and repository HEAD binding
     src_int = record.get("source_integrity") if isinstance(record.get("source_integrity"), dict) else record
@@ -662,8 +727,8 @@ def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expe
                 raise ExecutorBlocked(
                     f"AUTHORIZED_COMMIT_MISMATCH: Authorized commit {auth_commit} does not match repository HEAD {current_head}"
                 )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            raise ExecutorBlocked(f"GIT_HEAD_VERIFICATION_FAILED: Git rev-parse verification failed: {exc}")
 
     if expected_config_sha is None:
         expected_config_sha = CONFIG_SHA
@@ -693,14 +758,21 @@ def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expe
         raise ExecutorBlocked("OFFICIAL_TEST_NOT_SEALED: Test partition must be sealed")
 
     # 7. Approved models & fit budget (B0=0, B1=1, B2=1, total_max_fits=2)
-    models = record.get("approved_models") or ["B0", "B1", "B2"]
+    models = record.get("approved_models")
+    if models is None:
+        raise ExecutorBlocked("MISSING_EXPLICIT_APPROVED_MODELS: Record must explicitly specify approved_models")
     if models != ["B0", "B1", "B2"]:
-        raise ExecutorBlocked("INVALID_APPROVED_MODELS: Exactly B0, B1, B2 required")
-    fit_budget = record.get("fit_budget", {})
+        raise ExecutorBlocked("INVALID_APPROVED_MODELS: Exactly ['B0', 'B1', 'B2'] required")
+
+    fit_budget = record.get("fit_budget")
+    if not isinstance(fit_budget, dict):
+        raise ExecutorBlocked("MISSING_EXPLICIT_FIT_BUDGET: Record must explicitly specify fit_budget")
     b0 = fit_budget.get("B0", fit_budget.get("B0_majority_dummy"))
     b1 = fit_budget.get("B1", fit_budget.get("B1_decision_stump"))
     b2 = fit_budget.get("B2", fit_budget.get("B2_logistic_regression"))
     total_fits = fit_budget.get("total_max_fits")
+    if b0 is None or b1 is None or b2 is None or total_fits is None:
+        raise ExecutorBlocked("MISSING_EXPLICIT_FIT_BUDGET_FIELDS: All model fit allocations and total_max_fits must be specified")
     if b0 != 0 or b1 != 1 or b2 != 1:
         raise ExecutorBlocked("INVALID_FIT_BUDGET_ALLOCATION: Must be B0=0, B1=1, B2=1")
     if total_fits != 2:
