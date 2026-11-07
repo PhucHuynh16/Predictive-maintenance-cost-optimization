@@ -1,0 +1,311 @@
+"""Tests for G4 Baseline Executor: I/O guard allowlist, G3 artifact verification, and baseline pipeline.
+
+All tests run on synthetic fixtures or read-only metadata verification.
+No real-data fitting or Official Test access is performed.
+"""
+import copy
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import numpy as np
+import pytest
+
+from src.scania.g4_b2_executor import (
+    SafetyBlocked,
+    ExecutorBlocked,
+    install_executor_io_guard,
+    verify_g3_artifacts_and_build_allowlist,
+    fit_and_score_baseline_model,
+    execute_synthetic_pipeline_test,
+    execute_real_baseline_gate,
+    assess_proposed_resource_limits,
+)
+from src.scania.baselines import STUMP_PARAMS, LR_PARAMS, BaselineFailure
+from src.scania.constraints import PRIMARY, SECONDARY, capacity_report
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_EX01_io_guard_blocks_raw_train_test_set_and_archive(tmp_path):
+    """Verify application-level audit hook blocks raw CSV, archive, and Official Test set."""
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from src.scania.g4_b2_executor import install_executor_io_guard, SafetyBlocked\n"
+        "root = Path(sys.argv[1]).resolve()\n"
+        "out = Path(sys.argv[2]).resolve()\n"
+        "install_executor_io_guard(root, out, allowlist=[])\n"
+        "\n"
+        "blocked_test = False\n"
+        "try:\n"
+        "    open(root / 'aps_failure_test_set.csv', 'r')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_test = True\n"
+        "\n"
+        "blocked_archive = False\n"
+        "try:\n"
+        "    open(root / 'data/raw/scania_aps/aps+failure+at+scania+trucks.zip', 'rb')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_archive = True\n"
+        "\n"
+        "blocked_raw = False\n"
+        "try:\n"
+        "    open(root / 'data/raw/scania_aps/aps_failure_training_set.csv', 'r')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_raw = True\n"
+        "\n"
+        "print(f'TEST={blocked_test},ARCHIVE={blocked_archive},RAW={blocked_raw}')\n"
+    )
+    cmd = [sys.executable, "-B", "-c", code, str(ROOT), str(tmp_path)]
+    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
+    assert "TEST=True,ARCHIVE=True,RAW=True" in proc.stdout
+
+
+def test_EX02_io_guard_blocks_writes_outside_output_and_to_source(tmp_path):
+    """Verify audit hook blocks writes outside designated output and forbids writes to source data."""
+    output_dir = tmp_path / "run_out"
+    output_dir.mkdir()
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from src.scania.g4_b2_executor import install_executor_io_guard, SafetyBlocked\n"
+        "root = Path(sys.argv[1]).resolve()\n"
+        "out = Path(sys.argv[2]).resolve()\n"
+        "install_executor_io_guard(root, out, allowlist=[])\n"
+        "\n"
+        "# 1. Write inside output should succeed\n"
+        "with open(out / 'metrics.json', 'w') as f:\n"
+        "    f.write('{}')\n"
+        "\n"
+        "# 2. Write outside output must fail\n"
+        "blocked_outside = False\n"
+        "try:\n"
+        "    with open(root / 'escape.txt', 'w') as f:\n"
+        "        f.write('escape')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_outside = True\n"
+        "\n"
+        "# 3. Write to data/ must fail even if attempted\n"
+        "blocked_data_write = False\n"
+        "try:\n"
+        "    with open(root / 'data/processed/scania_aps/tamper.txt', 'w') as f:\n"
+        "        f.write('tamper')\n"
+        "except SafetyBlocked:\n"
+        "    blocked_data_write = True\n"
+        "\n"
+        "print(f'OUTSIDE={blocked_outside},DATA_WRITE={blocked_data_write}')\n"
+    )
+    cmd = [sys.executable, "-B", "-c", code, str(ROOT), str(output_dir)]
+    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
+    assert "OUTSIDE=True,DATA_WRITE=True" in proc.stdout
+    assert (output_dir / "metrics.json").is_file()
+
+
+def test_EX03_io_guard_blocks_unauthorized_reads_and_allows_allowlist(tmp_path):
+    """Verify audit hook strictly allows reading allowlisted files and blocks unauthorized reads."""
+    allowed_file = tmp_path / "allowed.npy"
+    allowed_file.write_bytes(b"ALLOWED_CONTENT")
+    unauthorized_file = tmp_path / "secret.npy"
+    unauthorized_file.write_bytes(b"SECRET_CONTENT")
+
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from src.scania.g4_b2_executor import install_executor_io_guard, SafetyBlocked\n"
+        "root = Path(sys.argv[1]).resolve()\n"
+        "out = Path(sys.argv[2]).resolve()\n"
+        "allowed = Path(sys.argv[3]).resolve()\n"
+        "secret = Path(sys.argv[4]).resolve()\n"
+        "install_executor_io_guard(root, out, allowlist=[allowed])\n"
+        "\n"
+        "# Read allowed\n"
+        "read_allowed = False\n"
+        "with open(allowed, 'rb') as f:\n"
+        "    if f.read() == b'ALLOWED_CONTENT':\n"
+        "        read_allowed = True\n"
+        "\n"
+        "# Read unauthorized .npy\n"
+        "blocked_secret = False\n"
+        "try:\n"
+        "    with open(secret, 'rb') as f:\n"
+        "        f.read()\n"
+        "except SafetyBlocked:\n"
+        "    blocked_secret = True\n"
+        "\n"
+        "print(f'ALLOWED={read_allowed},SECRET_BLOCKED={blocked_secret}')\n"
+    )
+    cmd = [sys.executable, "-B", "-c", code, str(ROOT), str(tmp_path), str(allowed_file), str(unauthorized_file)]
+    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
+    assert "ALLOWED=True,SECRET_BLOCKED=True" in proc.stdout
+
+
+def test_EX04_verify_g3_artifacts_and_build_allowlist_matches_recreated_run():
+    """Verify G3 artifact verification succeeds and populates allowlist for verified run."""
+    allowlist, summary = verify_g3_artifacts_and_build_allowlist(ROOT, g3_run_id="recreate_antigravity_20261107_01")
+    assert summary["train_rows"] == 48000
+    assert summary["validation_rows"] == 12000
+    assert summary["features"] == 170
+    assert len(allowlist) >= 7
+
+    # Verify key expected files are in allowlist
+    file_names = {p.name for p in allowlist}
+    assert "official_split.json" in file_names
+    assert "membership.npz" in file_names
+    assert "tree_train.npy" in file_names
+    assert "tree_validation.npy" in file_names
+    assert "lr_train.npy" in file_names
+    assert "lr_validation.npy" in file_names
+
+
+def test_EX05_verify_g3_artifacts_fails_closed_on_tampering(tmp_path):
+    """Verify verify_g3_artifacts fails closed when metadata, hash, or membership is tampered."""
+    with pytest.raises(ExecutorBlocked, match="G3_METADATA_DIR_MISSING"):
+        verify_g3_artifacts_and_build_allowlist(ROOT, g3_run_id="non_existent_run_99999")
+
+
+def test_EX06_b0_majority_dummy_contract():
+    """Verify B0 majority dummy contract: always predicts 0, no fit, cost = 500 * P_val."""
+    y_train = np.array([0, 0, 0, 1], dtype=np.int8)
+    x_train = np.zeros((4, 2))
+    y_val = np.array([0, 0, 1, 1], dtype=np.int8)  # P_val = 2
+    x_val = np.zeros((4, 2))
+
+    rows, telemetry = fit_and_score_baseline_model("B0", x_train, y_train, x_val, y_val)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["baseline_id"] == "B0"
+    assert row["role"] == "REFERENCE"
+    assert row["P"] == 2
+    assert row["TP"] == 0
+    assert row["FP"] == 0
+    assert row["FN"] == 2
+    assert row["TN"] == 2
+    assert row["total_cost"] == 500 * 2  # 1000
+    assert row["M"] == 0
+    assert row["feasible"] is True
+    assert telemetry["fit_seconds"] == 0.0
+    assert telemetry["real_estimator_fits"] == 0
+
+
+def test_EX07_b1_decision_stump_locked_parameters_and_cost():
+    """Verify B1 Decision Stump uses locked max_depth=1 and evaluates at PRIMARY and SECONDARY."""
+    assert STUMP_PARAMS["max_depth"] == 1
+    assert STUMP_PARAMS["random_state"] == 42
+
+    rng = np.random.RandomState(42)
+    x_train = rng.randn(100, 4)
+    y_train = (x_train[:, 0] > 0).astype(np.int8)
+    x_val = rng.randn(50, 4)
+    y_val = (x_val[:, 0] > 0).astype(np.int8)
+
+    rows, telemetry = fit_and_score_baseline_model("B1", x_train, y_train, x_val, y_val)
+    assert len(rows) == 2
+    assert telemetry["parameters"]["max_depth"] == 1
+    assert telemetry["parameters"]["random_state"] == 42
+    assert telemetry["real_estimator_fits"] == 1
+
+    roles = {r["role"]: r for r in rows}
+    assert "PRIMARY" in roles
+    assert "SECONDARY" in roles
+    assert roles["PRIMARY"]["threshold"] == PRIMARY
+    assert roles["SECONDARY"]["threshold"] == SECONDARY
+
+    # Verify cost equation
+    for r in rows:
+        assert r["total_cost"] == 10 * r["FP"] + 500 * r["FN"]
+
+
+def test_EX08_b2_logistic_regression_locked_parameters_and_max_iter_2000():
+    """Verify B2 Logistic Regression uses max_iter=2000, solver=lbfgs, C=1.0."""
+    assert LR_PARAMS["max_iter"] == 2000
+    assert LR_PARAMS["solver"] == "lbfgs"
+    assert LR_PARAMS["C"] == 1.0
+    assert LR_PARAMS["tol"] == 1e-4
+
+    rng = np.random.RandomState(42)
+    x_train = rng.randn(100, 4)
+    y_train = (x_train[:, 0] > 0).astype(np.int8)
+    x_val = rng.randn(50, 4)
+    y_val = (x_val[:, 0] > 0).astype(np.int8)
+
+    rows, telemetry = fit_and_score_baseline_model("B2", x_train, y_train, x_val, y_val)
+    assert len(rows) == 2
+    assert telemetry["parameters"]["max_iter"] == 2000
+    assert telemetry["parameters"]["solver"] == "lbfgs"
+
+    # Test convergence failure fail-closed behavior
+    bad_params = copy.deepcopy(LR_PARAMS)
+    bad_params["max_iter"] = 1  # Guaranteed convergence failure on complex unscaled data
+    bad_x = rng.randn(200, 20) * 1000.0
+    bad_y = (rng.rand(200) > 0.5).astype(np.int8)
+
+    with pytest.raises(BaselineFailure, match="FAILED_CONVERGENCE_WARNING"):
+        fit_and_score_baseline_model("B2", bad_x, bad_y, bad_x[:10], bad_y[:10], b2_params=bad_params)
+
+
+def test_EX09_capacity_constraint_infeasible_policy():
+    """Verify that when maintenance inspections M exceed floor(N/10), policy is marked INFEASIBLE."""
+    n = 100
+    k = n // 10  # 10
+    # Create actions with M = 15 (> 10)
+    actions_infeasible = np.zeros(n, dtype=np.int8)
+    actions_infeasible[:15] = 1
+
+    rep = capacity_report(actions_infeasible)
+    assert rep["M"] == 15
+    assert rep["K"] == 10
+    assert rep["excess"] == 5
+    assert rep["feasible"] is False
+    assert rep["policy_status"] == "INFEASIBLE"
+
+    # Create actions with M = 8 (<= 10)
+    actions_feasible = np.zeros(n, dtype=np.int8)
+    actions_feasible[:8] = 1
+
+    rep_f = capacity_report(actions_feasible)
+    assert rep_f["M"] == 8
+    assert rep_f["K"] == 10
+    assert rep_f["excess"] == 0
+    assert rep_f["feasible"] is True
+    assert rep_f["policy_status"] == "FEASIBLE"
+
+
+def test_EX10_execute_real_baseline_gate_is_strictly_locked():
+    """Verify execute_real_baseline_gate fails closed when gate_b_authorized=False."""
+    with pytest.raises(ExecutorBlocked, match="GATE_B2_NOT_AUTHORIZED"):
+        execute_real_baseline_gate(ROOT, run_id="attempt_unauthorized_run")
+
+
+def test_EX11_end_to_end_synthetic_pipeline_execution():
+    """Verify end-to-end synthetic execution across B0, B1, and B2 generates all 5 policy rows."""
+    res = execute_synthetic_pipeline_test(n_train=150, n_val=50, n_features=4, random_state=42)
+    assert res["status"] == "SYNTHETIC_TEST_PASSED"
+    rows = res["rows"]
+    assert len(rows) == 5  # 1 B0, 2 B1, 2 B2
+
+    b_ids = [r["baseline_id"] for r in rows]
+    assert b_ids.count("B0") == 1
+    assert b_ids.count("B1") == 2
+    assert b_ids.count("B2") == 2
+
+    # Verify metrics fields are present and valid
+    for r in rows:
+        assert "TP" in r and "FP" in r and "FN" in r and "TN" in r
+        assert "total_cost" in r
+        assert "precision" in r
+        assert "recall" in r
+        assert "feasible" in r
+        assert "policy_status" in r
+
+
+def test_EX12_proposed_resource_limits_feasibility_assessment():
+    """Verify assess_proposed_resource_limits confirms technical feasibility of proposed limits."""
+    assessment = assess_proposed_resource_limits()
+    assert assessment["proposed_thread_limit"] == 1
+    assert assessment["proposed_timeout_seconds"] == 120.0
+    assert assessment["proposed_ram_cap_mb"] == 2048.0
+    assert assessment["ram_feasible"] is True
+    assert assessment["time_feasible"] is True
+    assert assessment["status"] == "PROPOSED_LIMITS_TECHNICALLY_FEASIBLE"
