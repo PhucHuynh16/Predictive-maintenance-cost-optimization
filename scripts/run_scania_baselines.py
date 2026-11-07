@@ -3,7 +3,7 @@
 No command for official fitting/scoring exists. Gate B requires a new owner task.
 """
 import argparse
-import os
+import json
 from pathlib import Path
 import sys
 import subprocess
@@ -15,7 +15,8 @@ from src.scania.contracts import object_hash, environment
 from src.scania import baselines
 from src.scania.g4_contract import (Blocked, CONFIG_SHA, code_digest, git, load_config,
                                     protected_snapshot, verify_frozen_inputs, verify_test_evidence)
-from src.scania.g4_artifacts import EvidenceRun, summarize_junit, utc
+from src.scania.g4_artifacts import EvidenceRun, summarize_junit, utc, verify_run
+from src.scania.g4_b2_executor import execute_synthetic_baseline_orchestration, ExecutorBlocked
 
 
 def run_gate_a(root=ROOT, *, run_id, mode, test_evidence=None):
@@ -101,6 +102,45 @@ def run_gate_a(root=ROOT, *, run_id, mode, test_evidence=None):
     return out.path
 
 
+def write_gate_b2_evidence_artifacts(out, root, *, run_id, mode, config_obj, result, report):
+    """Write complete, verifiable evidence artifacts required by verify_run().
+
+    Required artifacts:
+    - config.json
+    - environment.json
+    - stable_manifest.json
+    - baseline_metrics.json
+    - baseline_metrics.csv
+    """
+    out.json("config.json", config_obj)
+    out.json("environment.json", environment())
+    is_real = (mode == "GATE_B2_REAL_BASELINE")
+    manifest_data = dict(
+        run_id=run_id,
+        mode=mode,
+        synthetic=(not is_real),
+        code_digest=code_digest(root),
+        config_sha256=object_hash(config_obj) if isinstance(config_obj, dict) else str(config_obj),
+        g3_run_id=report.get("g3_input_run") or "official_20261029_04",
+        models=["B0", "B1", "B2"],
+        cost_equation="10*FP + 500*FN",
+        capacity_constraint="floor(N/10)",
+        official_test_sealed=True,
+    )
+    out.json("stable_manifest.json", manifest_data)
+    metrics_data = dict(
+        run_id=run_id,
+        mode=mode,
+        kind="REAL_SCANIA_APS" if is_real else "SYNTHETIC_NOT_REAL",
+        rows=result.get("rows"),
+        fitted_estimator_count=result.get("real_estimator_fits" if is_real else "synthetic_estimator_fits", 0),
+        observed_timings=result.get("observed_timings"),
+        measured_peak_ram_mb=result.get("measured_peak_ram_mb"),
+    )
+    out.json("baseline_metrics.json", metrics_data)
+    out.csv("baseline_metrics.csv", result.get("rows", []))
+
+
 def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
     """Fail-closed real baseline execution gate under Gate B2."""
     from src.scania.g4_b2_executor import execute_real_baseline_gate, ExecutorBlocked
@@ -129,6 +169,8 @@ def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
         real_result = execute_real_baseline_gate(root, run_id, g3_run_id=g3_run_id, run_reservation=out)
         if "real_estimator_fits" not in real_result or "real_validation_scored" not in real_result:
             raise ExecutorBlocked("MALFORMED_WORKER_RESULT: Missing mandatory fit or scoring counts")
+        if not real_result["real_validation_scored"]:
+            raise ExecutorBlocked("INCOMPLETE_WORKER_RESULT: Validation was not scored")
         report.update(
             status="GATE_B2_SUCCESS",
             lifecycle="COMPLETE",
@@ -142,6 +184,10 @@ def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
             measured_peak_ram_mb=real_result.get("measured_peak_ram_mb"),
         )
         events.append("Gate B2 baseline execution completed successfully")
+        cfg_path = Path(root) / "configs/scania/g4_baselines.json"
+        cfg_obj = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.is_file() else {}
+        write_gate_b2_evidence_artifacts(out, root, run_id=run_id, mode="GATE_B2_REAL_BASELINE",
+                                         config_obj=cfg_obj, result=real_result, report=report)
     except Exception as exc:
         status = "BLOCKED" if isinstance(exc, (Blocked, ExecutorBlocked, FileNotFoundError)) else "FAILED"
         report.update(status=status, lifecycle="FAILED")
@@ -187,12 +233,20 @@ def run_gate_b2(root=ROOT, *, run_id, g3_run_id=None):
         out.json("failure_diagnostics.json", dict(errors=errors))
         out.text("execution.txt", "\n".join(events + [f"status={report['status']}"]) + "\n")
         out.finalize()
+
+        # Mandate: A run must not report COMPLETE unless mandatory worker evidence and output checks are valid
+        if report.get("lifecycle") == "COMPLETE":
+            if not verify_run(out.path):
+                report["lifecycle"] = "FAILED"
+                report["status"] = "BLOCKED"
+                out.json("run_summary.json", report)
+                out.finalize()
+                raise ExecutorBlocked(f"OUTPUT_VERIFICATION_FAILED: Run {run_id} failed verify_run contract")
     return out.path
 
 
 def run_synthetic_gate_b2(root=ROOT, *, run_id, synthetic_dir=None, wall_seconds=120):
     """Synthetic production-equivalent execution path under Gate B2 architecture."""
-    from src.scania.g4_b2_executor import execute_synthetic_baseline_orchestration, ExecutorBlocked
     out = EvidenceRun(root, run_id)
     start = time.perf_counter()
     report = dict(
@@ -217,6 +271,10 @@ def run_synthetic_gate_b2(root=ROOT, *, run_id, synthetic_dir=None, wall_seconds
         synth_result = execute_synthetic_baseline_orchestration(
             root, run_id, synthetic_dir=synthetic_dir, run_reservation=out, wall_seconds=wall_seconds
         )
+        if "synthetic_estimator_fits" not in synth_result or "synthetic_validation_scored" not in synth_result:
+            raise ExecutorBlocked("MALFORMED_WORKER_RESULT: Missing mandatory fit or scoring counts")
+        if not synth_result["synthetic_validation_scored"]:
+            raise ExecutorBlocked("INCOMPLETE_WORKER_RESULT: Validation was not scored")
         report.update(
             status="GATE_B2_SYNTHETIC_SUCCESS",
             lifecycle="COMPLETE",
@@ -230,12 +288,15 @@ def run_synthetic_gate_b2(root=ROOT, *, run_id, synthetic_dir=None, wall_seconds
             measured_peak_ram_mb=synth_result.get("measured_peak_ram_mb"),
         )
         events.append("Gate B2 synthetic execution completed successfully")
-        # Write metrics artifacts expected by verify_run
-        out.json("config.json", dict(mode="SYNTHETIC", run_id=run_id))
-        out.json("environment.json", environment())
-        out.json("stable_manifest.json", dict(synthetic=True, run_id=run_id))
-        out.json("baseline_metrics.json", dict(kind="SYNTHETIC_NOT_REAL", rows=synth_result.get("rows")))
-        out.csv("baseline_metrics.csv", synth_result.get("rows"))
+        synth_config = dict(
+            mode="SYNTHETIC",
+            run_id=run_id,
+            thresholds={"PRIMARY": {"numerator": 1, "denominator": 2},
+                        "SECONDARY": {"numerator": 10, "denominator": 510}},
+            official_test="SEALED_UNTIL_G10"
+        )
+        write_gate_b2_evidence_artifacts(out, root, run_id=run_id, mode="GATE_B2_SYNTHETIC",
+                                         config_obj=synth_config, result=synth_result, report=report)
     except Exception as exc:
         status = "BLOCKED" if isinstance(exc, (Blocked, ExecutorBlocked, FileNotFoundError)) else "FAILED"
         report.update(status=status, lifecycle="FAILED")
@@ -260,6 +321,15 @@ def run_synthetic_gate_b2(root=ROOT, *, run_id, synthetic_dir=None, wall_seconds
         out.json("failure_diagnostics.json", dict(errors=errors))
         out.text("execution.txt", "\n".join(events + [f"status={report['status']}"]) + "\n")
         out.finalize()
+
+        # Mandate: A run must not report COMPLETE unless mandatory worker evidence and output checks are valid
+        if report.get("lifecycle") == "COMPLETE":
+            if not verify_run(out.path):
+                report["lifecycle"] = "FAILED"
+                report["status"] = "BLOCKED"
+                out.json("run_summary.json", report)
+                out.finalize()
+                raise ExecutorBlocked(f"OUTPUT_VERIFICATION_FAILED: Run {run_id} failed verify_run contract")
     return out.path
 
 

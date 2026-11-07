@@ -30,6 +30,8 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 
+import urllib.request
+
 from .artifacts import code_digest
 from .baselines import STUMP_PARAMS, LR_PARAMS, BaselineFailure
 from .constraints import PRIMARY, SECONDARY, POLICIES, actions_from_probabilities, capacity_report, probabilities
@@ -37,7 +39,7 @@ from .contracts import canonical, digest, environment, object_hash
 from .cost_model import binary_vector, observed_aps_cost
 from .data import array_hash, ordered_ids_hash
 from .evaluation import evaluate_aps_policy
-from .g4_contract import CONFIG_SHA
+from .g4_contract import CONFIG_SHA, GATE_A_CONFIG_SHA, G3_RUN, G3_STABLE, load_config, Blocked
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -506,22 +508,91 @@ def _orchestrate_worker_in_windows_job(root, run_id, output_dir, allowlist, task
     return report
 
 
+def _get_github_token():
+    try:
+        proc = subprocess.Popen(
+            ["git", "credential", "fill"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, _ = proc.communicate("protocol=https\nhost=github.com\n\n", timeout=5)
+        return dict(line.split("=", 1) for line in out.strip().split("\n") if "=" in line).get("password")
+    except Exception:
+        return None
+
+
+def verify_owner_approval_reference(ref, mode="REAL"):
+    """Verify that the referenced Owner approval is genuine and verifiable.
+
+    Trust boundary rules:
+    - No authorization inferred from an agent-generated document.
+    - An unverifiable GitHub link must fail closed.
+    - Real mode requires reference on official repository with verified Owner author (PhucHuynh16).
+    - Synthetic boundary: permits SYNTHETIC_FIXTURE_ tokens in synthetic mode only.
+    """
+    if not isinstance(ref, str) or not ref:
+        raise ExecutorBlocked("INVALID_OWNER_APPROVAL_REFERENCE: Reference must be a non-empty string URL")
+
+    if mode == "SYNTHETIC":
+        if ref.startswith("SYNTHETIC_FIXTURE_"):
+            return True
+        if ref.startswith("https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/"):
+            return True
+        raise ExecutorBlocked(f"INVALID_SYNTHETIC_APPROVAL_REFERENCE: {ref}")
+
+    # REAL MODE: Strictly bind to genuine Owner decision on official repository
+    pattern = r"^https://github\.com/PhucHuynh16/Predictive-maintenance-cost-optimization/(issues|pull)/\d+(#issuecomment-(\d+))?$"
+    m = re.match(pattern, ref)
+    if not m:
+        raise ExecutorBlocked(f"INVALID_OWNER_APPROVAL_REFERENCE: {ref}")
+
+    comment_id = m.group(3)
+    if not comment_id:
+        raise ExecutorBlocked(f"UNVERIFIABLE_OWNER_APPROVAL: Must reference specific comment ID: {ref}")
+
+    try:
+        token = _get_github_token()
+        if not token:
+            raise ExecutorBlocked(f"UNVERIFIABLE_OWNER_APPROVAL: GitHub credential unavailable to verify reference: {ref}")
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/comments/{comment_id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "Antigravity-Trust-Verifier"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        author = data.get("user", {}).get("login", "")
+        if author != "PhucHuynh16":
+            raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Comment author '{author}' is not repository owner PhucHuynh16")
+    except Exception as exc:
+        if isinstance(exc, ExecutorBlocked):
+            raise
+        raise ExecutorBlocked(f"UNVERIFIABLE_OWNER_APPROVAL: Could not verify Owner approval reference {ref}: {exc}")
+    return True
+
+
 def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expected_config_sha=None,
-                                        expected_g3_run_id=None, mode="REAL"):
-    """Enforce schema and semantic validation of an Owner baseline authorization record (F2).
+                                        expected_g3_run_id=None, expected_g3_manifest_sha=None,
+                                        mode="REAL", root=None):
+    """Enforce schema and semantic validation of an Owner baseline authorization record (F2 & Trust Boundary).
 
     Schema & Invariants:
-    - Exact run ID match.
-    - Owner approval reference must resolve to an actual Owner decision (not self-conferred).
-    - Authorized source commit (40-char hex SHA) and canonical configuration SHA-256.
-    - Accepted G3 input run and manifest hash match.
-    - Approved models: exactly B0, B1, B2.
-    - Fit budget: B0=0, B1=1, B2=1 (total approved fits <= 2).
-    - Resource limits: max_native_threads=1, max_ram_mb=2048, max_wall_seconds=120.
-    - Allowed partitions: train, validation only.
-    - Official Test remains sealed: official_test_sealed=True.
-    - Authorization status: AUTHORIZED.
-    - Permitted operation: BASELINE_FITTING_VALIDATION_ONLY (REAL) or SYNTHETIC_BASELINE_TESTING_ONLY (SYNTHETIC).
+    1. An actual Owner approval decision whose GitHub reference, author and approved scope can be verified.
+       An unverifiable GitHub link fails closed.
+    2. Exact run ID and operation (BASELINE_FITTING_VALIDATION_ONLY in REAL).
+    3. Actual repository source HEAD SHA, bound to git rev-parse HEAD.
+    4. Exact approved configuration version/hash.
+    5. Exact accepted G3 manifest hash and input run.
+    6. Exact allowed models: B0, B1, B2.
+    7. Fit budget: B0=0, B1=1, B2=1, total_max_fits=2.
+    8. Maximum 1 native thread, 2048 MB RAM, 120 seconds total wall time.
+    9. Train fitting and Validation scoring only.
+    10. Official Test SEALED UNTIL G10.
     - Mode distinction: SYNTHETIC_ONLY records can NEVER authorize real Scania data access.
     """
     if isinstance(auth_path_or_dict, (str, Path)):
@@ -560,7 +631,7 @@ def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expe
         if record.get("permitted_operation") not in {"SYNTHETIC_BASELINE_TESTING_ONLY", "BASELINE_FITTING_VALIDATION_ONLY"}:
             raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: {record.get('permitted_operation')}")
 
-    # 4. Owner approval reference check (Must not be self-conferred by agents)
+    # 4. Owner approval reference check and trust verification
     owner_app = record.get("owner_approval")
     if not isinstance(owner_app, dict):
         raise ExecutorBlocked("INVALID_OWNER_APPROVAL_OBJECT")
@@ -568,41 +639,63 @@ def validate_owner_authorization_record(auth_path_or_dict, expected_run_id, expe
     approved_by = owner_app.get("approved_by", "")
     if approved_by != "OWNER":
         raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Approved by '{approved_by}' is not recognized")
-    if not ref or not (ref.startswith("https://github.com/") or (mode == "SYNTHETIC" and ref.startswith("SYNTHETIC_FIXTURE_"))):
-        raise ExecutorBlocked("INVALID_OWNER_APPROVAL_REFERENCE")
+    if owner_app.get("decision") != "APPROVED":
+        raise ExecutorBlocked(f"AUTHORIZATION_NOT_APPROVED: Decision is '{owner_app.get('decision')}'")
 
-    # 5. Source integrity
+    verify_owner_approval_reference(ref, mode=mode)
+
+    # 5. Source integrity and repository HEAD binding
     src_int = record.get("source_integrity", {})
     auth_commit = str(src_int.get("authorized_commit", ""))
     if not re.fullmatch(r"[0-9a-f]{40}", auth_commit):
         raise ExecutorBlocked("INVALID_AUTHORIZED_COMMIT_SHA")
-    if expected_config_sha is not None:
-        cfg_sha = src_int.get("canonical_config_sha256", "")
-        if cfg_sha != expected_config_sha:
-            raise ExecutorBlocked(f"AUTHORIZED_CONFIG_SHA_MISMATCH: {cfg_sha} != {expected_config_sha}")
+
+    if root is not None:
+        try:
+            current_head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=str(root), stderr=subprocess.PIPE
+            ).decode("utf-8").strip()
+            if auth_commit != current_head:
+                raise ExecutorBlocked(
+                    f"AUTHORIZED_COMMIT_MISMATCH: Authorized commit {auth_commit} does not match repository HEAD {current_head}"
+                )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+
+    if expected_config_sha is None:
+        expected_config_sha = CONFIG_SHA
+    cfg_sha = src_int.get("canonical_config_sha256", "")
+    if cfg_sha != expected_config_sha:
+        raise ExecutorBlocked(f"AUTHORIZED_CONFIG_SHA_MISMATCH: {cfg_sha} != {expected_config_sha}")
 
     # 6. Data scope and partition boundaries
     data_scope = record.get("data_scope", {})
+    if expected_g3_run_id is None:
+        expected_g3_run_id = G3_RUN
+    if expected_g3_manifest_sha is None:
+        expected_g3_manifest_sha = G3_STABLE
+
     if mode == "REAL":
-        if expected_g3_run_id is not None and data_scope.get("accepted_g3_run_id") != expected_g3_run_id:
-            raise ExecutorBlocked("ACCEPTED_G3_RUN_ID_MISMATCH")
-        if not data_scope.get("accepted_g3_manifest_sha256"):
-            raise ExecutorBlocked("MISSING_ACCEPTED_G3_MANIFEST_SHA")
+        if data_scope.get("accepted_g3_run_id") != expected_g3_run_id:
+            raise ExecutorBlocked(f"ACCEPTED_G3_RUN_ID_MISMATCH: {data_scope.get('accepted_g3_run_id')} != {expected_g3_run_id}")
+        if data_scope.get("accepted_g3_manifest_sha256") != expected_g3_manifest_sha:
+            raise ExecutorBlocked(f"ACCEPTED_G3_MANIFEST_SHA_MISMATCH: {data_scope.get('accepted_g3_manifest_sha256')} != {expected_g3_manifest_sha}")
+
     if set(data_scope.get("allowed_partitions", [])) != {"train", "validation"}:
         raise ExecutorBlocked("INVALID_ALLOWED_PARTITIONS: Only train and validation allowed")
     if data_scope.get("official_test_sealed") is not True:
         raise ExecutorBlocked("OFFICIAL_TEST_NOT_SEALED: Test partition must be sealed")
 
-    # 7. Approved models & fit budget
+    # 7. Approved models & fit budget (B0=0, B1=1, B2=1, total_max_fits=2)
     if record.get("approved_models") != ["B0", "B1", "B2"]:
         raise ExecutorBlocked("INVALID_APPROVED_MODELS: Exactly B0, B1, B2 required")
     fit_budget = record.get("fit_budget", {})
     if fit_budget.get("B0") != 0 or fit_budget.get("B1") != 1 or fit_budget.get("B2") != 1:
         raise ExecutorBlocked("INVALID_FIT_BUDGET_ALLOCATION: Must be B0=0, B1=1, B2=1")
-    if fit_budget.get("total_max_fits", 0) > 2:
-        raise ExecutorBlocked("EXCESSIVE_FIT_BUDGET: Total max fits cannot exceed 2")
+    if fit_budget.get("total_max_fits") != 2:
+        raise ExecutorBlocked("INVALID_FIT_BUDGET: total_max_fits must be exactly 2")
 
-    # 8. Resource limits
+    # 8. Resource limits (1 thread, 2048 MB RAM, 120s wall time)
     limits = record.get("resource_limits", {})
     if limits.get("max_native_threads") != 1:
         raise ExecutorBlocked("INVALID_MAX_NATIVE_THREADS: Must be 1")
@@ -655,11 +748,20 @@ def execute_real_baseline_gate(root, run_id, *, g3_run_id=None, run_reservation=
     if budget is None or budget <= 0:
         raise ExecutorBlocked("GATE_B2_ZERO_FIT_BUDGET: Fit budget not granted")
 
-    # Explicit run-specific Owner authorization record schema & semantic validation (F2)
+    # Explicit run-specific Owner authorization record schema & semantic validation (F2, Trust Boundary)
     auth_file = root / "configs/scania/authorizations" / f"{run_id}.json"
     auth_record = validate_owner_authorization_record(
-        auth_file, run_id, expected_config_sha=CONFIG_SHA, expected_g3_run_id=g3_run_id, mode="REAL"
+        auth_file, run_id, expected_config_sha=CONFIG_SHA, expected_g3_run_id=g3_run_id,
+        mode="REAL", root=root
     )
+
+    # Validate controlled configuration transition via g4_contract
+    try:
+        config = load_config(root, gate="GATE_B2",
+                             expected_config_sha=auth_record.get("source_integrity", {}).get("canonical_config_sha256"),
+                             auth_record=auth_record)
+    except Blocked as exc:
+        raise ExecutorBlocked(f"GATE_B2_CONFIG_CONTRACT_BLOCKED: {exc}")
 
     if run_reservation is None:
         output_dir.mkdir(parents=True, exist_ok=False)

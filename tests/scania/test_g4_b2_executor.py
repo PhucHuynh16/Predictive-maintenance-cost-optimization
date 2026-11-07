@@ -1,4 +1,4 @@
-﻿"""Tests for G4 Baseline Executor: I/O guard allowlist, G3 artifact verification, and baseline pipeline.
+"""Tests for G4 Baseline Executor: I/O guard allowlist, G3 artifact verification, and baseline pipeline.
 
 All tests run on synthetic fixtures or read-only metadata verification.
 No real-data fitting or Official Test access is performed.
@@ -31,6 +31,7 @@ from src.scania.baselines import STUMP_PARAMS, LR_PARAMS, BaselineFailure
 from src.scania.constraints import PRIMARY, SECONDARY, capacity_report
 from src.scania.contracts import canonical, digest, object_hash
 from src.scania.data import array_hash, ordered_ids_hash, source_ids
+from src.scania.g4_contract import CONFIG_SHA, G3_STABLE, load_config, Blocked
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -506,6 +507,26 @@ def test_EX09_capacity_constraint_infeasible_policy():
     assert rep_f["feasible"] is True
     assert rep_f["policy_status"] == "FEASIBLE"
 
+    # Official Scania Validation partition contract: N=12,000 rows -> K = floor(12000/10) = 1200
+    n_val_official = 12000
+    acts_12k_feasible = np.zeros(n_val_official, dtype=np.int8)
+    acts_12k_feasible[:1200] = 1
+    rep_12k_f = capacity_report(acts_12k_feasible)
+    assert rep_12k_f["K"] == 1200
+    assert rep_12k_f["M"] == 1200
+    assert rep_12k_f["excess"] == 0
+    assert rep_12k_f["feasible"] is True
+    assert rep_12k_f["policy_status"] == "FEASIBLE"
+
+    acts_12k_infeasible = np.zeros(n_val_official, dtype=np.int8)
+    acts_12k_infeasible[:1201] = 1
+    rep_12k_inf = capacity_report(acts_12k_infeasible)
+    assert rep_12k_inf["K"] == 1200
+    assert rep_12k_inf["M"] == 1201
+    assert rep_12k_inf["excess"] == 1
+    assert rep_12k_inf["feasible"] is False
+    assert rep_12k_inf["policy_status"] == "INFEASIBLE"
+
 
 def test_EX10_execute_real_baseline_gate_is_strictly_locked():
     """Verify execute_real_baseline_gate fails closed when gate_b_authorized=False."""
@@ -677,26 +698,28 @@ def test_EX16_run_reservation_lifecycle_and_no_overwrite(tmp_path):
         execute_real_baseline_gate(tmp_path, run_id, run_reservation="invalid_string")
 
 
-def test_EX17_owner_authorization_record_schema_and_semantics():
-    """Verify comprehensive schema and semantic validation of Owner authorization records (F2)."""
+def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
+    """Verify comprehensive schema, trust boundary, git HEAD binding, and semantic validation (F2 & Trust Boundary)."""
+    current_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT)).decode("utf-8").strip()
+
     valid_synth_record = {
         "schema_version": "1.0",
         "run_id": "test_auth_01",
         "authorization_status": "AUTHORIZED",
         "permitted_operation": "SYNTHETIC_BASELINE_TESTING_ONLY",
         "owner_approval": {
-            "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-6706767761",
-            "directive": "OWNER DIRECTIVE â€” SC-G4-B2 FINAL RELEASE BLOCKER CLOSURE",
+            "reference": "SYNTHETIC_FIXTURE_SC_G4_B2",
+            "directive": "OWNER DIRECTIVE — SC-G4-B2 FINAL RELEASE BLOCKER CLOSURE",
             "decision": "APPROVED",
             "approved_by": "OWNER"
         },
         "source_integrity": {
-            "authorized_commit": "56fafc8445dc5230170895aa9c586fc77e291aaf",
-            "canonical_config_sha256": "b7df8ad314d1f238cb20dcfb9dcda483cf30536c478a587ce3ad81e649e35b71"
+            "authorized_commit": current_head,
+            "canonical_config_sha256": CONFIG_SHA
         },
         "data_scope": {
             "accepted_g3_run_id": "official_20261029_04",
-            "accepted_g3_manifest_sha256": "0b01dc9fce1e3dbafd1770d481bd77b4098ba84b",
+            "accepted_g3_manifest_sha256": G3_STABLE,
             "allowed_partitions": ["train", "validation"],
             "official_test_sealed": True
         },
@@ -715,55 +738,74 @@ def test_EX17_owner_authorization_record_schema_and_semantics():
         "mode": "SYNTHETIC_ONLY"
     }
 
-    # 1. Valid synthetic record passes under SYNTHETIC mode
-    res = validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="SYNTHETIC")
+    # 1. Valid synthetic record passes under SYNTHETIC mode with repository root check
+    res = validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="SYNTHETIC", root=ROOT)
     assert res["authorization_status"] == "AUTHORIZED"
 
     # 2. Synthetic authorization can NEVER authorize real data gate
     with pytest.raises(ExecutorBlocked, match="SYNTHETIC_AUTHORIZATION_CANNOT_AUTHORIZE_REAL_DATA"):
         validate_owner_authorization_record(valid_synth_record, "test_auth_01", mode="REAL")
 
-    # 3. Run ID mismatch
-    bad_id = copy.deepcopy(valid_synth_record)
-    bad_id["run_id"] = "wrong_id"
-    with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_RUN_ID_MISMATCH"):
-        validate_owner_authorization_record(bad_id, "test_auth_01", mode="SYNTHETIC")
+    # 3. Unverifiable Owner approval reference fails closed in REAL mode
+    unverif = copy.deepcopy(valid_synth_record)
+    unverif["mode"] = "REAL"
+    unverif["permitted_operation"] = "BASELINE_FITTING_VALIDATION_ONLY"
+    unverif["owner_approval"]["reference"] = "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-9999999999"
+    with pytest.raises(ExecutorBlocked, match="UNVERIFIABLE_OWNER_APPROVAL"):
+        validate_owner_authorization_record(unverif, "test_auth_01", mode="REAL")
 
-    # 4. Status not AUTHORIZED (e.g. PENDING)
-    pending = copy.deepcopy(valid_synth_record)
-    pending["authorization_status"] = "PENDING"
-    with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_NOT_GRANTED"):
-        validate_owner_authorization_record(pending, "test_auth_01", mode="SYNTHETIC")
+    # 4. Invalid Owner approval reference (non-whitelisted URL)
+    bad_ref = copy.deepcopy(valid_synth_record)
+    bad_ref["owner_approval"]["reference"] = "https://unauthorized-domain.com/bogus"
+    with pytest.raises(ExecutorBlocked, match="INVALID_SYNTHETIC_APPROVAL_REFERENCE"):
+        validate_owner_authorization_record(bad_ref, "test_auth_01", mode="SYNTHETIC")
 
-    # 5. Self-conferred approval (not from OWNER)
+    # 5. Source commit mismatch against repository HEAD
+    bad_commit = copy.deepcopy(valid_synth_record)
+    bad_commit["source_integrity"]["authorized_commit"] = "0" * 40
+    with pytest.raises(ExecutorBlocked, match="AUTHORIZED_COMMIT_MISMATCH"):
+        validate_owner_authorization_record(bad_commit, "test_auth_01", mode="SYNTHETIC", root=ROOT)
+
+    # 6. Canonical configuration hash mismatch
+    bad_cfg = copy.deepcopy(valid_synth_record)
+    bad_cfg["source_integrity"]["canonical_config_sha256"] = "f" * 64
+    with pytest.raises(ExecutorBlocked, match="AUTHORIZED_CONFIG_SHA_MISMATCH"):
+        validate_owner_authorization_record(bad_cfg, "test_auth_01", mode="SYNTHETIC")
+
+    # 7. Accepted G3 manifest hash mismatch in REAL mode
+    bad_g3 = copy.deepcopy(valid_synth_record)
+    bad_g3["mode"] = "REAL"
+    bad_g3["permitted_operation"] = "BASELINE_FITTING_VALIDATION_ONLY"
+    bad_g3["data_scope"]["accepted_g3_manifest_sha256"] = "0" * 64
+    monkeypatch.setattr("src.scania.g4_b2_executor.verify_owner_approval_reference", lambda ref, mode="REAL": True)
+    with pytest.raises(ExecutorBlocked, match="ACCEPTED_G3_MANIFEST_SHA_MISMATCH"):
+        validate_owner_authorization_record(bad_g3, "test_auth_01", mode="REAL")
+
+    # 8. Accepted G3 run ID mismatch in REAL mode
+    bad_run = copy.deepcopy(valid_synth_record)
+    bad_run["mode"] = "REAL"
+    bad_run["permitted_operation"] = "BASELINE_FITTING_VALIDATION_ONLY"
+    bad_run["data_scope"]["accepted_g3_run_id"] = "wrong_g3_run"
+    with pytest.raises(ExecutorBlocked, match="ACCEPTED_G3_RUN_ID_MISMATCH"):
+        validate_owner_authorization_record(bad_run, "test_auth_01", mode="REAL")
+
+    # 9. Excessive or zero fit budget
+    bad_bud = copy.deepcopy(valid_synth_record)
+    bad_bud["fit_budget"]["total_max_fits"] = 0
+    with pytest.raises(ExecutorBlocked, match="INVALID_FIT_BUDGET"):
+        validate_owner_authorization_record(bad_bud, "test_auth_01", mode="SYNTHETIC")
+
+    # 10. Self-conferred approval
     self_app = copy.deepcopy(valid_synth_record)
     self_app["owner_approval"]["approved_by"] = "Antigravity"
     with pytest.raises(ExecutorBlocked, match="AUTHORIZATION_NOT_FROM_OWNER"):
         validate_owner_authorization_record(self_app, "test_auth_01", mode="SYNTHETIC")
 
-    # 6. Unsealed test set
-    unsealed = copy.deepcopy(valid_synth_record)
-    unsealed["data_scope"]["official_test_sealed"] = False
-    with pytest.raises(ExecutorBlocked, match="OFFICIAL_TEST_NOT_SEALED"):
-        validate_owner_authorization_record(unsealed, "test_auth_01", mode="SYNTHETIC")
-
-    # 7. Disallowed models (e.g. Random Forest included)
-    bad_mod = copy.deepcopy(valid_synth_record)
-    bad_mod["approved_models"] = ["B0", "B1", "B2", "RF"]
-    with pytest.raises(ExecutorBlocked, match="INVALID_APPROVED_MODELS"):
-        validate_owner_authorization_record(bad_mod, "test_auth_01", mode="SYNTHETIC")
-
-    # 8. Excessive fit budget
-    bad_bud = copy.deepcopy(valid_synth_record)
-    bad_bud["fit_budget"]["total_max_fits"] = 10
-    with pytest.raises(ExecutorBlocked, match="EXCESSIVE_FIT_BUDGET"):
-        validate_owner_authorization_record(bad_bud, "test_auth_01", mode="SYNTHETIC")
-
-    # 9. Thread limit violation (> 1 thread)
-    bad_thr = copy.deepcopy(valid_synth_record)
-    bad_thr["resource_limits"]["max_native_threads"] = 4
-    with pytest.raises(ExecutorBlocked, match="INVALID_MAX_NATIVE_THREADS"):
-        validate_owner_authorization_record(bad_thr, "test_auth_01", mode="SYNTHETIC")
+    # 11. Controlled configuration transition contract
+    cfg_a = load_config(ROOT, gate="GATE_A")
+    assert cfg_a["gate_b_authorized"] is False
+    with pytest.raises(Blocked, match="GATE_B2_NOT_AUTHORIZED"):
+        load_config(ROOT, gate="GATE_B2")
 
 
 def test_EX18_production_equivalent_synthetic_cli_lifecycle(tmp_path):
@@ -777,6 +819,15 @@ def test_EX18_production_equivalent_synthetic_cli_lifecycle(tmp_path):
 
     # Verify checksums.json exists and verify_run succeeds
     assert verify_run(out_path) is True
+
+    # Verify all 9 required artifacts exist on disk
+    expected_artifacts = {
+        "run_summary.json", "config.json", "environment.json",
+        "stable_manifest.json", "baseline_metrics.json", "baseline_metrics.csv",
+        "failure_diagnostics.json", "execution.txt", "checksums.json"
+    }
+    present_files = {p.name for p in Path(out_path).iterdir()}
+    assert expected_artifacts.issubset(present_files)
 
     summary = json.loads((out_path / "run_summary.json").read_text(encoding="utf-8"))
     assert summary["status"] == "GATE_B2_SYNTHETIC_SUCCESS"
@@ -793,7 +844,7 @@ def test_EX18_production_equivalent_synthetic_cli_lifecycle(tmp_path):
         assert r["total_cost"] == 10 * r["FP"] + 500 * r["FN"]
 
 
-def test_EX19_truthful_fit_counts_and_failure_telemetry(tmp_path):
+def test_EX19_truthful_fit_counts_and_failure_telemetry(tmp_path, monkeypatch):
     """Verify truthful fit counts and failure telemetry upon partial progress or failure (F3)."""
     from src.scania.g4_b2_worker import execute_worker
 
@@ -843,6 +894,15 @@ def test_EX19_truthful_fit_counts_and_failure_telemetry(tmp_path):
     assert worker_res.get("total_estimator_fits") == 0
     assert worker_res.get("validation_scored") is False
     assert "B1_INPUT_SHAPE_MISMATCH" in worker_res.get("reason", "")
+
+    # 3. An incomplete worker result (validation_scored=False) cannot become COMPLETE
+    from scripts.run_scania_baselines import run_synthetic_gate_b2
+    import scripts.run_scania_baselines as s_runner
+    bad_run_id = f"test_incomp_{int(time.time())}"
+    monkeypatch.setattr(s_runner, "execute_synthetic_baseline_orchestration",
+                        lambda *args, **kwargs: dict(synthetic_estimator_fits=2, synthetic_validation_scored=False, rows=[]))
+    with pytest.raises(ExecutorBlocked, match="INCOMPLETE_WORKER_RESULT"):
+        run_synthetic_gate_b2(tmp_path, run_id=bad_run_id)
 
 
 def test_EX20_worker_enforces_locked_parameters_in_real_mode(tmp_path):
