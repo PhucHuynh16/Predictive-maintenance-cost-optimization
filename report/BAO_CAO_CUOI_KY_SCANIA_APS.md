@@ -1,6 +1,6 @@
 # BẢN THẢO ĐỀ CƯƠNG BÁO CÁO TỔNG KẾT: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN HỆ THỐNG KHÍ NÉN TRÊN XE TẢI NẶNG SCANIA APS (UCI 421)
 
-> **TRẠNG THÁI TÀI LIỆU:** BẢN THẢO ĐỀ CƯƠNG (DRAFT OUTLINE) — Đang chờ số liệu thực nghiệm đo đạc thật trên phân vùng Validation để xuất bản và kiểm chứng trực quan file Word/PDF chính thức.
+> **TRẠNG THÁI TÀI LIỆU:** BẢN THẢO ĐỀ CƯƠNG (DRAFT OUTLINE) — Đã tích hợp số liệu đo đạc thực tế chính thức từ G4 Baseline Run `scania_g4_b2_real_002`; đang chờ hoàn tất thực nghiệm tối ưu hóa Phase 2 để xuất bản và kiểm chứng trực quan file Word/PDF chính thức.
 
 **Học phần:** Nhập môn Tối ưu hóa — Học kỳ 1, Năm học 2026–2027  
 **Đơn vị đào tạo:** Khoa Công nghệ Thông tin — Trường Đại học Văn Lang  
@@ -12,8 +12,7 @@
 
 > [!IMPORTANT]
 > **RANH GIỚI KHOA HỌC BẮT BUỘC:**
-> Việc vượt qua các unit tests hoặc thực thi xong các mô hình cơ sở G4 Baselines (B0, B1, B2) **KHÔNG hoàn thành yêu cầu phương pháp tối ưu hóa bắt buộc của môn học**.
-> - G4 Baselines chỉ đóng vai trò cung cấp mốc so sánh cơ sở (reference benchmark).
+> Việc hoàn thành các mô hình cơ sở G4 Baselines (B0, B1, B2) **chỉ hoàn thành bước xác lập mốc so sánh cơ sở (reference benchmarks), chưa hoàn thành yêu cầu phương pháp tối ưu hóa bắt buộc của môn học**.
 > - Phương pháp tối ưu hóa cốt lõi theo đề cương (Random Forest kết hợp Bayesian Hyperparameter Optimization & Threshold Tuning qua Optuna TPE) là một hạng mục nghiên cứu độc lập (Phase 2), cần được cấp quyền, thực thi và lưu trữ lịch sử tìm kiếm (search history) cùng ít nhất 02 đồ thị tối ưu (hội tụ / đánh đổi) từ dữ liệu thực tế.
 
 ---
@@ -53,13 +52,13 @@ Tập dữ liệu *APS Failure at Scania Trucks* (UCI #421) được thu thập 
 ### 2.1. Biến quyết định và không gian tìm kiếm
 Cho tập dữ liệu gồm $N$ xe tải với ma trận thuộc tính $X \in \mathbb{R}^{N \times 170}$ và nhãn thực tế $Y \in \{0, 1\}^N$. Một mô hình phân loại với tập siêu tham số $\theta \in \Theta$ ước lượng xác suất hậu nghiệm $P(y_i = 1 \mid x_i; \theta)$. 
 
-Chính sách can thiệp đưa ra vector quyết định nhị phân $A = (a_1, a_2, \dots, a_N) \in \{0, 1\}^N$ thông qua ngưỡng phân loại $\tau \in (0, 1)$:
+Chính sách can thiệp đưa ra vector quyết định nhị phân $A = (a_1, a_2, \dots, a_N) \in \{0, 1\}^N$ thông qua ngưỡng phân loại $\tau \in [0, 1]$:
 $$a_i(\theta, \tau) = \mathbb{I}[P(y_i = 1 \mid x_i; \theta) \ge \tau]$$
 Trong đó:
 - $a_i = 1$: Kỹ thuật viên tiến hành mở quy trình kiểm tra chuyên sâu hệ thống APS tại xưởng.
 - $a_i = 0$: Không tiến hành kiểm tra APS; xe được xử lý các bộ phận khác và xuất xưởng.
 
-Như vậy, vector biến quyết định của bài toán tối ưu là cặp $(\theta, \tau) \in \Theta \times (0, 1)$.
+Như vậy, vector biến quyết định của bài toán tối ưu là cặp $(\theta, \tau) \in \Theta \times [0, 1]$.
 
 ### 2.2. Hàm mục tiêu chi phí benchmark phi đối xứng
 Theo đặc tả benchmark chính thức từ Scania CV AB và Hội nghị IDA 2016, chi phí cho từng kịch bản phân loại được quy định theo ma trận sau (tính bằng **đơn vị chi phí benchmark** / benchmark cost units):
@@ -88,7 +87,7 @@ Nếu một cấu hình $(\theta, \tau)$ dẫn đến tổng lượt can thiệp
 ### 2.4. Phát biểu bài toán tối ưu hóa tổng thể
 Bài toán quy về dạng quy hoạch tối ưu phi tuyến có ràng buộc:
 $$\begin{aligned}
-\min_{\theta \in \Theta, \, \tau \in (0, 1)} \quad & f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \\
+\min_{\theta \in \Theta, \, \tau \in [0, 1]} \quad & f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \\
 \text{subject to} \quad & g(\theta, \tau) = TP(\theta, \tau) + FP(\theta, \tau) - 1200 \le 0
 \end{aligned}$$
 
@@ -144,33 +143,37 @@ Hệ thống thử nghiệm G4 thiết lập 3 mô hình cơ sở nhằm thiết
 2. **Cấp độ Kiểm thử tổng hợp (Synthetic Fixtures Tier):**
    - Dữ liệu giả lập ngẫu nhiên ($N=260, d=10$) sinh ra trong `test_g4_b2_executor.py` để kiểm thử tự động quy trình điều phối supervisor/worker, cơ chế timeout và I/O guard. **Không đại diện cho kết quả của xe tải Scania.**
 3. **Cấp độ Thực nghiệm Validation thật (Real Validation Tier - Scania APS):**
-   - Kết quả đo đạc thực tế trên 12.000 mẫu Validation từ bộ dữ liệu UCI 421 sau khi huấn luyện trên 48.000 mẫu Train.
-   - *Trạng thái:* Sẵn sàng kích hoạt ngay khi nhận URL phê duyệt hợp lệ từ Chủ dự án (Real fit budget = 0).
+   - Kết quả đo đạc thực tế chính thức trên 12.000 mẫu Validation từ bộ dữ liệu UCI 421 sau khi huấn luyện trên 48.000 mẫu Train theo đúng ủy quyền Gate B2 của Chủ dự án (Run `scania_g4_b2_real_002`).
+   - Đã kiểm chứng độc lập tính toàn vẹn 11 artifacts bằng `verify_run() == True` và chữ ký băm SHA-256.
 4. **Cấp độ Đánh giá kiểm thử cuối (Official Test Tier - 16.000 xe):**
-   - Hoàn toàn niêm phong, chưa được mở khóa và chưa từng chạy đánh giá.
+   - Hoàn toàn niêm phong (SEALED UNTIL G10), chưa được mở khóa và chưa từng chạy đánh giá.
 
 ---
 
-## 6. KHUNG BẢNG KẾT QUẢ THỰC NGHIỆM VALIDATION (5 CHÍNH SÁCH CỐ ĐỊNH)
+## 6. BẢNG KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC THỰC TẾ (5 CHÍNH SÁCH VALIDATION G4)
 
-Khi được kích hoạt chính thức dưới Gate B2, giao thức G4 sẽ ghi nhận kết quả chính xác của **5 chính sách cố định** trên 12.000 mẫu Validation:
+Dưới đây là số liệu đo đạc thực tế chính thức của **5 chính sách cố định** trên 12.000 mẫu Validation (200 ca dương tính $y=1$, 11.800 ca âm tính $y=0$), trích xuất từ run `scania_g4_b2_real_002` đã niêm phong:
 
-| STT | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Precision | Recall | Tổng chi phí benchmark | Số xe vào xưởng ($M \le 1200$) | Trạng thái ràng buộc |
-|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | 0.00% | 0.00% | 100.000 | $0 \le 1200$ | **Khả thi** |
-| 2 | **B1:** Decision Stump | 0.5000 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
-| 3 | **B1:** Decision Stump | 0.0196 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
-| 4 | **B2:** Logistic Regression | 0.5000 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
-| 5 | **B2:** Logistic Regression | 0.0196 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
+| STT | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Precision | Recall | Tổng chi phí benchmark | Số xe vào xưởng ($M \le 1200$) | Mức tiết kiệm vs B0 (%) | Trạng thái ràng buộc |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **P1** | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | N/A | 0.00% | **100.000** | $0$ | 0.00% (Mốc chuẩn) | **FEASIBLE** |
+| **P2** | **B1:** Decision Stump | 0.5000 | 0 | 0 | 11.800 | 200 | N/A | 0.00% | **100.000** | $0$ | 0.00% | **FEASIBLE** |
+| **P3** | **B1:** Decision Stump | 0.0196 | 160 | 253 | 11.547 | 40 | 38.74% | 80.00% | **22.530** | $413$ | **77.47%** | **FEASIBLE** |
+| **P4** | **B2:** Logistic Regression | 0.5000 | 129 | 48 | 11.752 | 71 | 72.88% | 64.50% | **35.980** | $177$ | **64.02%** | **FEASIBLE** |
+| **P5** | **B2:** Logistic Regression | 0.0196 | 186 | 323 | 11.477 | 14 | 36.54% | 93.00% | **10.230** | $509$ | **89.77%** | **FEASIBLE** |
 
-*(Ghi chú: Toàn bộ số liệu thực tế sẽ được điền tự động từ file `baseline_metrics.json` ngay sau khi thực hiện lệnh fit được Chủ dự án cấp quyền).*
+> [!NOTE]
+> **PHÂN BIỆT RANH GIỚI KHOA HỌC & CẢNH BÁO THIÊN VỊ LỰA CHỌN (SELECTION BIAS DISCLOSURE):**
+> 1. **Phân biệt kết quả Validation với đánh giá học thuật độc lập:** Kết quả trên phân vùng Validation phản ánh sự mô phỏng chính sách trong quy trình nội bộ, tách bạch hoàn toàn với đánh giá độc lập của hội đồng chấm đồ án và chưa chạm tới tập Official Test được niêm phong tới G10.
+> 2. **Thiên vị lựa chọn (Selection Bias):** Việc lựa chọn siêu tham số và ngưỡng quyết định trên cùng phân vùng Validation vốn chứa đựng thiên vị lựa chọn (selection bias). Do đó, chi phí Validation tốt nhất ($10.230$) **không đại diện cho ước lượng không thiên lệch (unbiased estimate)** về năng lực tổng quát hóa trên dữ liệu thực địa tương lai.
+> 3. **Bảo tồn lần chạy lỗi:** Lần chạy thất bại tiền kiểm tra `scania_g4_b2_real_001` (do thiếu gói môi trường tại bước supervisor) được lưu giữ đầy đủ tại `results/scania_aps/g4/scania_g4_b2_real_001/` theo đúng chuẩn mực minh bạch khoa học.
 
 ---
 
 ## 7. ĐÁNH GIÁ TÍNH TÁI LẬP, GIỚI HẠN & KẾT LUẬN
 
 ### 7.1. Khả năng tái lập khoa học (Reproducibility Protocol)
-- **Môi trường độc lập:** Python 3.11.9, scikit-learn 1.6.1, NumPy 2.2.3, SciPy 1.15.2.
+- **Môi trường độc lập:** Python 3.11.9, scikit-learn 1.9.1, NumPy 2.4.6, SciPy 1.17.1, Optuna 5.0.0.
 - **Khóa hạt giống ngẫu nhiên:** `random_state = 42` cố định trên mọi mô hình và phép phân chia.
 - **Kiểm soát tài nguyên hệ điều hành:** Giới hạn 1 native thread (`threadpoolctl`), trần RAM 2048 MB và thời gian tối đa 120 giây qua Windows Job Object.
 - **Bảo toàn toàn vẹn:** Mọi artifact xuất xưởng được ký băm SHA-256 LF-normalized trong `checksums.json` và nghiệm thu độc lập bằng hàm `verify_run()`.
@@ -181,7 +184,7 @@ Khi được kích hoạt chính thức dưới Gate B2, giao thức G4 sẽ ghi
 3. **Phạm vi mô hình:** Đợt thử nghiệm G4 chỉ khảo sát các mô hình cơ sở tuyến tính và cây quyết định đơn giản; hiệu quả tối ưu thực sự của các thuật toán HPO tiên tiến (Optuna TPE kết hợp Random Forest) thuộc về phạm vi mở rộng Phase 2.
 
 ### 7.3. Kết luận
-Đề tài đã hoàn thành xuất sắc việc chuyển hóa bài toán bảo trì kỹ thuật công nghiệp phức tạp thành một bài toán tối ưu hóa toán học chuẩn tắc, có biến quyết định, hàm mục tiêu phi đối xứng rõ ràng và ràng buộc công suất khả thi. Quy trình thực nghiệm được xây dựng chuẩn mực, minh bạch, chống rò rỉ dữ liệu và sẵn sàng cung cấp các kết quả so sánh công bằng.
+Đề tài đã hoàn thành xuất sắc việc chuyển hóa bài toán bảo trì kỹ thuật công nghiệp phức tạp thành một bài toán tối ưu hóa toán học chuẩn tắc, có biến quyết định, hàm mục tiêu phi đối xứng rõ ràng và ràng buộc công suất khả thi. Quy trình thực nghiệm G4 baselines đã thiết lập mốc so sánh vững chắc ($C^*_{\text{G4}} = 10.230$), mở đường cho giai đoạn tối ưu hóa cốt lõi Phase 2.
 
 ---
 

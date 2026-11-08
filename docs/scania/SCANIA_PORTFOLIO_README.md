@@ -115,25 +115,32 @@ Mỗi mô hình học máy (B1, B2) được đánh giá tại 2 ngưỡng xác 
 
 ---
 
-## 6. KHUNG KẾT QUẢ THỰC NGHIỆM TRÊN TẬP VALIDATION (12.000 MẪU)
+## 6. KẾT QUẢ THỰC NGHIỆM ĐƯỜNG CƠ SỞ TRÊN VALIDATION (GATE B2 HOÀN TẤT)
 
 Tuân thủ nguyên tắc liêm chính học thuật, đề tài phân biệt rõ 4 cấp độ dữ liệu:
-- **Lý thuyết:** Công thức giải tích $\tau = 10/510$ và chi phí B0 ($100.000$).
+- **Lý thuyết:** Công thức giải tích $\tau = 10/510 \approx 0.0196$ và chi phí trần B0 ($100.000$).
 - **Kiểm thử tổng hợp (Synthetic):** Dữ liệu giả lập chạy kiểm thử tự động hệ thống điều phối, không đại diện cho xe Scania.
-- **Thực nghiệm Validation thật (Real Scania):** Chờ lệnh kích hoạt chính thức từ Chủ dự án (Gate B2 Authorized).
-- **Official Test thật:** Niêm phong tuyệt đối.
+- **Thực nghiệm Validation thật (Real Scania):** Đã hoàn tất thực thi tại lượt chạy được cấp quyền `scania_g4_b2_real_002` trên 12.000 mẫu Validation.
+- **Official Test thật:** Niêm phong tuyệt đối (Sealed until G10).
 
-### Bảng kết quả 5 chính sách cố định (Chuẩn bị nghiệm thu Gate B2)
+### Bảng kết quả thực nghiệm 5 chính sách cố định (`scania_g4_b2_real_002`)
 
-| Chính sách | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Chi phí benchmark | Số xe vào xưởng ($M$) | Trạng thái ($M \le 1200$) |
-|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **P1** | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | **100.000** | $0$ | **Khả thi** |
-| **P2** | **B1:** Decision Stump | 0.5000 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending Gate B2* | *Pending* | *Pending* |
-| **P3** | **B1:** Decision Stump | 0.0196 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending Gate B2* | *Pending* | *Pending* |
-| **P4** | **B2:** Logistic Regression | 0.5000 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending Gate B2* | *Pending* | *Pending* |
-| **P5** | **B2:** Logistic Regression | 0.0196 | *Pending* | *Pending* | *Pending* | *Pending* | *Pending Gate B2* | *Pending* | *Pending* |
+| Chính sách | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Chi phí benchmark | Số xe vào xưởng ($M$) | Trạng thái ($M \le 1200$) | Mức tiết kiệm vs B0 |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **P1** | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | **100.000** | $0$ | **Khả thi** | $0.00\%$ |
+| **P2** | **B1:** Decision Stump | 0.5000 | 0 | 0 | 11.800 | 200 | **100.000** | $0$ | **Khả thi** | $0.00\%$ |
+| **P3** | **B1:** Decision Stump | 0.0196 | 160 | 253 | 11.547 | 40 | **22.530** | $413$ | **Khả thi** | **+77.47%** |
+| **P4** | **B2:** Logistic Regression | 0.5000 | 129 | 48 | 11.752 | 71 | **35.980** | $177$ | **Khả thi** | **+64.02%** |
+| **P5** | **B2:** Logistic Regression | 0.0196 | 186 | 323 | 11.477 | 14 | **10.230** | $509$ | **Khả thi** | **+89.77%** |
 
-*(Dữ liệu chi tiết sẽ được tự động cập nhật ngay khi Chủ dự án cấp quyền chạy fit thực nghiệm).*
+### Nhận xét phân tích kết quả Gate B2
+1. **Mô hình đường cơ sở tốt nhất:** Logistic Regression tại $\tau = 10/510 \approx 0.0196$ (P5) đạt chi phí **10.230 đơn vị chi phí benchmark**, giảm **+89.77%** chi phí so với mô hình mặc định B0 ($100.000$), phát hiện chính xác 186/200 ca lỗi APS (Recall 93.0%).
+2. **Kiểm chứng tính khả thi của ràng buộc:** Số xe can thiệp kiểm tra $M = 509$ xe, hoàn toàn nằm trong giới hạn công suất tiếp nhận $K = 1.200$ xe ($42.42\%$ công suất cho phép).
+3. **Hiệu năng thực thi & Tính tái lập:**
+   - Thực thi đúng 2 lượt fit thực tế (`real_estimator_fits=2`: B1=1, B2=1, B0=0).
+   - Thời gian fit: $1.417$ giây; tổng thời gian tiến trình: $6.06$ giây.
+   - Mức chiếm dụng bộ nhớ đỉnh (Peak RAM): $201.90$ MB (thỏa mãn trần tài nguyên $2048$ MB).
+   - Toàn bộ 11 artifacts kết quả tại `results/scania_aps/g4/scania_g4_b2_real_002/` được kiểm chứng toàn vẹn mật mã với `verify_run() == True`. Lượt chạy không thành công trước đó (`001`) được giữ nguyên vẹn để phục vụ thanh tra học thuật.
 
 ---
 
@@ -194,12 +201,12 @@ pip install -r requirements.txt
 pytest tests/scania/ -v
 ```
 
-### 8.3. Thực thi thực nghiệm Gate B2 (Khi được cấp quyền)
-Lệnh thực thi chính thức qua CLI hỗ trợ:
+### 8.3. Thực thi thực nghiệm Gate B2 (Đã hoàn thành)
+Lệnh thực thi chính thức qua CLI hỗ trợ đã thực hiện:
 ```bash
-python -m scripts.run_scania_baselines gate-b2 --run-id scania_g4_b2_real_001
+python -m scripts.run_scania_baselines gate-b2 --run-id scania_g4_b2_real_002
 ```
-*Điều kiện tiên quyết:* Bộ điều phối yêu cầu tệp xác thực `configs/scania/authorizations/scania_g4_b2_real_001.json` chứa liên kết tham chiếu URL tới comment phê duyệt chính thức của Chủ dự án trên GitHub Issue/PR.
+*Điều kiện tiên quyết:* Bộ điều phối yêu cầu tệp xác thực `configs/scania/authorizations/scania_g4_b2_real_002.json` chứa liên kết tham chiếu URL tới comment phê duyệt chính thức của Chủ dự án trên GitHub Issue #17.
 
 ---
 

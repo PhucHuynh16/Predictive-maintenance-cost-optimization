@@ -69,32 +69,38 @@
 
 ---
 
-## SLIDE 6: KHUNG ĐÁNH GIÁ THỰC NGHIỆM TRÊN TẬP VALIDATION (12.000 MẪU)
+## SLIDE 6: KẾT QUẢ THỰC NGHIỆM ĐƯỜNG CƠ SỞ TRÊN VALIDATION (GATE B2 HOÀN TẤT)
 
-- **Bảng so sánh 5 chính sách cố định (Chuẩn bị nghiệm thu Gate B2):**
+- **Bảng đo đạc thực tế 5 chính sách cố định (Lượt chạy thực nghiệm `scania_g4_b2_real_002`):**
 
-| Chính sách | Mô hình | Ngưỡng $\tau$ | Tổng chi phí benchmark | Số xe vào xưởng ($M$) | Ràng buộc ($M \le 1200$) |
-|:---:|---|:---:|:---:|:---:|:---:|
-| **P1** | **B0:** Majority Dummy | N/A | **100.000** | $0$ | **Khả thi** |
-| **P2** | **B1:** Decision Stump | 0.5000 | *Pending Gate B2* | *Pending* | *Pending* |
-| **P3** | **B1:** Decision Stump | 0.0196 | *Pending Gate B2* | *Pending* | *Pending* |
-| **P4** | **B2:** Logistic Regression | 0.5000 | *Pending Gate B2* | *Pending* | *Pending* |
-| **P5** | **B2:** Logistic Regression | 0.0196 | *Pending Gate B2* | *Pending* | *Pending* |
+| Chính sách | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Tổng chi phí benchmark | Số xe kiểm tra ($M$) | Ràng buộc ($M \le 1200$) | Mức tiết kiệm vs B0 |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **P1** | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | **100.000** | $0$ | **Khả thi** | $0.00\%$ |
+| **P2** | **B1:** Decision Stump | 0.5000 | 0 | 0 | 11.800 | 200 | **100.000** | $0$ | **Khả thi** | $0.00\%$ |
+| **P3** | **B1:** Decision Stump | 0.0196 | 160 | 253 | 11.547 | 40 | **22.530** | $413$ | **Khả thi** | **+77.47%** |
+| **P4** | **B2:** Logistic Regression | 0.5000 | 129 | 48 | 11.752 | 71 | **35.980** | $177$ | **Khả thi** | **+64.02%** |
+| **P5** | **B2:** Logistic Regression | 0.0196 | 186 | 323 | 11.477 | 14 | **10.230** | $509$ | **Khả thi** | **+89.77%** |
 
-- **Quy tắc liêm chính học thuật:** Toàn bộ trạng thái hiển thị rõ ràng là `Pending Gate B2` cho đến khi có lượt chạy thực tế được Chủ dự án cấp quyền. Không tạo số liệu giả mạo.
+- **Nhận xét thực nghiệm cốt lõi:**
+  - **Mô hình tốt nhất:** Logistic Regression tại ngưỡng Bayes $\tau = 10/510 \approx 0.0196$ (P5) đạt chi phí **10.230 đơn vị chi phí benchmark**, bắt được $186/200$ ca lỗi APS (Recall 93.0%), tiết kiệm **+89.77%** so với B0.
+  - **Kiểm chứng khả thi:** Số xe kiểm tra $M = 509 \le 1.200$ xe (thỏa mãn ràng buộc công suất 10% của xưởng).
+  - **Tài nguyên thực thi:** Đúng 2 lượt fit thực tế (`B1=1, B2=1`), thời gian fit 1.417s, RAM đỉnh 201.90 MB, toàn bộ 11 artifacts được kiểm chứng toàn vẹn mã băm SHA-256 (`verify_run() == True`).
 
 ---
 
-## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & LỘ TRÌNH TỐI ƯU HÓA
+## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & LỘ TRÌNH TỐI ƯU HÓA (PHASE 2)
 
-- **Ranh giới phương pháp tối ưu hóa cốt lõi:**
-  - Việc chạy G4 baselines (B0, B1, B2) chỉ hoàn thành mốc so sánh cơ sở.
-  - **Không hoàn thành yêu cầu phương pháp tối ưu bắt buộc của môn học**: Thuật toán tối ưu chính (Random Forest kết hợp Bayesian HPO Optuna TPE) là nghiên cứu Phase 2 cần thực thi riêng để sinh ra lịch sử tìm kiếm và 02 đồ thị tối ưu (đường cong hội tụ và đánh đổi).
-- **Khả năng tái lập khoa học (Reproducibility Protocol):**
+- **Mốc so sánh cơ sở đã khóa (Locked G4 Baseline Cost):**
+  - Chi phí benchmark cần vượt qua hoặc đối sánh trong Phase 2 là **10.230 đơn vị chi phí** (B2 tại $\tau = 0.0196$).
+- **Lộ trình tối ưu hóa cốt lõi (Phase 2 Optimization):**
+  - Thực thi thuật toán tối ưu bắt buộc của học phần: **Random Forest kết hợp Bayesian HPO (Optuna TPE)** và dò ngưỡng có điều kiện.
+  - Không gian tìm kiếm: Số cây $n \in [20, 60]$, độ sâu $d \in [4, 12]$, tỷ lệ thuộc tính $[0.2, 0.5]$, ngân sách 20 trials (1 fit/trial trên Train 48k, dò ngưỡng trên Validation 12k không cần refit).
+  - Sinh 02 đồ thị bắt buộc: (1) Đồ thị hội tụ Optuna, (2) Đồ thị đánh đổi Chi phí vs Công suất xưởng trên dải ngưỡng $\tau$.
+- **Khả năng tái lập khoa học & Liêm chính học thuật:**
   - Môi trường: Python 3.11.9, seed cố định 42, khóa dependency qua `g3_requirements.lock.txt`.
-  - Quản lý tiến trình bằng Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s).
-  - Toàn bộ 271 Scania unit tests PASS 100%. Mọi artifact kết quả có chữ ký băm SHA-256 trong `checksums.json`.
+  - Giám sát: Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s/300s).
+  - **Official Test (16.000 mẫu) được niêm phong tuyệt đối (Sealed until G10)** nhằm chống rò rỉ và thiên lệch lựa chọn (selection bias).
 - **Khai báo AI hỗ trợ (AI Assistance Disclosure):**
-  - Codex & Antigravity hỗ trợ viết unit test, kiểm tra biên, rà soát I/O guard và khung tài liệu.
-  - Sinh viên tự kiểm chứng, trực tiếp xây dựng mô hình toán, xác thực dữ liệu và chịu trách nhiệm học thuật hoàn toàn.
-- **Kết luận:** Đề tài đã hoàn thành vững chắc giai đoạn **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baselines**, sẵn sàng bước vào giai đoạn **Tối ưu hóa cốt lõi (Phase 2)** sau khi hoàn tất Gate B2.
+  - Trợ lý AI (Codex & Antigravity) hỗ trợ rà soát unit tests, runner CLI, kiểm tra I/O guard và khung tài liệu.
+  - Sinh viên tự xây dựng mô hình toán, xác thực dữ liệu, trực tiếp nghiệm thu và chịu trách nhiệm học thuật hoàn toàn.
+- **Kết luận:** Đề tài đã hoàn thành vững chắc giai đoạn **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baselines**, sẵn sàng bước vào giai đoạn **Tối ưu hóa cốt lõi (Phase 2)** nhằm tìm kiếm chính sách tối ưu toàn diện.
