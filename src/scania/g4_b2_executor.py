@@ -531,6 +531,28 @@ def _strip_markdown_code_blocks(text: str) -> str:
     return re.sub(r"```[\s\S]*?```", "", text)
 
 
+def _parse_owner_comment_fields(clean_body: str) -> dict:
+    """Parse field-value pairs from an Owner approval comment body.
+
+    Handles lines like:
+    Key: Value
+    **Key:** Value
+    - Key: Value
+    - **Key:** Value
+    """
+    fields = {}
+    for line in clean_body.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r"^[-*]?\s*\*{0,2}([A-Za-z0-9\s_]+?)\*{0,2}\s*:\s*(.+)$", line)
+        if m:
+            key = m.group(1).strip().lower()
+            val = m.group(2).strip().strip("*`")
+            fields[key] = val
+    return fields
+
+
 def verify_owner_approval_reference(ref, expected_record=None, mode="REAL", **kwargs):
     """Verify that the referenced Owner approval is genuine, verifiable, and matches record scope.
 
@@ -541,9 +563,17 @@ def verify_owner_approval_reference(ref, expected_record=None, mode="REAL", **kw
     - Inspects actual GitHub approval comment body:
       * Rejects agent reports and milestone updates.
       * Rejects template blocks enclosed in markdown code fences.
-      * Verifies explicit '# OWNER ...' directive header and 'Decision: APPROVED'.
-      * Verifies exact matching tokens if expected_record provided: commit SHA, run ID,
-        permitted operation, approved models, fit budget, and sealed official test.
+      * Verifies explicit '# OWNER ...' directive header outside code blocks.
+      * Enforces exact field-value parsing for:
+        - Decision: exactly 'APPROVED'.
+        - Authorized Commit: exact 40-char hex commit SHA.
+        - Target Run ID: exact target run ID string.
+        - Permitted Operation: exactly 'BASELINE_FITTING_VALIDATION_ONLY'.
+        - Approved Models: exactly ['B0', 'B1', 'B2'].
+        - Fit Budget: exactly B0=0, B1=1, B2=1, total_max_fits=2.
+        - Data Scope: Train and Validation only, with Official Test sealed until G10.
+        - Resource Limits: 1 native thread, max 2048 MB RAM, max 120s wall time.
+      * Rejects missing, ambiguous, contradictory, or incorrectly valued fields.
     - Synthetic boundary: permits SYNTHETIC_FIXTURE_ tokens in synthetic mode only.
     """
     if not isinstance(ref, str) or not ref:
@@ -595,44 +625,117 @@ def verify_owner_approval_reference(ref, expected_record=None, mode="REAL", **kw
         clean_body = _strip_markdown_code_blocks(comment_body)
 
         # 3. Check for explicit Owner directive header
-        if not re.search(r"#\s+OWNER\s+(TASK\s+AUTHORIZATION|DECISION|DIRECTIVE)", clean_body, re.IGNORECASE):
+        if not re.search(r"^#\s+OWNER\s+(?:TASK\s+AUTHORIZATION|DECISION|DIRECTIVE)", clean_body, re.IGNORECASE | re.MULTILINE):
             raise ExecutorBlocked("MISSING_OWNER_DIRECTIVE_HEADER: Approval comment must have an explicit '# OWNER ...' directive header")
 
-        # 4. Check for explicit approval decision
-        if not re.search(r"\bdecision\s*:\s*approved\b", clean_body, re.IGNORECASE):
-            raise ExecutorBlocked("MISSING_EXPLICIT_APPROVAL_DECISION: Comment body must state 'Decision: APPROVED'")
+        # 4. Extract structured field-values
+        fields = _parse_owner_comment_fields(clean_body)
+
+        # 4a. Decision: must be exactly APPROVED
+        decision_val = fields.get("decision")
+        if not decision_val or decision_val.upper() != "APPROVED":
+            raise ExecutorBlocked(f"INVALID_OR_MISSING_APPROVAL_DECISION: Decision must be exactly 'APPROVED', got '{decision_val}'")
+
+        # 4b. Authorized Commit: must be 40-char hex
+        commit_val = fields.get("authorized commit") or fields.get("commit") or fields.get("commit sha")
+        if not commit_val or not re.fullmatch(r"[0-9a-f]{40}", commit_val, re.IGNORECASE):
+            raise ExecutorBlocked(f"INVALID_OR_MISSING_AUTHORIZED_COMMIT: Must specify 40-character hex commit SHA, got '{commit_val}'")
+        commit_val = commit_val.lower()
+
+        # 4c. Target Run ID
+        run_id_val = fields.get("target run id") or fields.get("run id")
+        if not run_id_val:
+            raise ExecutorBlocked("MISSING_TARGET_RUN_ID: Comment must explicitly specify Target Run ID")
+
+        # 4d. Permitted Operation: must be exactly BASELINE_FITTING_VALIDATION_ONLY
+        op_val = fields.get("permitted operation") or fields.get("operation")
+        if not op_val or op_val.upper() != "BASELINE_FITTING_VALIDATION_ONLY":
+            raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: Permitted operation must be exactly 'BASELINE_FITTING_VALIDATION_ONLY', got '{op_val}'")
+
+        # 4e. Approved Models: exactly B0, B1, B2
+        models_val = fields.get("approved models") or fields.get("models")
+        if not models_val:
+            raise ExecutorBlocked("MISSING_APPROVED_MODELS: Comment must explicitly specify Approved Models")
+        model_tokens = [m.strip().strip("'\"`") for m in re.split(r"[,;\s]+", models_val) if m.strip()]
+        if sorted(model_tokens) != ["B0", "B1", "B2"]:
+            raise ExecutorBlocked(f"INVALID_APPROVED_MODELS: Approved models must be exactly ['B0', 'B1', 'B2'], got {model_tokens}")
+
+        # 4f. Fit Budget: exactly B0=0, B1=1, B2=1, total_max_fits=2
+        budget_val = fields.get("fit budget") or fields.get("budget")
+        if not budget_val:
+            raise ExecutorBlocked("MISSING_FIT_BUDGET: Comment must explicitly specify Fit Budget")
+        b0_m = re.search(r"\bB0\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+        b1_m = re.search(r"\bB1\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+        b2_m = re.search(r"\bB2\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+        total_m = re.search(r"\b(?:total_max_fits|total_fits|total)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+
+        if not (b0_m and b1_m and b2_m and total_m):
+            raise ExecutorBlocked(f"INCOMPLETE_FIT_BUDGET: Fit budget must specify B0, B1, B2 and total_max_fits, got '{budget_val}'")
+
+        b0_fit = int(b0_m.group(1))
+        b1_fit = int(b1_m.group(1))
+        b2_fit = int(b2_m.group(1))
+        total_fit = int(total_m.group(1))
+
+        if b0_fit != 0 or b1_fit != 1 or b2_fit != 1 or total_fit != 2:
+            raise ExecutorBlocked(
+                f"CONTRADICTORY_OR_INVALID_FIT_BUDGET: Fit budget must be exactly B0=0, B1=1, B2=1, total_max_fits=2; got B0={b0_fit}, B1={b1_fit}, B2={b2_fit}, total={total_fit}"
+            )
+
+        # 4g. Data Scope & Official Test Sealing
+        scope_val = fields.get("data scope") or fields.get("scope") or ""
+        test_val = fields.get("official test") or fields.get("test") or ""
+        combined_scope_test = f"{scope_val} {test_val}".strip().lower()
+
+        if not combined_scope_test:
+            raise ExecutorBlocked("MISSING_DATA_SCOPE: Comment must explicitly specify Data Scope")
+
+        if re.search(r"\b(?:test\s+(?:permitted|allowed|access|accessible|unsealed)|evaluate\s+(?:on\s+)?test)\b", combined_scope_test):
+            raise ExecutorBlocked("CONTRADICTORY_DATA_SCOPE: Comment grants unauthorized access to sealed Official Test")
+
+        if "train" not in combined_scope_test or "validation" not in combined_scope_test:
+            raise ExecutorBlocked(f"INVALID_DATA_SCOPE: Data scope must include both Train and Validation, got '{scope_val}'")
+
+        if not re.search(r"\b(?:official\s+test\s+sealed|test\s+(?:partition|set)?\s*sealed|sealed\s+until\s+g10)\b", combined_scope_test):
+            raise ExecutorBlocked("MISSING_TEST_SEAL_DECLARATION: Comment must explicitly state that Official Test is sealed until G10")
+
+        # 4h. Resource Limits: exactly 1 thread, max 2048 MB RAM, max 120s wall time
+        limits_val = fields.get("resource limits") or fields.get("limits")
+        if not limits_val:
+            raise ExecutorBlocked("MISSING_RESOURCE_LIMITS: Comment must explicitly specify Resource Limits")
+
+        threads_m = re.search(r"\b(?:max_native_threads|threads)\s*[:=]\s*(\d+)\b|\b(\d+)\s*native\s*threads?\b|\b(\d+)\s*threads?\b", limits_val, re.IGNORECASE)
+        ram_m = re.search(r"\b(?:max_ram_mb|ram_mb|ram)\s*[:=]\s*(\d+)\b|\b(\d+)\s*(?:mb|gb)\s*ram\b", limits_val, re.IGNORECASE)
+        wall_m = re.search(r"\b(?:max_wall_seconds|wall_seconds|wall)\s*[:=]\s*(\d+)\b|\b(\d+)\s*s(?:ec|econds)?\s*wall\b", limits_val, re.IGNORECASE)
+
+        if not (threads_m and ram_m and wall_m):
+            raise ExecutorBlocked(f"INCOMPLETE_RESOURCE_LIMITS: Must specify threads, RAM, and wall time limits, got '{limits_val}'")
+
+        threads = int(next(g for g in threads_m.groups() if g is not None))
+        ram_mb = int(next(g for g in ram_m.groups() if g is not None))
+        wall_sec = int(next(g for g in wall_m.groups() if g is not None))
+
+        if threads != 1:
+            raise ExecutorBlocked(f"CONTRADICTORY_OR_INVALID_THREADS: max_native_threads must be exactly 1, got {threads}")
+        if ram_mb > 2048:
+            raise ExecutorBlocked(f"CONTRADICTORY_OR_INVALID_RAM: max_ram_mb must not exceed 2048, got {ram_mb}")
+        if wall_sec > 120:
+            raise ExecutorBlocked(f"CONTRADICTORY_OR_INVALID_WALL_TIME: max_wall_seconds must not exceed 120, got {wall_sec}")
 
         # 5. Semantic token verification against expected record if provided
         if expected_record is not None:
             src_int = expected_record.get("source_integrity") if isinstance(expected_record.get("source_integrity"), dict) else expected_record
-            auth_commit = str(src_int.get("authorized_commit") or "")
-            if auth_commit and auth_commit.lower() not in clean_body.lower():
-                raise ExecutorBlocked(f"COMMENT_COMMIT_MISMATCH: Authorized commit {auth_commit} not found in approval comment body")
+            exp_commit = str(src_int.get("authorized_commit") or "").lower()
+            if exp_commit and commit_val != exp_commit:
+                raise ExecutorBlocked(f"COMMENT_COMMIT_MISMATCH: Comment authorized commit {commit_val} != expected {exp_commit}")
 
-            target_run = expected_record.get("run_id") or expected_record.get("target_run_id")
-            if target_run and target_run not in clean_body:
-                raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Target run ID '{target_run}' not found in approval comment body")
+            exp_run_id = expected_record.get("run_id") or expected_record.get("target_run_id")
+            if exp_run_id and run_id_val != exp_run_id:
+                raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Comment target run ID '{run_id_val}' != expected '{exp_run_id}'")
 
-            op = expected_record.get("permitted_operation") or expected_record.get("operation")
-            if op and op not in clean_body:
-                raise ExecutorBlocked(f"COMMENT_OPERATION_MISMATCH: Permitted operation '{op}' not found in approval comment body")
-
-            models = expected_record.get("approved_models")
-            if models:
-                for mod in models:
-                    if not re.search(rf"\b{re.escape(mod)}\b", clean_body):
-                        raise ExecutorBlocked(f"COMMENT_MODEL_MISMATCH: Approved model '{mod}' not found in approval comment body")
-
-            fit_budget = expected_record.get("fit_budget")
-            if isinstance(fit_budget, dict):
-                total_fits = fit_budget.get("total_max_fits")
-                if total_fits is not None and str(total_fits) not in clean_body:
-                    raise ExecutorBlocked(f"COMMENT_FIT_BUDGET_MISMATCH: Fit budget total '{total_fits}' not found in approval comment body")
-
-            data_scope = expected_record.get("data_scope") if isinstance(expected_record.get("data_scope"), dict) else expected_record
-            if data_scope.get("official_test_sealed") is True:
-                if not re.search(r"\b(official\s+test\s+sealed|test\s+(?:set|partition)?\s*sealed|sealed\s+until\s+g10)\b", clean_body, re.IGNORECASE):
-                    raise ExecutorBlocked("COMMENT_TEST_SEAL_MISMATCH: Comment body must explicitly state that the official test partition is sealed")
+            exp_op = expected_record.get("permitted_operation") or expected_record.get("operation")
+            if exp_op and op_val != exp_op:
+                raise ExecutorBlocked(f"COMMENT_OPERATION_MISMATCH: Comment permitted operation '{op_val}' != expected '{exp_op}'")
 
     except Exception as exc:
         if isinstance(exc, ExecutorBlocked):

@@ -858,7 +858,17 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
         )
 
     # 14c. Rejection of commit SHA mismatch
-    mismatch_commit_body = f"# OWNER TASK AUTHORIZATION\nDecision: APPROVED\nTarget Run ID: test_auth_01\nAuthorized Commit: {'0'*40}\nPermitted Operation: BASELINE_FITTING_VALIDATION_ONLY\nApproved Models: B0, B1, B2\nFit Budget: total_max_fits 2\nofficial test sealed"
+    mismatch_commit_body = (
+        f"# OWNER TASK AUTHORIZATION — SC-G4-B2 REAL BASELINE FITTING\n"
+        f"Decision: APPROVED\n"
+        f"Authorized Commit: {'0'*40}\n"
+        f"Target Run ID: test_auth_01\n"
+        f"Permitted Operation: BASELINE_FITTING_VALIDATION_ONLY\n"
+        f"Approved Models: B0, B1, B2\n"
+        f"Fit Budget: B0=0, B1=1, B2=1, total_max_fits=2\n"
+        f"Data Scope: train, validation (official test sealed until G10)\n"
+        f"Resource Limits: max_native_threads=1, max_ram_mb=2048, max_wall_seconds=120\n"
+    )
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": mismatch_commit_body}))
     real_expected = copy.deepcopy(valid_synth_record)
     real_expected["mode"] = "REAL"
@@ -869,7 +879,7 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
             expected_record=real_expected, mode="REAL"
         )
 
-    # 14d. Authentic human Owner comment passes
+    # 14d. Authentic human Owner comment passes with exact field values
     authentic_body = (
         f"# OWNER TASK AUTHORIZATION — SC-G4-B2 REAL BASELINE FITTING\n"
         f"Decision: APPROVED\n"
@@ -879,12 +889,98 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
         f"Approved Models: B0, B1, B2\n"
         f"Fit Budget: B0=0, B1=1, B2=1, total_max_fits=2\n"
         f"Data Scope: train, validation (official test sealed until G10)\n"
+        f"Resource Limits: max_native_threads=1, max_ram_mb=2048, max_wall_seconds=120\n"
     )
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": authentic_body}))
     assert verify_owner_approval_reference(
         "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
         expected_record=real_expected, mode="REAL"
     ) is True
+
+    # 14e. Rejection of unapproved or contradictory decision
+    rej_decision_body = authentic_body.replace("Decision: APPROVED", "Decision: REJECTED")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": rej_decision_body}))
+    with pytest.raises(ExecutorBlocked, match="INVALID_OR_MISSING_APPROVAL_DECISION"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    # 14f. Rejection of contradictory models (extra model B3, or missing B0)
+    extra_model_body = authentic_body.replace("Approved Models: B0, B1, B2", "Approved Models: B0, B1, B2, B3")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": extra_model_body}))
+    with pytest.raises(ExecutorBlocked, match="INVALID_APPROVED_MODELS"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    missing_model_body = authentic_body.replace("Approved Models: B0, B1, B2", "Approved Models: B1, B2")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": missing_model_body}))
+    with pytest.raises(ExecutorBlocked, match="INVALID_APPROVED_MODELS"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    # 14g. Rejection of contradictory fit budget
+    bad_budget_total = authentic_body.replace("total_max_fits=2", "total_max_fits=3")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": bad_budget_total}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_OR_INVALID_FIT_BUDGET"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    bad_budget_alloc = authentic_body.replace("B0=0", "B0=1")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": bad_budget_alloc}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_OR_INVALID_FIT_BUDGET"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    # 14h. Rejection of contradictory resource limits (excessive threads, RAM, wall time)
+    bad_threads_body = authentic_body.replace("max_native_threads=1", "max_native_threads=4")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": bad_threads_body}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_OR_INVALID_THREADS"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    bad_ram_body = authentic_body.replace("max_ram_mb=2048", "max_ram_mb=4096")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": bad_ram_body}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_OR_INVALID_RAM"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    bad_wall_body = authentic_body.replace("max_wall_seconds=120", "max_wall_seconds=300")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": bad_wall_body}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_OR_INVALID_WALL_TIME"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    # 14i. Rejection of contradictory data scope & missing test seal
+    unsealed_body = authentic_body.replace("(official test sealed until G10)", "(official test unsealed for evaluation)")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": unsealed_body}))
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_DATA_SCOPE"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    missing_seal_body = authentic_body.replace(" (official test sealed until G10)", "")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": missing_seal_body}))
+    with pytest.raises(ExecutorBlocked, match="MISSING_TEST_SEAL_DECLARATION"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
 
     # 15. Controlled configuration transition contract
     cfg_a = load_config(ROOT, gate="GATE_A")
