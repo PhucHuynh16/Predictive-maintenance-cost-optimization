@@ -982,6 +982,31 @@ def test_EX17_owner_authorization_record_schema_and_semantics(monkeypatch):
             expected_record=real_expected, mode="REAL"
         )
 
+    # 14j. Rejection of duplicate authorization keys or aliases (fail-closed parameter pollution check)
+    dup_decision_body = authentic_body + "\nDecision: REJECTED\n"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": dup_decision_body}))
+    with pytest.raises(ExecutorBlocked, match="DUPLICATE_AUTHORIZATION_FIELD"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    dup_scope_alias_body = authentic_body + "\nScope: test permitted\n"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": dup_scope_alias_body}))
+    with pytest.raises(ExecutorBlocked, match="DUPLICATE_AUTHORIZATION_FIELD"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
+    dup_commit_alias_body = authentic_body + f"\nCommit: {'0'*40}\n"
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=10: MockCommentResponse({"user": {"login": "PhucHuynh16"}, "body": dup_commit_alias_body}))
+    with pytest.raises(ExecutorBlocked, match="DUPLICATE_AUTHORIZATION_FIELD"):
+        verify_owner_approval_reference(
+            "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-12345",
+            expected_record=real_expected, mode="REAL"
+        )
+
     # 15. Controlled configuration transition contract
     cfg_a = load_config(ROOT, gate="GATE_A")
     assert cfg_a["gate_b_authorized"] is False

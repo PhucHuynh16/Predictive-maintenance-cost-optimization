@@ -531,6 +531,28 @@ def _strip_markdown_code_blocks(text: str) -> str:
     return re.sub(r"```[\s\S]*?```", "", text)
 
 
+CANONICAL_FIELD_MAP = {
+    "decision": "decision",
+    "authorized commit": "authorized_commit",
+    "commit sha": "authorized_commit",
+    "commit": "authorized_commit",
+    "target run id": "target_run_id",
+    "run id": "target_run_id",
+    "permitted operation": "permitted_operation",
+    "operation": "permitted_operation",
+    "approved models": "approved_models",
+    "models": "approved_models",
+    "fit budget": "fit_budget",
+    "budget": "fit_budget",
+    "data scope": "data_scope",
+    "scope": "data_scope",
+    "official test": "official_test",
+    "test": "official_test",
+    "resource limits": "resource_limits",
+    "limits": "resource_limits",
+}
+
+
 def _parse_owner_comment_fields(clean_body: str) -> dict:
     """Parse field-value pairs from an Owner approval comment body.
 
@@ -539,17 +561,32 @@ def _parse_owner_comment_fields(clean_body: str) -> dict:
     **Key:** Value
     - Key: Value
     - **Key:** Value
+
+    Fails closed on duplicate authorization keys or aliases representing the same logical field.
     """
     fields = {}
+    seen_canonical = {}
+
     for line in clean_body.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         m = re.match(r"^[-*]?\s*\*{0,2}([A-Za-z0-9\s_]+?)\*{0,2}\s*:\s*(.+)$", line)
         if m:
-            key = m.group(1).strip().lower()
+            raw_key = m.group(1).strip().lower()
             val = m.group(2).strip().strip("*`")
-            fields[key] = val
+
+            canon_field = CANONICAL_FIELD_MAP.get(raw_key, raw_key)
+            if canon_field in seen_canonical:
+                prev_key, _ = seen_canonical[canon_field]
+                raise ExecutorBlocked(
+                    f"DUPLICATE_AUTHORIZATION_FIELD: Duplicate key or alias '{raw_key}' conflicts with earlier '{prev_key}' for logical field '{canon_field}'"
+                )
+            seen_canonical[canon_field] = (raw_key, val)
+
+            fields[canon_field] = val
+            fields[raw_key] = val
+
     return fields
 
 
