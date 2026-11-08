@@ -24,7 +24,9 @@ Constraints & Contracts:
 from dataclasses import dataclass, field
 import json
 import math
+import os
 from pathlib import Path
+import secrets
 import time
 from typing import Any, Dict, List, Optional, Tuple
 import warnings
@@ -48,6 +50,42 @@ class OptimizationError(RuntimeError):
     pass
 
 
+class DurableLoggingError(RuntimeError):
+    """Raised when writing or syncing a durable fit marker to disk fails."""
+    pass
+
+
+def write_durable_marker(directory: Path, filename: str, data: Dict[str, Any]) -> Path:
+    """Atomically and durably write JSON marker to disk with flush and sync.
+
+    Fail-closed: raises DurableLoggingError if write or sync fails.
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        directory.mkdir(parents=True, exist_ok=True)
+
+    target_path = directory / filename
+    temp_path = directory / f".tmp_{secrets.token_hex(8)}_{filename}"
+    payload = json.dumps(data, indent=2).encode("utf-8")
+
+    try:
+        with open(temp_path, "wb") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        temp_path.replace(target_path)
+    except Exception as exc:
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        raise DurableLoggingError(
+            f"DURABLE_MARKER_WRITE_FAILED: Failed to write {filename}: {exc}"
+        ) from exc
+    return target_path
+
+
 @dataclass
 class FitCounter:
     """Atomic counter for model.fit() invocations with strict state tracking and durability."""
@@ -56,6 +94,7 @@ class FitCounter:
     started_fits: int = 0
     completed_fits: int = 0
     failed_fits: int = 0
+    interrupted_fits: int = 0
     durable_dir: Optional[Path] = None
     fit_records: List[Dict[str, Any]] = field(default_factory=list)
 
@@ -71,19 +110,20 @@ class FitCounter:
 
         Enforces:
         - If started_fits >= max_fits: raises FitBudgetExceeded immediately.
-        - Increments attempted_fits and started_fits.
-        - Persists a durable start record to disk (if durable_dir is set).
+        - Increments attempted_fits.
+        - Persists a durable start record to disk with atomic replacement and fsync.
+        - If durable start record cannot be written, FAILS CLOSED before model.fit() can run.
+        - Increments started_fits only upon successful reservation and persistence.
         """
         self.attempted_fits += 1
         if self.started_fits >= self.max_fits:
             raise FitBudgetExceeded(
                 f"MAX_REAL_FITS_EXCEEDED: Cannot start fit {self.started_fits + 1}; authorized budget is {self.max_fits}"
             )
-        self.started_fits += 1
-        fit_index = self.started_fits
+        candidate_fit_index = self.started_fits + 1
 
         record = {
-            "fit_index": fit_index,
+            "fit_index": candidate_fit_index,
             "trial_number": trial_number,
             "estimator": estimator_name,
             "params": params,
@@ -93,52 +133,159 @@ class FitCounter:
             "fit_seconds": None,
             "error": None,
         }
-        self.fit_records.append(record)
 
+        # FAIL-CLOSED: Persist fit STARTED marker BEFORE incrementing started_fits or returning
         if self.durable_dir:
             try:
-                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_started.json"
-                p.write_bytes(json.dumps(record, indent=2).encode("utf-8"))
-            except Exception:
-                pass
+                write_durable_marker(self.durable_dir, f"fit_{candidate_fit_index:03d}_started.json", record)
+            except Exception as exc:
+                raise DurableLoggingError(
+                    f"DURABLE_START_MARKER_FAILED: Cannot write fit {candidate_fit_index} start marker: {exc}"
+                ) from exc
 
-        return fit_index
+        self.started_fits = candidate_fit_index
+        self.fit_records.append(record)
+        return candidate_fit_index
 
     def record_fit_completed(self, fit_index: int, fit_seconds: float) -> None:
-        """Record successful completion of a fit."""
+        """Record successful completion of a fit. Never silently suppresses marker write errors."""
         self.completed_fits += 1
+        rec_data = None
         for rec in self.fit_records:
             if rec["fit_index"] == fit_index:
                 rec["status"] = "COMPLETED"
                 rec["end_time"] = time.time()
                 rec["fit_seconds"] = fit_seconds
+                rec_data = rec
                 break
+
+        if rec_data is None:
+            rec_data = {
+                "fit_index": fit_index,
+                "status": "COMPLETED",
+                "end_time": time.time(),
+                "fit_seconds": fit_seconds,
+            }
 
         if self.durable_dir:
             try:
-                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_completed.json"
-                rec_data = next((r for r in self.fit_records if r["fit_index"] == fit_index), {})
-                p.write_bytes(json.dumps(rec_data, indent=2).encode("utf-8"))
-            except Exception:
-                pass
+                write_durable_marker(self.durable_dir, f"fit_{fit_index:03d}_completed.json", rec_data)
+            except Exception as exc:
+                raise DurableLoggingError(
+                    f"DURABLE_COMPLETION_MARKER_FAILED: Failed to write fit {fit_index} completed marker: {exc}"
+                ) from exc
 
     def record_fit_failed(self, fit_index: int, error_msg: str) -> None:
-        """Record failure or interruption of a fit."""
+        """Record failure or interruption of a fit. Never silently suppresses marker write errors."""
         self.failed_fits += 1
+        rec_data = None
         for rec in self.fit_records:
             if rec["fit_index"] == fit_index:
                 rec["status"] = "FAILED"
                 rec["end_time"] = time.time()
                 rec["error"] = error_msg
+                rec_data = rec
                 break
+
+        if rec_data is None:
+            rec_data = {
+                "fit_index": fit_index,
+                "status": "FAILED",
+                "end_time": time.time(),
+                "error": error_msg,
+            }
 
         if self.durable_dir:
             try:
-                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_failed.json"
-                rec_data = next((r for r in self.fit_records if r["fit_index"] == fit_index), {})
-                p.write_bytes(json.dumps(rec_data, indent=2).encode("utf-8"))
+                write_durable_marker(self.durable_dir, f"fit_{fit_index:03d}_failed.json", rec_data)
+            except Exception as exc:
+                raise DurableLoggingError(
+                    f"DURABLE_FAILURE_MARKER_FAILED: Failed to write fit {fit_index} failure marker: {exc}"
+                ) from exc
+
+
+def reconcile_durable_fit_markers(durable_dir: Path) -> Dict[str, Any]:
+    """Scan and reconcile durable fit markers on disk after worker crash or termination.
+
+    Reads:
+    - fit_{idx:03d}_started.json
+    - fit_{idx:03d}_completed.json
+    - fit_{idx:03d}_failed.json
+
+    Reconstructs the minimum confirmed number of started fits.
+    Distinguishes COMPLETED, FAILED, and INTERRUPTED_OR_UNKNOWN fit states.
+    Never assumes a STARTED marker implies successful completion.
+    """
+    durable_dir = Path(durable_dir)
+    if not durable_dir.is_dir():
+        return {
+            "started_fits": 0,
+            "completed_fits": 0,
+            "failed_fits": 0,
+            "interrupted_or_unknown_fits": 0,
+            "fit_records": [],
+        }
+
+    started_files = {p.name.replace("_started.json", ""): p for p in durable_dir.glob("fit_*_started.json")}
+    completed_files = {p.name.replace("_completed.json", ""): p for p in durable_dir.glob("fit_*_completed.json")}
+    failed_files = {p.name.replace("_failed.json", ""): p for p in durable_dir.glob("fit_*_failed.json")}
+
+    all_stems = sorted(set(list(started_files.keys()) + list(completed_files.keys()) + list(failed_files.keys())))
+
+    fit_records = []
+    completed_count = 0
+    failed_count = 0
+    interrupted_count = 0
+
+    for stem in all_stems:
+        fit_idx_str = stem.replace("fit_", "")
+        fit_idx = int(fit_idx_str) if fit_idx_str.isdigit() else None
+
+        s_data = None
+        if stem in started_files:
+            try:
+                s_data = json.loads(started_files[stem].read_text(encoding="utf-8"))
             except Exception:
-                pass
+                s_data = {"fit_index": fit_idx, "status": "CORRUPTED_START_MARKER"}
+
+        if stem in completed_files:
+            try:
+                c_data = json.loads(completed_files[stem].read_text(encoding="utf-8"))
+                c_data["status"] = "COMPLETED"
+                fit_records.append(c_data)
+            except Exception:
+                rec = s_data or {"fit_index": fit_idx}
+                rec["status"] = "COMPLETED"
+                fit_records.append(rec)
+            completed_count += 1
+        elif stem in failed_files:
+            try:
+                f_data = json.loads(failed_files[stem].read_text(encoding="utf-8"))
+                f_data["status"] = "FAILED"
+                fit_records.append(f_data)
+            except Exception:
+                rec = s_data or {"fit_index": fit_idx}
+                rec["status"] = "FAILED"
+                fit_records.append(rec)
+            failed_count += 1
+        else:
+            # Started marker exists without completion or failure marker:
+            # worker was killed, interrupted by job object, or crashed
+            rec = dict(s_data) if s_data else {"fit_index": fit_idx}
+            rec["status"] = "INTERRUPTED_OR_UNKNOWN"
+            rec["error"] = "WORKER_TERMINATED_DURING_FIT"
+            fit_records.append(rec)
+            interrupted_count += 1
+
+    started_count = len(all_stems)
+
+    return {
+        "started_fits": started_count,
+        "completed_fits": completed_count,
+        "failed_fits": failed_count,
+        "interrupted_or_unknown_fits": interrupted_count,
+        "fit_records": fit_records,
+    }
 
 
 def enumerate_threshold_candidates(probs: np.ndarray) -> np.ndarray:

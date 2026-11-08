@@ -17,18 +17,21 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from unittest.mock import patch, MagicMock
 import pytest
 import numpy as np
 
 from src.scania.phase2_optimization import (
-    FitCounter, FitBudgetExceeded, OptimizationError,
+    FitCounter, FitBudgetExceeded, OptimizationError, DurableLoggingError,
+    write_durable_marker, reconcile_durable_fit_markers,
     enumerate_threshold_candidates, evaluate_threshold_candidates_vectorized,
     fit_and_evaluate_rf_trial, create_phase2_study, run_optuna_phase2_trials,
     sanitize_for_strict_json
 )
 from src.scania.phase2_executor import (
-    REPO_ROOT, ExecutorBlocked, load_phase2_config, get_phase2_config_sha,
+    REPO_ROOT, ExecutorBlocked, ExecutorFailure, load_phase2_config, get_phase2_config_sha,
     execute_phase2_preflight_check, validate_phase2_authorization_record,
+    verify_phase2_owner_approval_text, verify_phase2_owner_approval_reference,
     write_phase2_evidence_artifacts, verify_phase2_run,
     G3_ACCEPTED_STABLE_DIGEST, G3_ACCEPTED_MANIFEST_FILE_SHA256,
 )
@@ -480,4 +483,161 @@ def test_g3_hash_terminology_and_distinct_verification():
     assert pref["status"] == "PREFLIGHT_VERIFIED"
     assert pref["g3_summary"]["stable_digest"] == G3_ACCEPTED_STABLE_DIGEST
     assert pref["g3_summary"]["manifest_file_sha256"] == G3_ACCEPTED_MANIFEST_FILE_SHA256
+
+
+def test_failed_durable_start_marker_write_before_model_fit():
+    """Verify that if durable start marker cannot be written, execution FAILS CLOSED before model.fit()."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=2, durable_dir=durable_p)
+
+        x_tr = np.random.randn(20, 5)
+        y_tr = np.random.randint(0, 2, size=(20,))
+        x_val = np.random.randn(10, 5)
+        y_val = np.random.randint(0, 2, size=(10,))
+        rf_params = {"n_estimators": 20, "max_depth": 4, "min_samples_split": 2, "max_features": 0.5}
+
+        # Mock write_durable_marker to simulate disk I/O failure on start marker
+        with patch("src.scania.phase2_optimization.write_durable_marker", side_effect=DurableLoggingError("DISK_FULL_SIMULATION")):
+            with pytest.raises(DurableLoggingError, match="DURABLE_START_MARKER_FAILED"):
+                fit_and_evaluate_rf_trial(x_tr, y_tr, x_val, y_val, rf_params=rf_params, fit_counter=fc, trial_number=0)
+
+        # Invariant: fit was NOT started, count remained 0, model was not trained
+        assert fc.started_fits == 0
+        assert fc.completed_fits == 0
+        assert fc.failed_fits == 0
+        assert len(fc.fit_records) == 0
+
+
+def test_successful_durable_start_marker_persistence():
+    """Verify durable start marker is persisted to disk with strict JSON schema and flush."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=2, durable_dir=durable_p)
+
+        idx = fc.reserve_and_start_fit("RandomForestClassifier", {"n_estimators": 30}, trial_number=1)
+        assert idx == 1
+        assert fc.started_fits == 1
+
+        marker_file = durable_p / "fit_001_started.json"
+        assert marker_file.is_file()
+
+        data = json.loads(marker_file.read_text(encoding="utf-8"))
+        assert data["fit_index"] == 1
+        assert data["trial_number"] == 1
+        assert data["estimator"] == "RandomForestClassifier"
+        assert data["params"]["n_estimators"] == 30
+        assert data["status"] == "STARTED"
+        assert data["start_time"] is not None
+        assert data["error"] is None
+
+
+def test_interrupted_worker_reconciliation_without_worker_result():
+    """Verify supervisor reconstructs confirmed started fits when worker is terminated without worker_result.json."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+
+        # Fit 1 completed successfully
+        write_durable_marker(durable_p, "fit_001_started.json", {"fit_index": 1, "status": "STARTED", "trial_number": 0})
+        write_durable_marker(durable_p, "fit_001_completed.json", {"fit_index": 1, "status": "COMPLETED", "fit_seconds": 1.2})
+
+        # Fit 2 started, but worker was killed mid-fit (no completion or failure marker)
+        write_durable_marker(durable_p, "fit_002_started.json", {"fit_index": 2, "status": "STARTED", "trial_number": 1})
+
+        reconciled = reconcile_durable_fit_markers(durable_p)
+
+        # Invariants:
+        # 1. Minimum confirmed started fits is 2 (NEVER 0!)
+        assert reconciled["started_fits"] == 2
+        # 2. Completed fits is 1
+        assert reconciled["completed_fits"] == 1
+        # 3. Interrupted fits is 1
+        assert reconciled["interrupted_or_unknown_fits"] == 1
+        assert reconciled["failed_fits"] == 0
+
+        # 4. Fit 2 is marked INTERRUPTED_OR_UNKNOWN (never assumed completed)
+        fit_2_rec = next(r for r in reconciled["fit_records"] if r.get("fit_index") == 2)
+        assert fit_2_rec["status"] == "INTERRUPTED_OR_UNKNOWN"
+        assert fit_2_rec["error"] == "WORKER_TERMINATED_DURING_FIT"
+
+
+def test_completed_and_failed_fit_marker_reconciliation():
+    """Verify reconciliation handles mixed successful, failed, and started markers correctly."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+
+        # Fit 1: completed
+        write_durable_marker(durable_p, "fit_001_started.json", {"fit_index": 1, "status": "STARTED"})
+        write_durable_marker(durable_p, "fit_001_completed.json", {"fit_index": 1, "status": "COMPLETED", "fit_seconds": 0.8})
+
+        # Fit 2: failed
+        write_durable_marker(durable_p, "fit_002_started.json", {"fit_index": 2, "status": "STARTED"})
+        write_durable_marker(durable_p, "fit_002_failed.json", {"fit_index": 2, "status": "FAILED", "error": "ConvergenceError"})
+
+        # Fit 3: completed
+        write_durable_marker(durable_p, "fit_003_started.json", {"fit_index": 3, "status": "STARTED"})
+        write_durable_marker(durable_p, "fit_003_completed.json", {"fit_index": 3, "status": "COMPLETED", "fit_seconds": 0.9})
+
+        reconciled = reconcile_durable_fit_markers(durable_p)
+
+        assert reconciled["started_fits"] == 3
+        assert reconciled["completed_fits"] == 2
+        assert reconciled["failed_fits"] == 1
+        assert reconciled["interrupted_or_unknown_fits"] == 0
+
+
+def test_exact_owner_comment_parsing_and_mocked_github_api():
+    """Verify the exact single-line Owner approval template passes parser directly and via mocked GitHub API."""
+    current_head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip().lower()
+
+    # Exact single-line template format required by directive
+    template_text = f"""# OWNER TASK AUTHORIZATION — SCANIA APS PHASE 2 CONSTRAINED OPTIMIZATION
+
+Decision: APPROVED
+Authorized Commit: {current_head}
+Target Run ID: scania_phase2_rf_optuna_001
+Permitted Operation: CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY
+Approved Estimator: RandomForestClassifier(class_weight="balanced", random_state=42, n_jobs=1, bootstrap=True)
+Approved Optimizer: Optuna TPESampler(seed=42), sequential execution
+Fit Budget: max_trials: 20, max_fits_per_trial: 1, total_max_fits: 20
+Data Scope: Train (48,000 samples) and Validation (12,000 samples), Official Test sealed until G10
+Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 300
+"""
+
+    expected_record = {
+        "run_id": "scania_phase2_rf_optuna_001",
+        "source_integrity": {"authorized_commit": current_head},
+        "budget": {"max_trials": 20, "total_max_fits": 20, "fits_per_trial": 1},
+        "resource_limits": {"max_wall_seconds": 300, "max_ram_mb": 2048, "max_native_threads": 1},
+    }
+
+    # 1. Direct text parser verification
+    parsed_limits = verify_phase2_owner_approval_text(
+        comment_body=template_text,
+        author="PhucHuynh16",
+        expected_record=expected_record,
+    )
+    assert parsed_limits["authorized_commit"] == current_head
+    assert parsed_limits["max_trials"] == 20
+    assert parsed_limits["total_max_fits"] == 20
+    assert parsed_limits["max_wall_seconds"] == 300
+    assert parsed_limits["max_ram_mb"] == 2048
+    assert parsed_limits["max_native_threads"] == 1
+
+    # 2. Mocked GitHub API response verification
+    mock_api_payload = json.dumps({
+        "user": {"login": "PhucHuynh16"},
+        "body": template_text,
+    }).encode("utf-8")
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = mock_api_payload
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("src.scania.phase2_executor._get_github_token", return_value="ghp_mock_token_for_synthetic_test"):
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            ref_url = "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-9999999999"
+            verified = verify_phase2_owner_approval_reference(ref_url, expected_record=expected_record, mode="REAL")
+            assert verified is True
+            assert expected_record["_verified_owner_limits"]["max_trials"] == 20
 

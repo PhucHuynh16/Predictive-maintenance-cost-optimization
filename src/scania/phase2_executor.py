@@ -34,7 +34,7 @@ from .g4_b2_executor import (
     _get_github_token, _strip_markdown_code_blocks, _parse_owner_comment_fields,
     verify_g3_artifacts_and_build_allowlist, install_executor_io_guard
 )
-from .phase2_optimization import sanitize_for_strict_json
+from .phase2_optimization import sanitize_for_strict_json, reconcile_durable_fit_markers, DurableLoggingError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHASE2_CONFIG_PATH = REPO_ROOT / "configs/scania/phase2_optimization.json"
@@ -63,6 +63,183 @@ def get_phase2_config_sha(root=REPO_ROOT) -> str:
         raise ExecutorBlocked("PHASE2_CONFIG_FILE_MISSING")
     content = cfg_file.read_bytes().replace(b"\r\n", b"\n")
     return digest(content)
+
+
+def verify_phase2_owner_approval_text(
+    comment_body: str,
+    author: str = "PhucHuynh16",
+    expected_record: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Parse and verify authentic GitHub Owner approval comment text.
+
+    Enforces:
+    - Author is repository owner 'PhucHuynh16'.
+    - Outside markdown code blocks, comment has plain '# OWNER ...' header.
+    - Key: Value format on single lines.
+    - Fields:
+      * Decision: exactly 'APPROVED'.
+      * Authorized Commit: exact 40-character hex commit SHA.
+      * Target Run ID: exact string matching expected run.
+      * Permitted Operation: 'CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY'.
+      * Approved Estimator: contains 'RandomForestClassifier'.
+      * Approved Optimizer: contains 'Optuna' or 'TPESampler'.
+      * Fit Budget: max_trials<=20, total_max_fits<=20, fits_per_trial=1.
+      * Data Scope: Train, Validation, and Official Test sealed until G10.
+      * Resource Limits: 1 native thread, max 2048 MB RAM, max 300s wall time.
+    - Semantic check against expected_record if provided.
+    - Returns dictionary of parsed approved parameters.
+    """
+    if author != "PhucHuynh16":
+        raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Comment author '{author}' is not repository owner PhucHuynh16")
+
+    # 1. Reject agent reports
+    if re.search(r"##\s+ANTIGRAVITY", comment_body, re.IGNORECASE):
+        raise ExecutorBlocked("AGENT_REPORT_CANNOT_AUTHORIZE: Comment is an agent report, not an authentic human Owner decision")
+
+    # 2. Strip code blocks
+    clean_body = _strip_markdown_code_blocks(comment_body)
+
+    # 3. Check for explicit Owner directive header
+    if not re.search(r"^#\s+OWNER\s+(?:TASK\s+AUTHORIZATION|DECISION|DIRECTIVE)", clean_body, re.IGNORECASE | re.MULTILINE):
+        raise ExecutorBlocked("MISSING_OWNER_DIRECTIVE_HEADER: Approval comment must have an explicit '# OWNER ...' directive header")
+
+    # 4. Extract field-values
+    fields = _parse_owner_comment_fields(clean_body)
+
+    # Decision
+    decision_val = fields.get("decision")
+    if not decision_val or decision_val.upper() != "APPROVED":
+        raise ExecutorBlocked(f"INVALID_OR_MISSING_APPROVAL_DECISION: Decision must be exactly 'APPROVED', got '{decision_val}'")
+
+    # Authorized Commit
+    commit_val = fields.get("authorized commit") or fields.get("commit") or fields.get("commit sha")
+    if not commit_val or not re.fullmatch(r"[0-9a-f]{40}", commit_val, re.IGNORECASE):
+        raise ExecutorBlocked(f"INVALID_OR_MISSING_AUTHORIZED_COMMIT: Must specify 40-character hex commit SHA, got '{commit_val}'")
+    commit_val = commit_val.lower()
+
+    # Target Run ID
+    run_id_val = fields.get("target run id") or fields.get("run id")
+    if not run_id_val:
+        raise ExecutorBlocked("MISSING_TARGET_RUN_ID: Comment must explicitly specify Target Run ID")
+
+    # Permitted Operation
+    op_val = fields.get("permitted operation") or fields.get("operation")
+    if not op_val or op_val.upper() != "CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY":
+        raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: Permitted operation must be exactly 'CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY', got '{op_val}'")
+
+    # Approved Estimator
+    est_val = fields.get("approved estimator") or fields.get("estimator") or fields.get("models")
+    if not est_val or "RandomForestClassifier" not in est_val:
+        raise ExecutorBlocked(f"INVALID_APPROVED_ESTIMATOR: Must specify 'RandomForestClassifier', got '{est_val}'")
+
+    # Approved Optimizer
+    opt_val = fields.get("approved optimizer") or fields.get("optimizer")
+    if not opt_val or not re.search(r"\b(?:optuna|tpesampler|tpe)\b", opt_val, re.IGNORECASE):
+        raise ExecutorBlocked(f"INVALID_APPROVED_OPTIMIZER: Must specify Optuna TPE optimizer, got '{opt_val}'")
+
+    # Fit Budget
+    budget_val = fields.get("fit budget") or fields.get("budget")
+    if not budget_val:
+        raise ExecutorBlocked("MISSING_FIT_BUDGET: Comment must explicitly specify Fit Budget")
+
+    trials_m = re.search(r"\b(?:max_trials|trials)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+    fits_per_trial_m = re.search(r"\b(?:max_fits_per_trial|fits_per_trial)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+    total_fits_m = re.search(r"\b(?:total_max_fits|total_fits|total)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
+
+    if not (trials_m and total_fits_m):
+        raise ExecutorBlocked(f"INCOMPLETE_FIT_BUDGET: Must specify max_trials and total_max_fits, got '{budget_val}'")
+
+    max_trials = int(trials_m.group(1))
+    total_fits = int(total_fits_m.group(1))
+    fits_per_trial = int(fits_per_trial_m.group(1)) if fits_per_trial_m else 1
+
+    if max_trials > 20 or total_fits > 20 or fits_per_trial != 1:
+        raise ExecutorBlocked(
+            f"INVALID_FIT_BUDGET: Fit budget must be max_trials<=20, total_max_fits<=20, fits_per_trial=1; got trials={max_trials}, total={total_fits}, per_trial={fits_per_trial}"
+        )
+
+    # Data Scope & Official Test Sealing
+    scope_val = fields.get("data scope") or fields.get("scope") or ""
+    test_val = fields.get("official test") or fields.get("test") or ""
+    combined_scope = f"{scope_val} {test_val}".strip().lower()
+
+    if not combined_scope:
+        raise ExecutorBlocked("MISSING_DATA_SCOPE: Comment must explicitly specify Data Scope")
+
+    if re.search(r"\b(?:test\s+(?:permitted|allowed|access|accessible|unsealed)|evaluate\s+(?:on\s+)?test)\b", combined_scope):
+        raise ExecutorBlocked("CONTRADICTORY_DATA_SCOPE: Comment grants unauthorized access to sealed Official Test")
+
+    if "train" not in combined_scope or "validation" not in combined_scope:
+        raise ExecutorBlocked(f"INVALID_DATA_SCOPE: Data scope must include both Train and Validation, got '{scope_val}'")
+
+    if not re.search(r"\b(?:official\s+test\s+sealed|test\s+(?:partition|set)?\s*sealed|sealed\s+until\s+g10)\b", combined_scope):
+        raise ExecutorBlocked("MISSING_TEST_SEAL_DECLARATION: Comment must explicitly state that Official Test is sealed until G10")
+
+    # Resource Limits
+    limits_val = fields.get("resource limits") or fields.get("limits")
+    if not limits_val:
+        raise ExecutorBlocked("MISSING_RESOURCE_LIMITS: Comment must explicitly specify Resource Limits")
+
+    threads_m = re.search(r"\b(?:max_native_threads|threads)\s*[:=]\s*(\d+)\b|\b(\d+)\s*native\s*threads?\b|\b(\d+)\s*threads?\b", limits_val, re.IGNORECASE)
+    ram_m = re.search(r"\b(?:max_ram_mb|ram_mb|ram)\s*[:=]\s*(\d+)\b|\b(\d+)\s*(?:mb|gb)\s*ram\b", limits_val, re.IGNORECASE)
+    wall_m = re.search(r"\b(?:max_wall_seconds|wall_seconds|wall)\s*[:=]\s*(\d+)\b|\b(\d+)\s*s(?:ec|econds)?\s*wall\b", limits_val, re.IGNORECASE)
+
+    if not (threads_m and ram_m and wall_m):
+        raise ExecutorBlocked(f"INCOMPLETE_RESOURCE_LIMITS: Must specify threads, RAM, and wall time limits, got '{limits_val}'")
+
+    threads = int(next(g for g in threads_m.groups() if g is not None))
+    ram_mb = int(next(g for g in ram_m.groups() if g is not None))
+    wall_sec = int(next(g for g in wall_m.groups() if g is not None))
+
+    if threads != 1:
+        raise ExecutorBlocked(f"INVALID_THREADS: max_native_threads must be exactly 1, got {threads}")
+    if ram_mb > 2048:
+        raise ExecutorBlocked(f"INVALID_RAM: max_ram_mb must not exceed 2048, got {ram_mb}")
+    if wall_sec > 300:
+        raise ExecutorBlocked(f"INVALID_WALL_TIME: max_wall_seconds must not exceed 300, got {wall_sec}")
+
+    parsed_approved_limits = {
+        "authorized_commit": commit_val,
+        "target_run_id": run_id_val,
+        "permitted_operation": op_val,
+        "approved_estimator": est_val,
+        "approved_optimizer": opt_val,
+        "max_trials": max_trials,
+        "total_max_fits": total_fits,
+        "fits_per_trial": fits_per_trial,
+        "max_wall_seconds": wall_sec,
+        "max_ram_mb": ram_mb,
+        "max_native_threads": threads,
+    }
+
+    # Semantic check against expected record
+    if expected_record is not None:
+        src_int = expected_record.get("source_integrity", expected_record)
+        exp_commit = str(src_int.get("authorized_commit") or "").lower()
+        if exp_commit and commit_val != exp_commit:
+            raise ExecutorBlocked(f"COMMENT_COMMIT_MISMATCH: Comment authorized commit {commit_val} != expected {exp_commit}")
+
+        exp_run_id = expected_record.get("run_id") or expected_record.get("target_run_id")
+        if exp_run_id and run_id_val != exp_run_id:
+            raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Comment target run ID '{run_id_val}' != expected '{exp_run_id}'")
+
+        rec_budget = expected_record.get("budget", {})
+        if "max_trials" in rec_budget and int(rec_budget["max_trials"]) != max_trials:
+            raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment max_trials={max_trials} != record {rec_budget['max_trials']}")
+        if "total_max_fits" in rec_budget and int(rec_budget["total_max_fits"]) != total_fits:
+            raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment total_max_fits={total_fits} != record {rec_budget['total_max_fits']}")
+
+        rec_limits = expected_record.get("resource_limits", {})
+        if "max_wall_seconds" in rec_limits and int(rec_limits["max_wall_seconds"]) != wall_sec:
+            raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_wall_seconds={wall_sec} != record {rec_limits['max_wall_seconds']}")
+        if "max_ram_mb" in rec_limits and int(rec_limits["max_ram_mb"]) != ram_mb:
+            raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_ram_mb={ram_mb} != record {rec_limits['max_ram_mb']}")
+        if "max_native_threads" in rec_limits and int(rec_limits["max_native_threads"]) != threads:
+            raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_native_threads={threads} != record {rec_limits['max_native_threads']}")
+
+        expected_record["_verified_owner_limits"] = parsed_approved_limits
+
+    return parsed_approved_limits
 
 
 def verify_phase2_owner_approval_reference(ref: str, expected_record: Optional[Dict[str, Any]] = None, mode: str = "REAL") -> bool:
@@ -127,151 +304,8 @@ def verify_phase2_owner_approval_reference(ref: str, expected_record: Optional[D
             data = json.loads(resp.read().decode("utf-8"))
 
         author = data.get("user", {}).get("login", "")
-        if author != "PhucHuynh16":
-            raise ExecutorBlocked(f"AUTHORIZATION_NOT_FROM_OWNER: Comment author '{author}' is not repository owner PhucHuynh16")
-
         comment_body = data.get("body", "")
-
-        # 1. Reject agent reports
-        if re.search(r"##\s+ANTIGRAVITY", comment_body, re.IGNORECASE):
-            raise ExecutorBlocked("AGENT_REPORT_CANNOT_AUTHORIZE: Comment is an agent report, not an authentic human Owner decision")
-
-        # 2. Strip code blocks
-        clean_body = _strip_markdown_code_blocks(comment_body)
-
-        # 3. Check for explicit Owner directive header
-        if not re.search(r"^#\s+OWNER\s+(?:TASK\s+AUTHORIZATION|DECISION|DIRECTIVE)", clean_body, re.IGNORECASE | re.MULTILINE):
-            raise ExecutorBlocked("MISSING_OWNER_DIRECTIVE_HEADER: Approval comment must have an explicit '# OWNER ...' directive header")
-
-        # 4. Extract field-values
-        fields = _parse_owner_comment_fields(clean_body)
-
-        # Decision
-        decision_val = fields.get("decision")
-        if not decision_val or decision_val.upper() != "APPROVED":
-            raise ExecutorBlocked(f"INVALID_OR_MISSING_APPROVAL_DECISION: Decision must be exactly 'APPROVED', got '{decision_val}'")
-
-        # Authorized Commit
-        commit_val = fields.get("authorized commit") or fields.get("commit") or fields.get("commit sha")
-        if not commit_val or not re.fullmatch(r"[0-9a-f]{40}", commit_val, re.IGNORECASE):
-            raise ExecutorBlocked(f"INVALID_OR_MISSING_AUTHORIZED_COMMIT: Must specify 40-character hex commit SHA, got '{commit_val}'")
-        commit_val = commit_val.lower()
-
-        # Target Run ID
-        run_id_val = fields.get("target run id") or fields.get("run id")
-        if not run_id_val:
-            raise ExecutorBlocked("MISSING_TARGET_RUN_ID: Comment must explicitly specify Target Run ID")
-
-        # Permitted Operation
-        op_val = fields.get("permitted operation") or fields.get("operation")
-        if not op_val or op_val.upper() != "CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY":
-            raise ExecutorBlocked(f"INVALID_PERMITTED_OPERATION: Permitted operation must be exactly 'CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY', got '{op_val}'")
-
-        # Approved Estimator
-        est_val = fields.get("approved estimator") or fields.get("estimator") or fields.get("models")
-        if not est_val or "RandomForestClassifier" not in est_val:
-            raise ExecutorBlocked(f"INVALID_APPROVED_ESTIMATOR: Must specify 'RandomForestClassifier', got '{est_val}'")
-
-        # Approved Optimizer
-        opt_val = fields.get("approved optimizer") or fields.get("optimizer")
-        if not opt_val or not re.search(r"\b(?:optuna|tpesampler|tpe)\b", opt_val, re.IGNORECASE):
-            raise ExecutorBlocked(f"INVALID_APPROVED_OPTIMIZER: Must specify Optuna TPE optimizer, got '{opt_val}'")
-
-        # Fit Budget
-        budget_val = fields.get("fit budget") or fields.get("budget")
-        if not budget_val:
-            raise ExecutorBlocked("MISSING_FIT_BUDGET: Comment must explicitly specify Fit Budget")
-
-        trials_m = re.search(r"\b(?:max_trials|trials)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
-        fits_per_trial_m = re.search(r"\b(?:max_fits_per_trial|fits_per_trial)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
-        total_fits_m = re.search(r"\b(?:total_max_fits|total_fits|total)\s*[:=]\s*(\d+)\b", budget_val, re.IGNORECASE)
-
-        if not (trials_m and total_fits_m):
-            raise ExecutorBlocked(f"INCOMPLETE_FIT_BUDGET: Must specify max_trials and total_max_fits, got '{budget_val}'")
-
-        max_trials = int(trials_m.group(1))
-        total_fits = int(total_fits_m.group(1))
-        fits_per_trial = int(fits_per_trial_m.group(1)) if fits_per_trial_m else 1
-
-        if max_trials > 20 or total_fits > 20 or fits_per_trial != 1:
-            raise ExecutorBlocked(
-                f"INVALID_FIT_BUDGET: Fit budget must be max_trials<=20, total_max_fits<=20, fits_per_trial=1; got trials={max_trials}, total={total_fits}, per_trial={fits_per_trial}"
-            )
-
-        # Data Scope & Official Test Sealing
-        scope_val = fields.get("data scope") or fields.get("scope") or ""
-        test_val = fields.get("official test") or fields.get("test") or ""
-        combined_scope = f"{scope_val} {test_val}".strip().lower()
-
-        if not combined_scope:
-            raise ExecutorBlocked("MISSING_DATA_SCOPE: Comment must explicitly specify Data Scope")
-
-        if re.search(r"\b(?:test\s+(?:permitted|allowed|access|accessible|unsealed)|evaluate\s+(?:on\s+)?test)\b", combined_scope):
-            raise ExecutorBlocked("CONTRADICTORY_DATA_SCOPE: Comment grants unauthorized access to sealed Official Test")
-
-        if "train" not in combined_scope or "validation" not in combined_scope:
-            raise ExecutorBlocked(f"INVALID_DATA_SCOPE: Data scope must include both Train and Validation, got '{scope_val}'")
-
-        if not re.search(r"\b(?:official\s+test\s+sealed|test\s+(?:partition|set)?\s*sealed|sealed\s+until\s+g10)\b", combined_scope):
-            raise ExecutorBlocked("MISSING_TEST_SEAL_DECLARATION: Comment must explicitly state that Official Test is sealed until G10")
-
-        # Resource Limits
-        limits_val = fields.get("resource limits") or fields.get("limits")
-        if not limits_val:
-            raise ExecutorBlocked("MISSING_RESOURCE_LIMITS: Comment must explicitly specify Resource Limits")
-
-        threads_m = re.search(r"\b(?:max_native_threads|threads)\s*[:=]\s*(\d+)\b|\b(\d+)\s*native\s*threads?\b|\b(\d+)\s*threads?\b", limits_val, re.IGNORECASE)
-        ram_m = re.search(r"\b(?:max_ram_mb|ram_mb|ram)\s*[:=]\s*(\d+)\b|\b(\d+)\s*(?:mb|gb)\s*ram\b", limits_val, re.IGNORECASE)
-        wall_m = re.search(r"\b(?:max_wall_seconds|wall_seconds|wall)\s*[:=]\s*(\d+)\b|\b(\d+)\s*s(?:ec|econds)?\s*wall\b", limits_val, re.IGNORECASE)
-
-        if not (threads_m and ram_m and wall_m):
-            raise ExecutorBlocked(f"INCOMPLETE_RESOURCE_LIMITS: Must specify threads, RAM, and wall time limits, got '{limits_val}'")
-
-        threads = int(next(g for g in threads_m.groups() if g is not None))
-        ram_mb = int(next(g for g in ram_m.groups() if g is not None))
-        wall_sec = int(next(g for g in wall_m.groups() if g is not None))
-
-        if threads != 1:
-            raise ExecutorBlocked(f"INVALID_THREADS: max_native_threads must be exactly 1, got {threads}")
-        if ram_mb > 2048:
-            raise ExecutorBlocked(f"INVALID_RAM: max_ram_mb must not exceed 2048, got {ram_mb}")
-        if wall_sec > 300:
-            raise ExecutorBlocked(f"INVALID_WALL_TIME: max_wall_seconds must not exceed 300, got {wall_sec}")
-
-        # Semantic check against expected record
-        if expected_record is not None:
-            src_int = expected_record.get("source_integrity", expected_record)
-            exp_commit = str(src_int.get("authorized_commit") or "").lower()
-            if exp_commit and commit_val != exp_commit:
-                raise ExecutorBlocked(f"COMMENT_COMMIT_MISMATCH: Comment authorized commit {commit_val} != expected {exp_commit}")
-
-            exp_run_id = expected_record.get("run_id") or expected_record.get("target_run_id")
-            if exp_run_id and run_id_val != exp_run_id:
-                raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Comment target run ID '{run_id_val}' != expected '{exp_run_id}'")
-
-            rec_budget = expected_record.get("budget", {})
-            if "max_trials" in rec_budget and int(rec_budget["max_trials"]) != max_trials:
-                raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment max_trials={max_trials} != record {rec_budget['max_trials']}")
-            if "total_max_fits" in rec_budget and int(rec_budget["total_max_fits"]) != total_fits:
-                raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment total_max_fits={total_fits} != record {rec_budget['total_max_fits']}")
-
-            rec_limits = expected_record.get("resource_limits", {})
-            if "max_wall_seconds" in rec_limits and int(rec_limits["max_wall_seconds"]) != wall_sec:
-                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_wall_seconds={wall_sec} != record {rec_limits['max_wall_seconds']}")
-            if "max_ram_mb" in rec_limits and int(rec_limits["max_ram_mb"]) != ram_mb:
-                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_ram_mb={ram_mb} != record {rec_limits['max_ram_mb']}")
-            if "max_native_threads" in rec_limits and int(rec_limits["max_native_threads"]) != threads:
-                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_native_threads={threads} != record {rec_limits['max_native_threads']}")
-
-            expected_record["_verified_owner_limits"] = {
-                "max_trials": max_trials,
-                "total_max_fits": total_fits,
-                "fits_per_trial": fits_per_trial,
-                "max_wall_seconds": wall_sec,
-                "max_ram_mb": ram_mb,
-                "max_native_threads": threads,
-            }
-
+        verify_phase2_owner_approval_text(comment_body, author=author, expected_record=expected_record)
     except Exception as exc:
         if isinstance(exc, ExecutorBlocked):
             raise
@@ -563,13 +597,42 @@ def orchestrate_phase2_worker_in_job(
 
     elapsed = time.perf_counter() - t0
 
+    # FIX 2: Reconstruct confirmed started fits from durable markers on disk
+    durable_dir = output_dir / "durable_fits"
+    reconciled = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {
+        "started_fits": 0, "completed_fits": 0, "failed_fits": 0, "interrupted_or_unknown_fits": 0, "fit_records": []
+    }
+
     if not result_path.is_file():
-        raise ExecutorBlocked(f"WORKER_CRASHED_NO_RESULT: Exit code {exit_code}")
+        # Worker crashed or was killed by job object without producing worker_result.json
+        partial_result = {
+            "status": "FAILED",
+            "error_type": "WorkerTerminatedNoResult",
+            "reason": f"Worker process terminated without writing worker_result.json (exit_code={exit_code})",
+            "total_estimator_fits": reconciled.get("started_fits", 0),
+            "started_estimator_fits": reconciled.get("started_fits", 0),
+            "completed_estimator_fits": reconciled.get("completed_fits", 0),
+            "failed_estimator_fits": reconciled.get("failed_fits", 0),
+            "interrupted_or_unknown_fits": reconciled.get("interrupted_or_unknown_fits", 0),
+            "fit_records": reconciled.get("fit_records", []),
+            "n_trials_completed": reconciled.get("completed_fits", 0),
+            "validation_scored": False,
+        }
+        raise ExecutorFailure(
+            f"WORKER_CRASHED_NO_RESULT: Exit code {exit_code}; confirmed started fits: {reconciled.get('started_fits', 0)}",
+            worker_result=partial_result,
+        )
 
     worker_result = json.loads(result_path.read_text(encoding="utf-8"))
 
     if exit_code != 0 or worker_result.get("status") != "PASS":
         err_msg = worker_result.get("reason", f"Exit code {exit_code}")
+        # Merge reconciled markers into worker_result if worker crashed mid-trial
+        if reconciled.get("started_fits", 0) > worker_result.get("total_estimator_fits", 0):
+            worker_result["total_estimator_fits"] = reconciled["started_fits"]
+            worker_result["started_estimator_fits"] = reconciled["started_fits"]
+            worker_result["interrupted_or_unknown_fits"] = reconciled["interrupted_or_unknown_fits"]
+            worker_result["fit_records"] = reconciled["fit_records"]
         raise ExecutorFailure(f"PHASE2_WORKER_FAILED: {err_msg}", worker_result=worker_result)
 
     is_real = (mode == "REAL")
@@ -584,6 +647,7 @@ def orchestrate_phase2_worker_in_job(
         "started_estimator_fits": worker_result.get("started_estimator_fits", total_fits),
         "completed_estimator_fits": worker_result.get("completed_estimator_fits", total_fits),
         "failed_estimator_fits": worker_result.get("failed_estimator_fits", 0),
+        "interrupted_or_unknown_fits": worker_result.get("interrupted_or_unknown_fits", 0),
         "attempted_fits": worker_result.get("attempted_fits", total_fits),
         "n_trials_completed": worker_result["n_trials_completed"],
         "best_trial": worker_result.get("best_trial"),
@@ -634,9 +698,16 @@ def write_phase2_evidence_artifacts(
     (output_dir / "stable_manifest.json").write_bytes(json.dumps(manifest_data, indent=2).encode("utf-8"))
 
     # 4. Failure diagnostics
-    (output_dir / "failure_diagnostics.json").write_bytes(
-        json.dumps({"status": final_status, "errors": errors}, indent=2).encode("utf-8")
-    )
+    diag_payload = {
+        "status": final_status,
+        "errors": errors,
+        "started_estimator_fits": report.get("started_estimator_fits", report.get("real_estimator_fits", 0)),
+        "completed_estimator_fits": report.get("completed_estimator_fits", 0),
+        "failed_estimator_fits": report.get("failed_estimator_fits", 0),
+        "interrupted_or_unknown_fits": report.get("interrupted_or_unknown_fits", 0),
+        "fit_records": report.get("fit_records", []),
+    }
+    (output_dir / "failure_diagnostics.json").write_bytes(json.dumps(diag_payload, indent=2).encode("utf-8"))
 
     # 5. Best policy
     best_trial = report.get("best_trial")
@@ -702,6 +773,10 @@ def write_phase2_evidence_artifacts(
         f"lifecycle={report['lifecycle']}",
         f"real_estimator_fits={report.get('real_estimator_fits', 0)}",
         f"synthetic_estimator_fits={report.get('synthetic_estimator_fits', 0)}",
+        f"started_estimator_fits={report.get('started_estimator_fits', 0)}",
+        f"completed_estimator_fits={report.get('completed_estimator_fits', 0)}",
+        f"failed_estimator_fits={report.get('failed_estimator_fits', 0)}",
+        f"interrupted_or_unknown_fits={report.get('interrupted_or_unknown_fits', 0)}",
         f"n_trials_completed={n_trials}",
         f"wall_seconds={report.get('measured_wall_seconds', 0.0):.4f}",
         f"peak_ram_mb={report.get('measured_peak_ram_mb', 0.0):.2f}",

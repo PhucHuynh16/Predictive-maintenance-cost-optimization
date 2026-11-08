@@ -32,6 +32,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from src.scania.contracts import environment, digest
 from src.scania.artifacts import code_digest
+from src.scania.phase2_optimization import reconcile_durable_fit_markers
 from src.scania.phase2_executor import (
     REPO_ROOT, ExecutorBlocked, ExecutorFailure,
     load_phase2_config, get_phase2_config_sha,
@@ -204,33 +205,44 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
         err_msg = str(exc)
         print(f"EXECUTION_FAILED: {type(exc).__name__}: {err_msg}", file=sys.stderr)
         errors.append({"error_type": type(exc).__name__, "reason": err_msg})
+
+        # FIX 2: Reconstruct confirmed started fits from durable markers on disk
+        durable_dir = output_dir / "durable_fits"
+        reconciled = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {}
+
+        w_res = getattr(exc, "worker_result", None)
+        if not w_res:
+            w_res_file = output_dir / "worker_result.json"
+            if w_res_file.is_file():
+                try:
+                    w_res = json.loads(w_res_file.read_text(encoding="utf-8"))
+                except Exception:
+                    w_res = {}
+            else:
+                w_res = {}
+
+        started_fits = max(reconciled.get("started_fits", 0), w_res.get("started_estimator_fits", 0))
+        completed_fits = max(reconciled.get("completed_fits", 0), w_res.get("completed_estimator_fits", 0))
+        failed_fits = max(reconciled.get("failed_fits", 0), w_res.get("failed_estimator_fits", 0))
+        interrupted_fits = reconciled.get("interrupted_or_unknown_fits", 0)
+        fit_records = reconciled.get("fit_records") or w_res.get("fit_records", [])
+
         report = {
             "run_id": run_id,
             "mode": "REAL",
             "status": "FAILED",
             "lifecycle": "FAILED",
-            "real_estimator_fits": 0,
-            "started_estimator_fits": 0,
-            "completed_estimator_fits": 0,
-            "failed_estimator_fits": 0,
-            "n_trials_completed": 0,
+            "real_estimator_fits": started_fits,  # Reconstructed confirmed started fits: NEVER 0 if fits started!
+            "started_estimator_fits": started_fits,
+            "completed_estimator_fits": completed_fits,
+            "failed_estimator_fits": failed_fits,
+            "interrupted_or_unknown_fits": interrupted_fits,
+            "n_trials_completed": w_res.get("n_trials_completed", completed_fits),
+            "trials_records": w_res.get("trials_records", []),
+            "fit_records": fit_records,
             "measured_wall_seconds": time.perf_counter() - t0_exec,
             "measured_peak_ram_mb": 0.0,
         }
-        # Try to read partial worker result if available
-        w_res_file = output_dir / "worker_result.json"
-        if w_res_file.is_file():
-            try:
-                w_res = json.loads(w_res_file.read_text(encoding="utf-8"))
-                report["real_estimator_fits"] = w_res.get("completed_estimator_fits", w_res.get("total_estimator_fits", 0))
-                report["started_estimator_fits"] = w_res.get("started_estimator_fits", 0)
-                report["completed_estimator_fits"] = w_res.get("completed_estimator_fits", 0)
-                report["failed_estimator_fits"] = w_res.get("failed_estimator_fits", 0)
-                report["n_trials_completed"] = w_res.get("n_trials_completed", 0)
-                report["trials_records"] = w_res.get("trials_records", [])
-                report["fit_records"] = w_res.get("fit_records", [])
-            except Exception:
-                pass
 
     # 6. Write evidence artifacts
     checksums = write_phase2_evidence_artifacts(
