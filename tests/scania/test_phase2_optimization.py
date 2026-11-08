@@ -14,6 +14,7 @@ Tests:
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import pytest
@@ -28,7 +29,8 @@ from src.scania.phase2_optimization import (
 from src.scania.phase2_executor import (
     REPO_ROOT, ExecutorBlocked, load_phase2_config, get_phase2_config_sha,
     execute_phase2_preflight_check, validate_phase2_authorization_record,
-    write_phase2_evidence_artifacts, verify_phase2_run
+    write_phase2_evidence_artifacts, verify_phase2_run,
+    G3_ACCEPTED_STABLE_DIGEST, G3_ACCEPTED_MANIFEST_FILE_SHA256,
 )
 from src.scania.g4_b2_executor import install_executor_io_guard, SafetyBlocked
 
@@ -104,24 +106,47 @@ def test_feasible_and_infeasible_candidates_and_tie_breaking():
 
 
 def test_fit_counter_enforcement_and_budget_limits():
-    """Verify FitCounter strictly prevents exceeding authorized fit budget."""
-    fc = FitCounter(max_fits=3)
-    assert fc.current_fits == 0
+    """Verify FitCounter strictly enforces pre-fit reservation and budget limits."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=3, durable_dir=durable_p)
+        assert fc.current_fits == 0
+        assert fc.started_fits == 0
+        assert fc.attempted_fits == 0
 
-    fc.record_fit("RandomForestClassifier", {"n_estimators": 20}, 0.5)
-    assert fc.current_fits == 1
-    fc.record_fit("RandomForestClassifier", {"n_estimators": 30}, 0.6)
-    assert fc.current_fits == 2
-    fc.record_fit("RandomForestClassifier", {"n_estimators": 40}, 0.7)
-    assert fc.current_fits == 3
+        # Fit 1
+        idx1 = fc.reserve_and_start_fit("RandomForestClassifier", {"n_estimators": 20}, trial_number=0)
+        assert idx1 == 1
+        assert fc.started_fits == 1
+        assert fc.attempted_fits == 1
+        assert fc.completed_fits == 0
+        assert (durable_p / "fit_001_started.json").is_file()
 
-    # Attempting 4th fit must fail closed
-    with pytest.raises(FitBudgetExceeded, match="MAX_REAL_FITS_EXCEEDED"):
-        fc.record_fit("RandomForestClassifier", {"n_estimators": 50}, 0.8)
+        fc.record_fit_completed(idx1, 0.5)
+        assert fc.completed_fits == 1
+        assert (durable_p / "fit_001_completed.json").is_file()
 
-    assert fc.current_fits == 3
-    assert fc.attempted_fits == 4
-    assert len(fc.fit_records) == 3
+        # Fit 2
+        idx2 = fc.reserve_and_start_fit("RandomForestClassifier", {"n_estimators": 30}, trial_number=1)
+        fc.record_fit_completed(idx2, 0.6)
+        assert fc.completed_fits == 2
+
+        # Fit 3: simulates failure / interruption
+        idx3 = fc.reserve_and_start_fit("RandomForestClassifier", {"n_estimators": 40}, trial_number=2)
+        assert fc.started_fits == 3
+        fc.record_fit_failed(idx3, "SimulatedWorkerInterruption")
+        assert fc.failed_fits == 1
+        assert fc.completed_fits == 2
+        assert (durable_p / "fit_003_failed.json").is_file()
+
+        # Attempting 4th fit must fail closed before starting
+        with pytest.raises(FitBudgetExceeded, match="MAX_REAL_FITS_EXCEEDED"):
+            fc.reserve_and_start_fit("RandomForestClassifier", {"n_estimators": 50}, trial_number=3)
+
+        assert fc.started_fits == 3
+        assert fc.attempted_fits == 4
+        assert fc.completed_fits == 2
+        assert fc.failed_fits == 1
 
 
 def test_optuna_objective_synthetic_deterministic_execution():
@@ -267,6 +292,8 @@ def test_cli_preflight_and_synthetic_invocation():
     assert (syn_dir / "trials_summary.csv").is_file()
     assert (syn_dir / "run_summary.json").is_file()
     assert verify_phase2_run(syn_dir) is True
+    import shutil
+    shutil.rmtree(syn_dir)
 
 
 def test_real_execution_rejection_without_owner_authorization():
@@ -294,4 +321,163 @@ def test_preservation_of_g3_and_g4_accepted_evidence():
     g4_fail_dir = REPO_ROOT / "results/scania_aps/g4/scania_g4_b2_real_001"
     assert g4_fail_dir.is_dir()
     assert (g4_fail_dir / "failure_diagnostics.json").is_file()
+
+
+def test_fit_reservation_before_training_and_failure_accounting():
+    """FIX 1: Verify fit reservation is durable BEFORE training, and failure accounting is strict."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=2, durable_dir=durable_p)
+
+        # Deliberately mismatched dimensions to trigger failure during model.fit()
+        x_tr = np.random.randn(20, 5)
+        y_tr = np.random.randint(0, 2, size=(30,))  # Dimension mismatch (20 vs 30)
+        x_val = np.random.randn(10, 5)
+        y_val = np.random.randint(0, 2, size=(10,))
+
+        rf_params = {"n_estimators": 20, "max_depth": 4, "min_samples_split": 2, "max_features": 0.5}
+
+        # Attempting fit should fail inside model.fit(), but reservation must have occurred!
+        with pytest.raises(Exception):
+            fit_and_evaluate_rf_trial(x_tr, y_tr, x_val, y_val, rf_params=rf_params, fit_counter=fc, trial_number=0)
+
+        # Check that reservation occurred before failure
+        assert fc.started_fits == 1
+        assert fc.failed_fits == 1
+        assert fc.completed_fits == 0
+        assert (durable_p / "fit_001_started.json").is_file()
+        assert (durable_p / "fit_001_failed.json").is_file()
+
+        # Started record must contain STARTED status
+        start_rec = json.loads((durable_p / "fit_001_started.json").read_text(encoding="utf-8"))
+        assert start_rec["status"] == "STARTED"
+        assert start_rec["fit_index"] == 1
+
+        # Failed record must contain FAILED status and error string
+        fail_rec = json.loads((durable_p / "fit_001_failed.json").read_text(encoding="utf-8"))
+        assert fail_rec["status"] == "FAILED"
+        assert fail_rec["error"] is not None
+
+
+def test_exact_owner_authorization_binding_and_limit_enforcement():
+    """FIX 2: Verify exact limits binding: no silent overrides to defaults, rejects excessive limits."""
+    # 1. Reject excessive max_trials (> 20)
+    auth_excessive_trials = {
+        "run_id": "test_auth_001",
+        "authorization_status": "AUTHORIZED",
+        "permitted_operation": "SYNTHETIC_OPTIMIZATION_TESTING_ONLY",
+        "owner_approval": {"reference": "SYNTHETIC_FIXTURE_APPROVED"},
+        "source_integrity": {"authorized_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()},
+        "locked_configuration": {"config_sha256": get_phase2_config_sha(REPO_ROOT)},
+        "g3_integrity": {
+            "stable_digest": G3_ACCEPTED_STABLE_DIGEST,
+            "manifest_file_sha256": G3_ACCEPTED_MANIFEST_FILE_SHA256,
+        },
+        "budget": {"max_trials": 25, "total_max_fits": 25, "fits_per_trial": 1},
+        "resource_limits": {"max_wall_seconds": 300, "max_ram_mb": 2048, "max_native_threads": 1},
+    }
+    with pytest.raises(ExecutorBlocked, match="INVALID_BUDGET_IN_RECORD"):
+        validate_phase2_authorization_record(auth_excessive_trials, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
+
+    # 2. Reject excessive RAM (> 2048 MB)
+    auth_excessive_ram = dict(auth_excessive_trials)
+    auth_excessive_ram["budget"] = {"max_trials": 10, "total_max_fits": 10, "fits_per_trial": 1}
+    auth_excessive_ram["resource_limits"] = {"max_wall_seconds": 300, "max_ram_mb": 4096, "max_native_threads": 1}
+    with pytest.raises(ExecutorBlocked, match="EXCESSIVE_RAM"):
+        validate_phase2_authorization_record(auth_excessive_ram, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
+
+    # 3. Reject excessive wall seconds (> 300s)
+    auth_excessive_wall = dict(auth_excessive_trials)
+    auth_excessive_wall["budget"] = {"max_trials": 10, "total_max_fits": 10, "fits_per_trial": 1}
+    auth_excessive_wall["resource_limits"] = {"max_wall_seconds": 600, "max_ram_mb": 2048, "max_native_threads": 1}
+    with pytest.raises(ExecutorBlocked, match="EXCESSIVE_WALL_TIME"):
+        validate_phase2_authorization_record(auth_excessive_wall, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
+
+    # 4. Valid lower limits are preserved exactly in approved_limits
+    auth_valid_lower = dict(auth_excessive_trials)
+    auth_valid_lower["budget"] = {"max_trials": 8, "total_max_fits": 8, "fits_per_trial": 1}
+    auth_valid_lower["resource_limits"] = {"max_wall_seconds": 150, "max_ram_mb": 1024, "max_native_threads": 1}
+    val_record = validate_phase2_authorization_record(auth_valid_lower, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
+
+    assert val_record["approved_limits"]["max_trials"] == 8
+    assert val_record["approved_limits"]["total_max_fits"] == 8
+    assert val_record["approved_limits"]["max_wall_seconds"] == 150
+    assert val_record["approved_limits"]["max_ram_mb"] == 1024
+
+
+def test_evidence_completeness_and_scientific_recalculation():
+    """FIX 3: Verify 10-file inventory, checksums, cost formula recalculation, and capacity constraint."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        out_p = Path(tmp_dir) / "test_run"
+        out_p.mkdir(parents=True)
+
+        # Generate a valid synthetic run
+        from scripts.run_scania_phase2 import run_synthetic_test
+        res = run_synthetic_test(root=REPO_ROOT, run_id="test_verify_syn_001", n_trials=3)
+        assert res == 0
+        syn_dir = REPO_ROOT / "results/scania_aps/phase2/test_verify_syn_001"
+        assert verify_phase2_run(syn_dir) is True
+
+        # Test A: Missing required file from 10-file inventory
+        import shutil
+        copy_dir = Path(tmp_dir) / "copy_run"
+        shutil.copytree(syn_dir, copy_dir)
+        (copy_dir / "best_policy.json").unlink()
+        assert verify_phase2_run(copy_dir) is False
+
+        # Test B: Tampered checksum
+        copy_dir2 = Path(tmp_dir) / "copy_run2"
+        shutil.copytree(syn_dir, copy_dir2)
+        (copy_dir2 / "execution.txt").write_text("TAMPERED", encoding="utf-8")
+        assert verify_phase2_run(copy_dir2) is False
+
+        # Test C: Tampered cost recalculation formula (10*FP + 500*FN)
+        copy_dir3 = Path(tmp_dir) / "copy_run3"
+        shutil.copytree(syn_dir, copy_dir3)
+        bp = json.loads((copy_dir3 / "best_policy.json").read_text(encoding="utf-8"))
+        bp["total_cost"] = bp["total_cost"] + 100  # Violates cost = 10*FP + 500*FN
+        (copy_dir3 / "best_policy.json").write_bytes(json.dumps(bp, indent=2).encode("utf-8"))
+        # Update checksum so checksum verification passes, but scientific check fails
+        from src.scania.contracts import digest
+        cs = json.loads((copy_dir3 / "checksums.json").read_text(encoding="utf-8"))
+        cs["best_policy.json"] = digest((copy_dir3 / "best_policy.json").read_bytes().replace(b"\r\n", b"\n"))
+        (copy_dir3 / "checksums.json").write_bytes(json.dumps(cs, indent=2).encode("utf-8"))
+        assert verify_phase2_run(copy_dir3) is False
+
+        # Test D: Tampered capacity recalculation (M != TP + FP or M > 1200)
+        copy_dir4 = Path(tmp_dir) / "copy_run4"
+        shutil.copytree(syn_dir, copy_dir4)
+        bp4 = json.loads((copy_dir4 / "best_policy.json").read_text(encoding="utf-8"))
+        bp4["M"] = 1500  # Violates capacity limit M <= 1200
+        (copy_dir4 / "best_policy.json").write_bytes(json.dumps(bp4, indent=2).encode("utf-8"))
+        cs4 = json.loads((copy_dir4 / "checksums.json").read_text(encoding="utf-8"))
+        cs4["best_policy.json"] = digest((copy_dir4 / "best_policy.json").read_bytes().replace(b"\r\n", b"\n"))
+        (copy_dir4 / "checksums.json").write_bytes(json.dumps(cs4, indent=2).encode("utf-8"))
+        assert verify_phase2_run(copy_dir4) is False
+
+        # Cleanup synthetic test dir
+        shutil.rmtree(syn_dir)
+
+
+def test_g3_hash_terminology_and_distinct_verification():
+    """FIX 4: Distinctly verify accepted G3 stable digest vs serialized manifest file SHA-256."""
+    assert G3_ACCEPTED_STABLE_DIGEST != G3_ACCEPTED_MANIFEST_FILE_SHA256
+    assert G3_ACCEPTED_STABLE_DIGEST == "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb"
+    assert G3_ACCEPTED_MANIFEST_FILE_SHA256 == "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242"
+
+    g3_manifest_file = REPO_ROOT / "results/scania_aps/g3/official_20261029_04/stable_manifest.json"
+    assert g3_manifest_file.is_file()
+
+    from src.scania.contracts import digest
+    raw_b = g3_manifest_file.read_bytes().replace(b"\r\n", b"\n")
+    assert digest(raw_b) == G3_ACCEPTED_MANIFEST_FILE_SHA256
+
+    data = json.loads(raw_b.decode("utf-8"))
+    assert data["stable_digest"] == G3_ACCEPTED_STABLE_DIGEST
+
+    # Preflight verifies both distinctly
+    pref = execute_phase2_preflight_check(REPO_ROOT)
+    assert pref["status"] == "PREFLIGHT_VERIFIED"
+    assert pref["g3_summary"]["stable_digest"] == G3_ACCEPTED_STABLE_DIGEST
+    assert pref["g3_summary"]["manifest_file_sha256"] == G3_ACCEPTED_MANIFEST_FILE_SHA256
 

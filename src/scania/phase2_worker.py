@@ -7,6 +7,7 @@ Execution constraints:
 - Allowlist I/O guard strictly enforced inside worker (Official Test sealed until G10).
 - Max 20 Optuna trials with exactly 1 real estimator fit per trial.
 - Measured timings, RAM telemetry, and trial lifecycle recorded truthfully.
+- Durable fit accounting: records fit reservation BEFORE model.fit() executes.
 """
 import json
 import os
@@ -64,8 +65,7 @@ def execute_worker():
 
     result_path = output_dir / "worker_result.json"
 
-    fits_count = 0
-    attempted_fits = 0
+    fit_counter = None
     trials_records = []
 
     try:
@@ -151,8 +151,10 @@ def execute_worker():
                 y_val[0], y_val[1] = 0, 1
                 capacity_limit = n_val // 10 if capacity_limit == 1200 else capacity_limit
 
-            # 9. Instantiate FitCounter
-            fit_counter = FitCounter(max_fits=max_fits)
+            # 9. Instantiate FitCounter with durable logging directory
+            durable_dir = output_dir / "durable_fits"
+            durable_dir.mkdir(parents=True, exist_ok=True)
+            fit_counter = FitCounter(max_fits=max_fits, durable_dir=durable_dir)
 
             # 10. Run Optuna Phase 2 trials
             t0_optuna = time.perf_counter()
@@ -164,8 +166,6 @@ def execute_worker():
                 seed=seed,
             )
             optuna_wall_sec = time.perf_counter() - t0_optuna
-            fits_count = fit_counter.current_fits
-            attempted_fits = fit_counter.attempted_fits
 
             # 11. Find best feasible trial
             feasible_trials = [t for t in trials_records if t["status"] == "FEASIBLE" and t.get("best_policy")]
@@ -183,8 +183,11 @@ def execute_worker():
                 "status": "PASS",
                 "mode": worker_mode,
                 "run_id": run_id,
-                "total_estimator_fits": fits_count,
-                "attempted_fits": attempted_fits,
+                "total_estimator_fits": fit_counter.completed_fits,
+                "started_estimator_fits": fit_counter.started_fits,
+                "completed_estimator_fits": fit_counter.completed_fits,
+                "failed_estimator_fits": fit_counter.failed_fits,
+                "attempted_fits": fit_counter.attempted_fits,
                 "n_trials_completed": len(study.trials),
                 "optuna_wall_seconds": optuna_wall_sec,
                 "best_trial": sanitize_for_strict_json(best_trial_rec),
@@ -201,15 +204,24 @@ def execute_worker():
         err_msg = str(exc)
         tb_str = traceback.format_exc()
 
+        started_fits = fit_counter.started_fits if fit_counter else 0
+        completed_fits = fit_counter.completed_fits if fit_counter else 0
+        failed_fits = fit_counter.failed_fits if fit_counter else 0
+        attempted_fits = fit_counter.attempted_fits if fit_counter else 0
+
         failure_record = {
             "status": "FAILED",
             "error_type": err_type,
             "reason": err_msg,
             "traceback": tb_str,
-            "total_estimator_fits": fits_count,
+            "total_estimator_fits": started_fits,
+            "started_estimator_fits": started_fits,
+            "completed_estimator_fits": completed_fits,
+            "failed_estimator_fits": failed_fits,
             "attempted_fits": attempted_fits,
             "n_trials_completed": len(trials_records),
             "trials_records": sanitize_for_strict_json(trials_records),
+            "fit_records": sanitize_for_strict_json(fit_counter.fit_records) if fit_counter else [],
             "validation_scored": False,
         }
         try:

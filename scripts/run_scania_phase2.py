@@ -37,7 +37,8 @@ from src.scania.phase2_executor import (
     load_phase2_config, get_phase2_config_sha,
     execute_phase2_preflight_check, validate_phase2_authorization_record,
     verify_g3_artifacts_and_build_allowlist, orchestrate_phase2_worker_in_job,
-    write_phase2_evidence_artifacts, verify_phase2_run
+    write_phase2_evidence_artifacts, verify_phase2_run,
+    G3_ACCEPTED_STABLE_DIGEST, G3_ACCEPTED_MANIFEST_FILE_SHA256,
 )
 
 
@@ -145,18 +146,25 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
     print("Validating GitHub Owner authorization record...")
     auth_record = validate_phase2_authorization_record(auth_file, expected_run_id=run_id, root=root, mode="REAL")
     print("Authorization verified successfully against GitHub comment and HEAD commit.")
+    approved_limits = auth_record["approved_limits"]
+    print(
+        f"  Approved limits bound: max_trials={approved_limits['max_trials']}, "
+        f"total_max_fits={approved_limits['total_max_fits']}, "
+        f"wall_seconds={approved_limits['max_wall_seconds']}, "
+        f"ram_mb={approved_limits['max_ram_mb']}"
+    )
 
     # 4. Verify G3 artifacts and build allowlist
     print("Verifying G3 data artifacts and building I/O allowlist...")
     allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, g3_run_id)
 
-    # 5. Build task config
+    # 5. Build task config using exact approved limits (Fix 2: no silent overrides)
     cfg = load_phase2_config(root)
     processed_dir = root / "data/processed/scania_aps" / g3_run_id
     task_config = {
         "mode": "REAL",
-        "n_trials": 20,
-        "max_fits": 20,
+        "n_trials": approved_limits["max_trials"],
+        "max_fits": approved_limits["total_max_fits"],
         "seed": 42,
         "capacity_limit": 1200,
         "membership_path": str(processed_dir / "membership.npz"),
@@ -170,7 +178,8 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
         "phase": "PHASE_2_CONSTRAINED_OPTIMIZATION",
         "run_id": run_id,
         "g3_input_run": g3_run_id,
-        "g3_manifest_sha256": g3_summary["source_sha256"],
+        "g3_stable_digest": G3_ACCEPTED_STABLE_DIGEST,
+        "g3_manifest_file_sha256": G3_ACCEPTED_MANIFEST_FILE_SHA256,
         "phase2_config_sha256": get_phase2_config_sha(root),
         "code_digest": code_digest(root),
     }
@@ -185,8 +194,8 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
             output_dir=output_dir,
             allowlist=list(allowlist),
             task_config=task_config,
-            wall_seconds=300,
-            ram_cap_bytes=2048 * 1024 * 1024,
+            wall_seconds=approved_limits["max_wall_seconds"],
+            ram_cap_bytes=approved_limits["max_ram_mb"] * 1024 * 1024,
             mode="REAL",
         )
         report["status"] = "COMPLETE"
@@ -201,6 +210,9 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
             "status": "FAILED",
             "lifecycle": "FAILED",
             "real_estimator_fits": 0,
+            "started_estimator_fits": 0,
+            "completed_estimator_fits": 0,
+            "failed_estimator_fits": 0,
             "n_trials_completed": 0,
             "measured_wall_seconds": time.perf_counter() - t0_exec,
             "measured_peak_ram_mb": 0.0,
@@ -210,9 +222,13 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
         if w_res_file.is_file():
             try:
                 w_res = json.loads(w_res_file.read_text(encoding="utf-8"))
-                report["real_estimator_fits"] = w_res.get("total_estimator_fits", 0)
+                report["real_estimator_fits"] = w_res.get("completed_estimator_fits", w_res.get("total_estimator_fits", 0))
+                report["started_estimator_fits"] = w_res.get("started_estimator_fits", 0)
+                report["completed_estimator_fits"] = w_res.get("completed_estimator_fits", 0)
+                report["failed_estimator_fits"] = w_res.get("failed_estimator_fits", 0)
                 report["n_trials_completed"] = w_res.get("n_trials_completed", 0)
                 report["trials_records"] = w_res.get("trials_records", [])
+                report["fit_records"] = w_res.get("fit_records", [])
             except Exception:
                 pass
 

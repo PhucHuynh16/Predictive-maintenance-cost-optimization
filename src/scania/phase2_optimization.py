@@ -16,12 +16,15 @@ Constraints & Contracts:
 - Threshold contract: P02 (actions = probability >= tau, exact ties preserved).
 - Threshold selection: evaluate all unique candidates in [0, 1] without refitting.
   Tie-breaking: (total_cost, M, -threshold).
+- Fit accounting: reserve and durable start record BEFORE model.fit().
+  Distinguish attempted, started, completed, and failed fits.
 - Data scope: Train (48,000) and Validation (12,000). Official Test SEALED UNTIL G10.
 - Strict JSON compliance: No NaN, Inf, or -Inf serialized.
 """
 from dataclasses import dataclass, field
 import json
 import math
+from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional, Tuple
 import warnings
@@ -47,28 +50,95 @@ class OptimizationError(RuntimeError):
 
 @dataclass
 class FitCounter:
-    """Atomic counter for model.fit() invocations."""
+    """Atomic counter for model.fit() invocations with strict state tracking and durability."""
     max_fits: int
-    current_fits: int = 0
     attempted_fits: int = 0
+    started_fits: int = 0
+    completed_fits: int = 0
+    failed_fits: int = 0
+    durable_dir: Optional[Path] = None
     fit_records: List[Dict[str, Any]] = field(default_factory=list)
 
-    def record_fit(self, estimator_name: str, params: Dict[str, Any], fit_seconds: float):
+    @property
+    def current_fits(self) -> int:
+        """Alias for completed_fits for backward compatibility."""
+        return self.completed_fits
+
+    def reserve_and_start_fit(
+        self, estimator_name: str, params: Dict[str, Any], trial_number: Optional[int] = None
+    ) -> int:
+        """Reserve and record an attempted/started fit BEFORE invoking model.fit().
+
+        Enforces:
+        - If started_fits >= max_fits: raises FitBudgetExceeded immediately.
+        - Increments attempted_fits and started_fits.
+        - Persists a durable start record to disk (if durable_dir is set).
+        """
         self.attempted_fits += 1
-        if self.current_fits >= self.max_fits:
+        if self.started_fits >= self.max_fits:
             raise FitBudgetExceeded(
-                f"MAX_REAL_FITS_EXCEEDED: Attempted fit {self.current_fits + 1} exceeds authorized budget of {self.max_fits}"
+                f"MAX_REAL_FITS_EXCEEDED: Cannot start fit {self.started_fits + 1}; authorized budget is {self.max_fits}"
             )
-        self.current_fits += 1
+        self.started_fits += 1
+        fit_index = self.started_fits
+
         record = {
-            "fit_index": self.current_fits,
+            "fit_index": fit_index,
+            "trial_number": trial_number,
             "estimator": estimator_name,
             "params": params,
-            "fit_seconds": fit_seconds,
-            "timestamp": time.time(),
+            "status": "STARTED",
+            "start_time": time.time(),
+            "end_time": None,
+            "fit_seconds": None,
+            "error": None,
         }
         self.fit_records.append(record)
-        return self.current_fits
+
+        if self.durable_dir:
+            try:
+                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_started.json"
+                p.write_bytes(json.dumps(record, indent=2).encode("utf-8"))
+            except Exception:
+                pass
+
+        return fit_index
+
+    def record_fit_completed(self, fit_index: int, fit_seconds: float) -> None:
+        """Record successful completion of a fit."""
+        self.completed_fits += 1
+        for rec in self.fit_records:
+            if rec["fit_index"] == fit_index:
+                rec["status"] = "COMPLETED"
+                rec["end_time"] = time.time()
+                rec["fit_seconds"] = fit_seconds
+                break
+
+        if self.durable_dir:
+            try:
+                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_completed.json"
+                rec_data = next((r for r in self.fit_records if r["fit_index"] == fit_index), {})
+                p.write_bytes(json.dumps(rec_data, indent=2).encode("utf-8"))
+            except Exception:
+                pass
+
+    def record_fit_failed(self, fit_index: int, error_msg: str) -> None:
+        """Record failure or interruption of a fit."""
+        self.failed_fits += 1
+        for rec in self.fit_records:
+            if rec["fit_index"] == fit_index:
+                rec["status"] = "FAILED"
+                rec["end_time"] = time.time()
+                rec["error"] = error_msg
+                break
+
+        if self.durable_dir:
+            try:
+                p = Path(self.durable_dir) / f"fit_{fit_index:03d}_failed.json"
+                rec_data = next((r for r in self.fit_records if r["fit_index"] == fit_index), {})
+                p.write_bytes(json.dumps(rec_data, indent=2).encode("utf-8"))
+            except Exception:
+                pass
 
 
 def enumerate_threshold_candidates(probs: np.ndarray) -> np.ndarray:
@@ -115,7 +185,6 @@ def evaluate_threshold_candidates_vectorized(
     y_sorted = y[order]
 
     # searchsorted with side='left' gives the index of first element >= tau
-    # Since p_sorted is ascending, elements from idx to end have p >= tau
     idx = np.searchsorted(p_sorted, thresholds, side="left")
     m = n - idx
 
@@ -148,7 +217,6 @@ def evaluate_threshold_candidates_vectorized(
     tie_indices = [i for i in feasible_indices if cost[i] == min_cost]
 
     # Tie-breaking contract: prefer lower M, then higher threshold
-    # Sort key: (m[i], -thresholds[i])
     best_idx = min(tie_indices, key=lambda i: (int(m[i]), -float(thresholds[i])))
 
     best_tau = float(thresholds[best_idx])
@@ -214,8 +282,9 @@ def fit_and_evaluate_rf_trial(
     rf_params: Dict[str, Any],
     fit_counter: FitCounter,
     capacity_limit: int = 1200,
+    trial_number: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Execute a single trial evaluation: 1 Train fit, 1 Validation predict, P02 threshold search."""
+    """Execute a single trial evaluation with strict fit reservation BEFORE training."""
     y_train = binary_vector(y_train, "train_labels")
     y_val = binary_vector(y_val, "val_labels")
 
@@ -235,14 +304,20 @@ def fit_and_evaluate_rf_trial(
         if inst_params.get(k) != v:
             raise OptimizationError(f"PARAM_INSTANTIATION_MISMATCH: {k}={inst_params.get(k)}, expected {v}")
 
-    t0_fit = time.perf_counter()
-    with warnings.catch_warnings(record=True) as caught_warnings:
-        warnings.simplefilter("always")
-        model.fit(x_train, y_train)
-    fit_sec = time.perf_counter() - t0_fit
+    # FIX 1: Reserve and durable record started fit BEFORE model.fit() is invoked
+    fit_index = fit_counter.reserve_and_start_fit("RandomForestClassifier", rf_params, trial_number=trial_number)
 
-    # Record fit in atomic counter
-    fit_index = fit_counter.record_fit("RandomForestClassifier", rf_params, fit_sec)
+    t0_fit = time.perf_counter()
+    try:
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            model.fit(x_train, y_train)
+        fit_sec = time.perf_counter() - t0_fit
+        # Record completion
+        fit_counter.record_fit_completed(fit_index, fit_sec)
+    except Exception as exc:
+        fit_counter.record_fit_failed(fit_index, str(exc))
+        raise
 
     classes = list(model.classes_)
     if classes != [0, 1]:
@@ -323,6 +398,7 @@ def run_optuna_phase2_trials(
             rf_params=rf_params,
             fit_counter=fit_counter,
             capacity_limit=capacity_limit,
+            trial_number=trial.number,
         )
 
         eval_res = trial_result["evaluation"]

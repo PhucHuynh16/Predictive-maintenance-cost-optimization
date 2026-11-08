@@ -40,6 +40,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PHASE2_CONFIG_PATH = REPO_ROOT / "configs/scania/phase2_optimization.json"
 ACCEPTED_G3_MANIFEST_PATH = REPO_ROOT / "results/scania_aps/g3/official_20261029_04/stable_manifest.json"
 
+# Fixed G3 Accepted Reference Hashes
+G3_ACCEPTED_RUN_ID = "official_20261029_04"
+G3_ACCEPTED_STABLE_DIGEST = "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb"
+G3_ACCEPTED_MANIFEST_FILE_SHA256 = "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242"
+
 
 def load_phase2_config(root=REPO_ROOT) -> Dict[str, Any]:
     """Load and validate locked Phase 2 configuration."""
@@ -83,9 +88,18 @@ def verify_phase2_owner_approval_reference(ref: str, expected_record: Optional[D
 
     ref = ref.strip()
     if mode == "SYNTHETIC":
-        if ref.startswith("SYNTHETIC_FIXTURE_"):
-            return True
-        if ref.startswith("https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/"):
+        if ref.startswith("SYNTHETIC_FIXTURE_") or ref.startswith("https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/"):
+            if expected_record is not None:
+                rec_budget = expected_record.get("budget", {})
+                rec_limits = expected_record.get("resource_limits", {})
+                expected_record["_verified_owner_limits"] = {
+                    "max_trials": int(rec_budget.get("max_trials", 5)),
+                    "total_max_fits": int(rec_budget.get("total_max_fits", 5)),
+                    "fits_per_trial": int(rec_budget.get("fits_per_trial", 1)),
+                    "max_wall_seconds": int(rec_limits.get("max_wall_seconds", 60)),
+                    "max_ram_mb": int(rec_limits.get("max_ram_mb", 1024)),
+                    "max_native_threads": int(rec_limits.get("max_native_threads", 1)),
+                }
             return True
         raise ExecutorBlocked(f"INVALID_SYNTHETIC_APPROVAL_REFERENCE: {ref}")
 
@@ -235,6 +249,29 @@ def verify_phase2_owner_approval_reference(ref: str, expected_record: Optional[D
             if exp_run_id and run_id_val != exp_run_id:
                 raise ExecutorBlocked(f"COMMENT_RUN_ID_MISMATCH: Comment target run ID '{run_id_val}' != expected '{exp_run_id}'")
 
+            rec_budget = expected_record.get("budget", {})
+            if "max_trials" in rec_budget and int(rec_budget["max_trials"]) != max_trials:
+                raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment max_trials={max_trials} != record {rec_budget['max_trials']}")
+            if "total_max_fits" in rec_budget and int(rec_budget["total_max_fits"]) != total_fits:
+                raise ExecutorBlocked(f"COMMENT_BUDGET_MISMATCH: Comment total_max_fits={total_fits} != record {rec_budget['total_max_fits']}")
+
+            rec_limits = expected_record.get("resource_limits", {})
+            if "max_wall_seconds" in rec_limits and int(rec_limits["max_wall_seconds"]) != wall_sec:
+                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_wall_seconds={wall_sec} != record {rec_limits['max_wall_seconds']}")
+            if "max_ram_mb" in rec_limits and int(rec_limits["max_ram_mb"]) != ram_mb:
+                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_ram_mb={ram_mb} != record {rec_limits['max_ram_mb']}")
+            if "max_native_threads" in rec_limits and int(rec_limits["max_native_threads"]) != threads:
+                raise ExecutorBlocked(f"COMMENT_LIMITS_MISMATCH: Comment max_native_threads={threads} != record {rec_limits['max_native_threads']}")
+
+            expected_record["_verified_owner_limits"] = {
+                "max_trials": max_trials,
+                "total_max_fits": total_fits,
+                "fits_per_trial": fits_per_trial,
+                "max_wall_seconds": wall_sec,
+                "max_ram_mb": ram_mb,
+                "max_native_threads": threads,
+            }
+
     except Exception as exc:
         if isinstance(exc, ExecutorBlocked):
             raise
@@ -298,32 +335,93 @@ def validate_phase2_authorization_record(
         raise ExecutorBlocked(f"SOURCE_HEAD_MISMATCH: Authorization commit {auth_commit} != repository HEAD {actual_head}")
 
     # 6. Bound configuration hash
+    cfg = load_phase2_config(root)
+    actual_cfg_sha = get_phase2_config_sha(root)
     locked_cfg = record.get("locked_configuration", {})
     expected_cfg_sha = locked_cfg.get("config_sha256")
-    actual_cfg_sha = get_phase2_config_sha(root)
     if not expected_cfg_sha or expected_cfg_sha.lower() != actual_cfg_sha.lower():
         raise ExecutorBlocked(f"PHASE2_CONFIG_HASH_MISMATCH: Authorization expects {expected_cfg_sha}, actual is {actual_cfg_sha}")
 
-    # 7. Bound G3 manifest hash
-    g3_int = record.get("g3_integrity", {})
-    expected_g3_manifest_sha = g3_int.get("manifest_sha256")
-    g3_manifest_file = root / "results/scania_aps/g3/official_20261029_04/stable_manifest.json"
+    # 7. Bound G3 manifest hash and stable digest (Fix 4: distinct verification)
+    g3_manifest_file = root / "results/scania_aps/g3" / G3_ACCEPTED_RUN_ID / "stable_manifest.json"
     if not g3_manifest_file.is_file():
         raise ExecutorBlocked("ACCEPTED_G3_MANIFEST_FILE_MISSING")
-    actual_g3_manifest_sha = digest(g3_manifest_file.read_bytes().replace(b"\r\n", b"\n"))
-    if not expected_g3_manifest_sha or expected_g3_manifest_sha.lower() != actual_g3_manifest_sha.lower():
-        raise ExecutorBlocked(f"G3_MANIFEST_HASH_MISMATCH: Expected {expected_g3_manifest_sha}, got {actual_g3_manifest_sha}")
 
-    # 8. Budget verification
-    budget = record.get("budget", {})
-    max_trials = int(budget.get("max_trials", 0))
-    total_max_fits = int(budget.get("total_max_fits", 0))
-    fits_per_trial = int(budget.get("fits_per_trial", 1))
+    # A. Verify serialized manifest file SHA-256
+    actual_manifest_file_sha = digest(g3_manifest_file.read_bytes().replace(b"\r\n", b"\n"))
+    if actual_manifest_file_sha.lower() != G3_ACCEPTED_MANIFEST_FILE_SHA256.lower():
+        raise ExecutorBlocked(f"G3_MANIFEST_FILE_SHA_MISMATCH: File hash {actual_manifest_file_sha} != expected {G3_ACCEPTED_MANIFEST_FILE_SHA256}")
 
-    if max_trials > 20 or total_max_fits > 20 or fits_per_trial != 1:
-        raise ExecutorBlocked(
-            f"INVALID_BUDGET_IN_RECORD: max_trials={max_trials}, total_max_fits={total_max_fits}, fits_per_trial={fits_per_trial}"
-        )
+    g3_int = record.get("g3_integrity", {})
+    expected_manifest_file_sha = g3_int.get("manifest_file_sha256") or g3_int.get("manifest_sha256")
+    if expected_manifest_file_sha and expected_manifest_file_sha.lower() != G3_ACCEPTED_MANIFEST_FILE_SHA256.lower():
+        raise ExecutorBlocked(f"RECORD_G3_MANIFEST_FILE_SHA_MISMATCH: Record expects {expected_manifest_file_sha}, accepted is {G3_ACCEPTED_MANIFEST_FILE_SHA256}")
+
+    # B. Verify parsed stable_digest field inside JSON
+    try:
+        g3_manifest_data = json.loads(g3_manifest_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ExecutorBlocked(f"INVALID_G3_MANIFEST_JSON: {exc}")
+
+    actual_stable_digest = str(g3_manifest_data.get("stable_digest") or "").lower()
+    if actual_stable_digest != G3_ACCEPTED_STABLE_DIGEST.lower():
+        raise ExecutorBlocked(f"G3_STABLE_DIGEST_MISMATCH: Manifest stable_digest {actual_stable_digest} != accepted {G3_ACCEPTED_STABLE_DIGEST}")
+
+    expected_stable_digest = g3_int.get("stable_digest")
+    if expected_stable_digest and expected_stable_digest.lower() != G3_ACCEPTED_STABLE_DIGEST.lower():
+        raise ExecutorBlocked(f"RECORD_G3_STABLE_DIGEST_MISMATCH: Record expects stable_digest {expected_stable_digest}, accepted is {G3_ACCEPTED_STABLE_DIGEST}")
+
+    # C. Verify config itself declares the correct distinct hashes
+    cfg_stable_digest = str(cfg.get("data", {}).get("g3_stable_digest") or "").lower()
+    if cfg_stable_digest != G3_ACCEPTED_STABLE_DIGEST.lower():
+        raise ExecutorBlocked(f"CONFIG_G3_STABLE_DIGEST_MISMATCH: Config has {cfg_stable_digest}, expected {G3_ACCEPTED_STABLE_DIGEST}")
+
+    cfg_manifest_file_sha = str(cfg.get("data", {}).get("g3_manifest_file_sha256") or "").lower()
+    if cfg_manifest_file_sha != G3_ACCEPTED_MANIFEST_FILE_SHA256.lower():
+        raise ExecutorBlocked(f"CONFIG_G3_MANIFEST_FILE_SHA_MISMATCH: Config has {cfg_manifest_file_sha}, expected {G3_ACCEPTED_MANIFEST_FILE_SHA256}")
+
+    # 8. Budget & Resource Limits verification (Fix 2: enforce exact approved limits, no silent overrides)
+    rec_budget = record.get("budget", {})
+    rec_limits = record.get("resource_limits", {})
+
+    cfg_max_trials = int(cfg["budget"]["max_trials"])
+    cfg_max_fits = int(cfg["budget"]["total_max_fits"])
+    cfg_max_wall = int(cfg["resources"]["max_wall_seconds"])
+    cfg_max_ram = int(cfg["resources"]["max_ram_mb"])
+
+    max_trials = int(rec_budget.get("max_trials", 0))
+    total_max_fits = int(rec_budget.get("total_max_fits", 0))
+    fits_per_trial = int(rec_budget.get("fits_per_trial", 1))
+
+    max_wall_seconds = int(rec_limits.get("max_wall_seconds", cfg_max_wall))
+    max_ram_mb = int(rec_limits.get("max_ram_mb", cfg_max_ram))
+    max_native_threads = int(rec_limits.get("max_native_threads", 1))
+
+    if max_trials <= 0 or max_trials > cfg_max_trials:
+        raise ExecutorBlocked(f"INVALID_BUDGET_IN_RECORD: max_trials={max_trials} must be 1..{cfg_max_trials}")
+    if total_max_fits <= 0 or total_max_fits > cfg_max_fits:
+        raise ExecutorBlocked(f"INVALID_BUDGET_IN_RECORD: total_max_fits={total_max_fits} must be 1..{cfg_max_fits}")
+    if fits_per_trial != 1:
+        raise ExecutorBlocked(f"INVALID_BUDGET_IN_RECORD: fits_per_trial must be 1, got {fits_per_trial}")
+    if total_max_fits < max_trials:
+        raise ExecutorBlocked(f"INSUFFICIENT_FITS_BUDGET: total_max_fits={total_max_fits} < max_trials={max_trials}")
+
+    if max_wall_seconds <= 0 or max_wall_seconds > cfg_max_wall:
+        raise ExecutorBlocked(f"EXCESSIVE_WALL_TIME: max_wall_seconds={max_wall_seconds} exceeds config limit {cfg_max_wall}")
+    if max_ram_mb <= 0 or max_ram_mb > cfg_max_ram:
+        raise ExecutorBlocked(f"EXCESSIVE_RAM: max_ram_mb={max_ram_mb} exceeds config limit {cfg_max_ram}")
+    if max_native_threads != 1:
+        raise ExecutorBlocked(f"INVALID_THREADS: max_native_threads must be exactly 1, got {max_native_threads}")
+
+    approved_limits = {
+        "max_trials": max_trials,
+        "total_max_fits": total_max_fits,
+        "fits_per_trial": fits_per_trial,
+        "max_wall_seconds": max_wall_seconds,
+        "max_ram_mb": max_ram_mb,
+        "max_native_threads": max_native_threads,
+    }
+    record["approved_limits"] = approved_limits
 
     return record
 
@@ -357,7 +455,27 @@ def execute_phase2_preflight_check(root=REPO_ROOT, g3_run_id="official_20261029_
     cfg_sha = get_phase2_config_sha(root)
 
     # 3. G3 data verification and allowlist building
+    g3_manifest_file = root / "results/scania_aps/g3" / g3_run_id / "stable_manifest.json"
+    if not g3_manifest_file.is_file():
+        raise ExecutorBlocked("ACCEPTED_G3_MANIFEST_FILE_MISSING")
+
+    manifest_file_sha = digest(g3_manifest_file.read_bytes().replace(b"\r\n", b"\n"))
+    if manifest_file_sha.lower() != G3_ACCEPTED_MANIFEST_FILE_SHA256.lower():
+        raise ExecutorBlocked(f"G3_MANIFEST_FILE_SHA_MISMATCH: {manifest_file_sha} != {G3_ACCEPTED_MANIFEST_FILE_SHA256}")
+
+    g3_manifest_data = json.loads(g3_manifest_file.read_text(encoding="utf-8"))
+    stable_digest_val = str(g3_manifest_data.get("stable_digest") or "").lower()
+    if stable_digest_val != G3_ACCEPTED_STABLE_DIGEST.lower():
+        raise ExecutorBlocked(f"G3_STABLE_DIGEST_MISMATCH: {stable_digest_val} != {G3_ACCEPTED_STABLE_DIGEST}")
+
+    if str(cfg.get("data", {}).get("g3_stable_digest") or "").lower() != G3_ACCEPTED_STABLE_DIGEST.lower():
+        raise ExecutorBlocked("CONFIG_G3_STABLE_DIGEST_MISMATCH")
+    if str(cfg.get("data", {}).get("g3_manifest_file_sha256") or "").lower() != G3_ACCEPTED_MANIFEST_FILE_SHA256.lower():
+        raise ExecutorBlocked("CONFIG_G3_MANIFEST_FILE_SHA_MISMATCH")
+
     allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, g3_run_id)
+    g3_summary["stable_digest"] = stable_digest_val
+    g3_summary["manifest_file_sha256"] = manifest_file_sha
 
     # 4. Check git HEAD commit
     proc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True)
@@ -455,13 +573,18 @@ def orchestrate_phase2_worker_in_job(
         raise ExecutorFailure(f"PHASE2_WORKER_FAILED: {err_msg}", worker_result=worker_result)
 
     is_real = (mode == "REAL")
+    total_fits = worker_result.get("total_estimator_fits", 0)
     report = {
         "run_id": run_id,
         "mode": mode,
         "status": "COMPLETE",
         "lifecycle": "COMPLETE",
-        "real_estimator_fits": worker_result["total_estimator_fits"] if is_real else 0,
-        "synthetic_estimator_fits": worker_result["total_estimator_fits"] if not is_real else 0,
+        "real_estimator_fits": total_fits if is_real else 0,
+        "synthetic_estimator_fits": total_fits if not is_real else 0,
+        "started_estimator_fits": worker_result.get("started_estimator_fits", total_fits),
+        "completed_estimator_fits": worker_result.get("completed_estimator_fits", total_fits),
+        "failed_estimator_fits": worker_result.get("failed_estimator_fits", 0),
+        "attempted_fits": worker_result.get("attempted_fits", total_fits),
         "n_trials_completed": worker_result["n_trials_completed"],
         "best_trial": worker_result.get("best_trial"),
         "trials_records": worker_result.get("trials_records", []),
@@ -481,11 +604,25 @@ def write_phase2_evidence_artifacts(
     manifest_data: Dict[str, Any],
     errors: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, str]:
-    """Write all required evidence artifacts and compute LF-normalized SHA-256 checksums."""
+    """Write all 10 required evidence artifacts and compute LF-normalized SHA-256 checksums."""
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     errors = errors or []
+    has_errors = len(errors) > 0
+    has_best_policy = bool(report.get("best_trial") and report.get("best_trial", {}).get("best_policy"))
+    n_trials = report.get("n_trials_completed", 0)
+
+    # Explicit lifecycle distinction: COMPLETE vs PARTIAL vs FAILED
+    if has_errors or report.get("status") == "FAILED" or report.get("lifecycle") == "FAILED":
+        final_status = "FAILED"
+    elif not has_best_policy or n_trials == 0:
+        final_status = "PARTIAL"
+    else:
+        final_status = "COMPLETE"
+
+    report["status"] = final_status
+    report["lifecycle"] = final_status
 
     # 1. Config
     (output_dir / "config.json").write_bytes(json.dumps(config, indent=2).encode("utf-8"))
@@ -497,7 +634,9 @@ def write_phase2_evidence_artifacts(
     (output_dir / "stable_manifest.json").write_bytes(json.dumps(manifest_data, indent=2).encode("utf-8"))
 
     # 4. Failure diagnostics
-    (output_dir / "failure_diagnostics.json").write_bytes(json.dumps({"errors": errors}, indent=2).encode("utf-8"))
+    (output_dir / "failure_diagnostics.json").write_bytes(
+        json.dumps({"status": final_status, "errors": errors}, indent=2).encode("utf-8")
+    )
 
     # 5. Best policy
     best_trial = report.get("best_trial")
@@ -508,7 +647,7 @@ def write_phase2_evidence_artifacts(
     study_summary = {
         "run_id": report["run_id"],
         "mode": report["mode"],
-        "n_trials_completed": report.get("n_trials_completed", 0),
+        "n_trials_completed": n_trials,
         "best_trial": best_trial,
         "trials": report.get("trials_records", []),
     }
@@ -562,7 +701,8 @@ def write_phase2_evidence_artifacts(
         f"status={report['status']}",
         f"lifecycle={report['lifecycle']}",
         f"real_estimator_fits={report.get('real_estimator_fits', 0)}",
-        f"n_trials_completed={report.get('n_trials_completed', 0)}",
+        f"synthetic_estimator_fits={report.get('synthetic_estimator_fits', 0)}",
+        f"n_trials_completed={n_trials}",
         f"wall_seconds={report.get('measured_wall_seconds', 0.0):.4f}",
         f"peak_ram_mb={report.get('measured_peak_ram_mb', 0.0):.2f}",
     ]
@@ -580,17 +720,156 @@ def write_phase2_evidence_artifacts(
 
 
 def verify_phase2_run(output_dir: Path) -> bool:
-    """Cryptographically verify all artifacts of a completed Phase 2 run."""
+    """Cryptographically and scientifically verify all artifacts of a Phase 2 run.
+
+    Verifies:
+    1. Complete inventory of 10 required artifacts exists.
+    2. Checksums in checksums.json match LF-normalized file hashes.
+    3. Status is valid (COMPLETE, PARTIAL, or FAILED).
+    4. optuna_study.json and trials_summary.csv trial count consistency.
+    5. failure_diagnostics.json error consistency with status.
+    6. For COMPLETE runs:
+       - best_policy.json is present, non-empty, and valid.
+       - Recomputes benchmark cost exactly: 10*FP + 500*FN.
+       - Recomputes maintenance capacity exactly: M = TP + FP <= 1200.
+       - Confirms best_policy matches minimum feasible trial in optuna_study.json.
+       - Fit count matches completed trial count.
+    """
     output_dir = Path(output_dir).resolve()
-    checksums_file = output_dir / "checksums.json"
-    if not checksums_file.is_file():
+    if not output_dir.is_dir():
         return False
-    checksums = json.loads(checksums_file.read_text(encoding="utf-8"))
-    for fname, expected_hash in checksums.items():
-        p = output_dir / fname
-        if not p.is_file():
+
+    required_files = [
+        "config.json",
+        "environment.json",
+        "stable_manifest.json",
+        "failure_diagnostics.json",
+        "best_policy.json",
+        "optuna_study.json",
+        "trials_summary.csv",
+        "run_summary.json",
+        "execution.txt",
+        "checksums.json",
+    ]
+
+    # 1. Check complete inventory of 10 required artifacts
+    for fname in required_files:
+        if not (output_dir / fname).is_file():
             return False
-        raw_b = p.read_bytes().replace(b"\r\n", b"\n")
+
+    # 2. Check checksums.json matches all files
+    checksums_file = output_dir / "checksums.json"
+    try:
+        checksums = json.loads(checksums_file.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+    for fname in required_files:
+        if fname == "checksums.json":
+            continue
+        if fname not in checksums:
+            return False
+        expected_hash = checksums[fname]
+        raw_b = (output_dir / fname).read_bytes().replace(b"\r\n", b"\n")
         if digest(raw_b) != expected_hash:
             return False
+
+    # 3. Load run_summary.json
+    try:
+        run_sum = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+    status = run_sum.get("status")
+    if status not in {"COMPLETE", "PARTIAL", "FAILED"}:
+        return False
+
+    n_trials_completed = int(run_sum.get("n_trials_completed", 0))
+
+    # 4. Load failure_diagnostics.json
+    try:
+        diag = json.loads((output_dir / "failure_diagnostics.json").read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+    errors = diag.get("errors", [])
+    if status == "COMPLETE" and len(errors) > 0:
+        return False
+    if status == "FAILED" and len(errors) == 0:
+        return False
+
+    # 5. Load optuna_study.json
+    try:
+        study = json.loads((output_dir / "optuna_study.json").read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+    study_trials = study.get("trials", [])
+    if len(study_trials) != n_trials_completed:
+        return False
+    if study.get("n_trials_completed") != n_trials_completed:
+        return False
+
+    # 6. Check trials_summary.csv rows
+    try:
+        with open(output_dir / "trials_summary.csv", "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            csv_rows = [row for row in reader if row]
+    except Exception:
+        return False
+
+    if len(csv_rows) != n_trials_completed:
+        return False
+
+    # 7. Scientific & policy validation for COMPLETE runs
+    if status == "COMPLETE":
+        # Fit count consistency: each trial performed exactly 1 fit
+        is_real = (run_sum.get("mode") == "REAL")
+        fits = run_sum.get("real_estimator_fits", 0) if is_real else run_sum.get("synthetic_estimator_fits", 0)
+        if fits != n_trials_completed:
+            return False
+
+        # Load best_policy.json
+        try:
+            best_pol = json.loads((output_dir / "best_policy.json").read_text(encoding="utf-8"))
+        except Exception:
+            return False
+
+        if not best_pol or not isinstance(best_pol, dict):
+            return False
+
+        for k in ["FP", "FN", "TP", "TN", "M", "total_cost", "threshold"]:
+            if k not in best_pol:
+                return False
+
+        fp = int(best_pol["FP"])
+        fn = int(best_pol["FN"])
+        tp = int(best_pol["TP"])
+        cost = int(best_pol["total_cost"])
+        m = int(best_pol["M"])
+
+        # Cost recalculation formula: 10*FP + 500*FN
+        expected_cost = 10 * fp + 500 * fn
+        if cost != expected_cost:
+            return False
+
+        # Capacity recalculation formula: M = TP + FP
+        expected_m = tp + fp
+        if m != expected_m:
+            return False
+
+        # Capacity feasibility: M <= 1200
+        if m > 1200:
+            return False
+
+        # Check match with best feasible trial in study
+        feasible_trials = [t for t in study_trials if t.get("status") == "FEASIBLE" and t.get("best_policy")]
+        if not feasible_trials:
+            return False
+
+        min_study_cost = min(t["objective_value"] for t in feasible_trials)
+        if cost != int(min_study_cost):
+            return False
+
     return True
