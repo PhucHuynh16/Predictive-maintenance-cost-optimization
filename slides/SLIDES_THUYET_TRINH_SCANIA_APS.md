@@ -1,101 +1,95 @@
-# SLIDES BÁO CÁO: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN XE TẢI NẶNG SCANIA APS (UCI 421)
+# SLIDES THUYẾT TRÌNH BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (7 SLIDES)
+
+**Đề tài:** Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)  
+**Sinh viên:** Huỳnh Phúc — Khoa Công nghệ Thông tin, Trường Đại học Văn Lang  
+**Thời lượng báo cáo:** 5–7 phút  
 
 ---
 
-## SLIDE 1: TIÊU ĐỀ ĐỀ TÀI
-- **Đề tài:** Tối ưu hóa chi phí bảo trì dự đoán hệ thống khí nén (APS) trên xe tải nặng Scania (UCI 421)
-- **Môn học:** Nhập môn Tối ưu hóa — HK1/2026–2027
-- **Học viên thực hiện:** Nhóm nghiên cứu Scania APS Cost Optimization
-- **Mục tiêu:** Cực tiểu hóa tổng chi phí bảo dưỡng phi đối xứng dưới ràng buộc năng lực xưởng $M \le \lfloor N/10 \rfloor$.
+## SLIDE 1: TỔNG QUAN & BỐI CẢNH BÀI TOÁN
+
+- **Bài toán công nghiệp:** Chẩn đoán hư hỏng hệ thống khí nén (Air Pressure System - APS) trên xe tải hạng nặng Scania (UCI Dataset #421: 60.000 mẫu Train, 16.000 mẫu Test, 170 thuộc tính cảm biến ẩn danh).
+- **Ngữ nghĩa dữ liệu chuẩn (UCI Interpretation):**
+  - **Lớp dương tính ($y=1$):** Xe hỏng hóc thực sự do lỗi hệ thống APS ($1.67\%$).
+  - **Lớp âm tính ($y=0$):** Xe vào xưởng do hỏng hóc ở các **bộ phận KHÁC không thuộc APS** (không phải xe hoàn toàn khỏe mạnh).
+- **Mục tiêu tối ưu:** Xác định chính sách can thiệp kiểm tra nhằm **cực tiểu hóa tổng chi phí benchmark**, đồng thời **thỏa mãn ràng buộc năng lực tiếp nhận của xưởng**.
 
 ---
 
-## SLIDE 2: BỐI CẢNH & TÍNH CẤP THIẾT
-- **Hệ thống khí nén (APS):** Cung cấp khí nén cho hệ thống phanh, ly hợp, hệ thống treo trên xe tải nặng.
-- **Rủi ro vận hành:** Lỗi APS dọc đường gây chết máy, sự cố an toàn nghiêm trọng, chi phí cứu hộ và trễ hạn hợp đồng vận tải rất đắt.
-- **Vấn đề dữ liệu:**
-  - 60.000 mẫu xe trong tập huấn luyện.
-  - Tỷ lệ lỗi cực hiếm: $1.67\%$ (1.000 xe hỏng / 60.000 xe).
-  - 170 thuộc tính cảm biến bị ẩn danh với tỷ lệ khuyết thiếu cao.
+## SLIDE 2: MÔ HÌNH HÓA TOÁN HỌC & HÀM MỤC TIÊU PHI ĐỐI XỨNG
+
+- **Biến quyết định:** Vector can thiệp $A \in \{0, 1\}^N$ thông qua ngưỡng phân loại $\tau \in (0, 1)$ và siêu tham số mô hình $\theta$:
+  $$a_i(\theta, \tau) = \mathbb{I}[P(y_i = 1 \mid x_i; \theta) \ge \tau]$$
+- **Hàm mục tiêu (Ma trận chi phí benchmark):**
+  - Chi phí kiểm tra thừa ($FP$, hỏng bộ phận khác nhưng tháo kiểm tra APS): **$10$ đơn vị chi phí**.
+  - Chi phí sự cố dọc đường ($FN$, bỏ sót lỗi APS dẫn đến chết máy): **$500$ đơn vị chi phí** (tỷ lệ $50:1$).
+  - Chi phí khi xử lý đúng ($TN = 0$, $TP = 0$).
+  $$\min_{\theta, \tau} \quad f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \quad [\text{đơn vị chi phí benchmark}]$$
+- *Lưu ý:* Chi phí mang tính quy ước chuẩn hóa (benchmark cost units), không phải giá trị tiền tệ thực tế (USD/VND).
 
 ---
 
-## SLIDE 3: BÀI TOÁN TỐI ƯU HÓA CHI PHÍ PHI ĐỐI XỨNG
-- **Ma trận chi phí:**
-  - $C_{TN} = 0$: Xe tốt, không báo lỗi.
-  - $C_{TP} = 0$: Xe hỏng, sửa chữa đúng bệnh kịp thời.
-  - $C_{FP} = 10$: Xe tốt nhưng báo động nhầm $\rightarrow$ Chi phí kiểm tra định kỳ tại xưởng.
-  - $C_{FN} = 500$: Xe hỏng nhưng bỏ sót $\rightarrow$ Xe chết máy dọc đường, chi phí cứu hộ khẩn cấp.
-- **Tỷ lệ tổn thất:** $C_{FN} / C_{FP} = 500 / 10 = 50:1$.
-- **Hàm mục tiêu:**
-  $$\min \text{Total Cost} = 10 \cdot FP + 500 \cdot FN$$
+## SLIDE 3: RÀNG BUỘC CÔNG SUẤT XƯỞNG & ĐÁNH ĐỔI VẬN HÀNH
+
+- **Giả định ràng buộc năng lực xưởng (Maintenance Capacity Assumption):**
+  - Đề tài thiết lập giả định kịch bản vận hành: số lượt xe được đưa vào kiểm tra APS ($M = TP + FP$) trong một chu kỳ không vượt quá **10% quy mô phân vùng**:
+    $$M(\theta, \tau) = TP + FP \le K = \left\lfloor \frac{N}{10} \right\rfloor$$
+  - Trên tập Validation ($N = 12.000$ mẫu): $K_{\text{val}} = 1.200$ lượt xe.
+- **Sự đánh đổi cốt lõi (Core Trade-off):**
+  - Giảm ngưỡng $\tau \to 0$ để bắt hết lỗi $FN$ $\implies$ số lượt kiểm tra $M$ bùng nổ, **vi phạm giới hạn công suất xưởng** ($M > 1200$).
+  - Nâng ngưỡng $\tau$ để giảm tải cho xưởng $\implies$ bỏ sót lỗi $FN$, **chi phí bùng nổ** do hệ số phạt 500.
 
 ---
 
-## SLIDE 4: RÀNG BUỘC VẬN HÀNH THỰC TẾ
-- **Giới hạn công suất xưởng sửa chữa:**
-  - Xưởng chỉ tiếp nhận tối đa $10\%$ tổng quy mô đội xe trong mỗi chu kỳ bảo dưỡng:
-    $$M = TP + FP \le \left\lfloor \frac{N}{10} \right\rfloor$$
-  - Trên tập Validation ($N = 12.000$ mẫu): $K = \lfloor 12000 / 10 \rfloor = 1200$ lượt xe.
-- **Hệ quả tối ưu hóa:**
-  - Không thể hạ ngưỡng $\tau \to 0$ vô tội vạ để bắt hết FN vì sẽ làm bùng nổ FP và vi phạm trần công suất xưởng.
+## SLIDE 4: PHÂN TÍCH LÝ THUYẾT VỀ NGƯỠNG TỶ LỆ CHI PHÍ BAYES
+
+- **Ngưỡng tối ưu Bayes lý thuyết (Unconstrained Cost-ratio Bayes Threshold):**
+  $$\tau^*_{\text{Bayes}} = \frac{C_{FP}}{C_{FP} + C_{FN}} = \frac{10}{10 + 500} = \frac{10}{510} \approx 0.0196078$$
+- **Ranh giới khoa học quan trọng:**
+  - $\tau = 10/510$ chỉ là nghiệm tối ưu lý thuyết khi **KHÔNG CÓ RÀNG BUỘC CÔNG SUẤT** và xác suất dự báo hoàn hảo.
+  - Khi có ràng buộc công suất $M \le 1200$, việc áp dụng $\tau = 10/510$ có thể làm vi phạm ràng buộc khả thi ($M > 1200$).
+  - Do đó, ngưỡng tối ưu thực tế phải được tìm kiếm thông qua tối ưu hóa có điều kiện.
 
 ---
 
-## SLIDE 5: GIAO THỨC DỮ LIỆU & BẢO TOÀN TÍNH KHOA HỌC (G3)
-- **Tập Train chính thức (60.000 mẫu):**
-  - Train: 48.000 mẫu ($800$ ca lỗi / $47.200$ ca bình thường).
-  - Validation: 12.000 mẫu ($200$ ca lỗi / $11.800$ ca bình thường).
-- **Nguyên tắc "No Data Leakage":**
-  - Mọi phép điền trung vị (`SimpleImputer`) và chuẩn hóa (`StandardScaler`) chỉ fit trên tập Train.
-- **Niêm phong Official Test (16.000 mẫu):**
-  - Khóa kín tuyệt đối cho đến vòng đánh giá cuối cùng. Không dùng tuning.
+## SLIDE 5: GIAO THỨC DỮ LIỆU & BẢO TOÀN TÍNH KHOA HỌC (G3 & G4)
+
+- **Phân vùng dữ liệu đã khóa (Locked G3 Split):**
+  - Train: 48.000 mẫu ($800$ ca dương / $47.200$ ca âm — tỷ lệ $1.67\%$).
+  - Validation: 12.000 mẫu ($200$ ca dương / $11.800$ ca âm — tỷ lệ $1.67\%$).
+  - **Official Test (16.000 mẫu): NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**.
+- **Nguyên tắc không rò rỉ dữ liệu (No Data Leakage):**
+  - Điền khuyết thiếu (`median`) và chuẩn hóa (`StandardScaler`) fit duy nhất trên 48.000 mẫu Train.
+- **Hệ thống mô hình đường cơ sở (G4 Baselines):**
+  - **B0:** Majority Dummy ($a_i = 0$, chi phí trần: $500 \times 200 = 100.000$ đơn vị chi phí).
+  - **B1:** Decision Stump (`max_depth=1`, đánh giá tại $\tau = 0.5$ và $\tau = 10/510$).
+  - **B2:** Logistic Regression (`solver='lbfgs'`, `max_iter=2000`, đánh giá tại $\tau = 0.5$ và $\tau = 10/510$).
 
 ---
 
-## SLIDE 6: CÁC MÔ HÌNH ĐƯỜNG CƠ SỞ (BASELINES - G4)
-- **B0 — Majority Dummy:** Dự đoán toàn bộ xe bình thường ($a_i = 0$).
-  - Chi phí trần: $500 \times 200 = 100,000$ chi phí.
-- **B1 — Decision Stump:** Cây quyết định độ sâu 1 tầng (`max_depth=1`).
-- **B2 — Logistic Regression:** Hồi quy Logistic chuẩn hóa lbfgs (`max_iter=2000`).
-- **Hai chiến lược ngưỡng:**
-  - Ngưỡng xác suất tiêu chuẩn: $\tau = 0.5$.
-  - Ngưỡng tỷ lệ chi phí Bayes: $\tau = \frac{10}{510} \approx 0.0196$.
+## SLIDE 6: KHUNG ĐÁNH GIÁ THỰC NGHIỆM TRÊN TẬP VALIDATION (12.000 MẪU)
+
+- **Bảng so sánh 5 chính sách cố định (Chuẩn bị nghiệm thu Gate B2):**
+
+| Chính sách | Mô hình | Ngưỡng $\tau$ | Tổng chi phí benchmark | Số xe vào xưởng ($M$) | Ràng buộc ($M \le 1200$) |
+|:---:|---|:---:|:---:|:---:|:---:|
+| **P1** | **B0:** Majority Dummy | N/A | **100.000** | $0$ | **Khả thi** |
+| **P2** | **B1:** Decision Stump | 0.5000 | *Pending Gate B2* | *Pending* | *Pending* |
+| **P3** | **B1:** Decision Stump | 0.0196 | *Pending Gate B2* | *Pending* | *Pending* |
+| **P4** | **B2:** Logistic Regression | 0.5000 | *Pending Gate B2* | *Pending* | *Pending* |
+| **P5** | **B2:** Logistic Regression | 0.0196 | *Pending Gate B2* | *Pending* | *Pending* |
+
+- **Quy tắc liêm chính học thuật:** Toàn bộ trạng thái hiển thị rõ ràng là `Pending Gate B2` cho đến khi có lượt chạy thực tế được Chủ dự án cấp quyền. Không tạo số liệu giả mạo.
 
 ---
 
-## SLIDE 7: PHƯƠNG PHÁP ĐỀ XUẤT (G5)
-- **Mô hình Random Forest:**
-  - Nắm bắt tương quan phi tuyến giữa 170 cảm biến APS.
-  - Cân bằng trọng số mẫu cho lớp thiểu số.
-- **Tối ưu hóa siêu tham số & Ngưỡng Bayesian (Optuna TPE):**
-  - Không gian tham số: `n_estimators`, `max_depth`, `min_samples_split`, `class_weight`.
-  - Tối ưu hóa trực tiếp ngưỡng quyết định $\tau^*$.
-  - Tích hợp hàm phạt vi phạm ràng buộc $M > 1200$.
+## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & KHAI BÁO AI HỖ TRỢ
 
----
-
-## SLIDE 8: KẾT QUẢ THỰC NGHIỆM TRÊN TẬP VALIDATION
-*(Cập nhật bảng số đo thực tế từ thực nghiệm)*
-- So sánh Recall, Precision, False Negatives, False Positives.
-- So sánh chi phí kinh tế và mức độ tiết kiệm chi phí so với B0.
-- Đánh giá thỏa mãn ràng buộc năng lực xưởng ($M \le 1200$).
-
----
-
-## SLIDE 9: TRỰC QUAN HÓA KẾT QUẢ
-*(Cập nhật biểu đồ đường cong Precision-Recall, biểu đồ Pareto Chi phí vs Năng lực xưởng)*
-
----
-
-## SLIDE 10: TÍNH TÁI LẬP & KIỂM SOÁT THỰC NGHIỆM
-- Kiểm soát tiến trình bằng Windows Job Object (1 thread, 2048 MB RAM, 120s timeout).
-- Chữ ký băm toàn vẹn SHA-256 cho toàn bộ artifacts đầu ra.
-- 271/271 unit tests kiểm chứng tự động toàn diện.
-
----
-
-## SLIDE 11: KẾT LUẬN & ĐÓNG GÓP
-- Đưa ra giải pháp cân bằng tối ưu giữa việc phát hiện sớm lỗi nguy hiểm (FN) và chi phí kiểm tra định kỳ (FP).
-- Tuân thủ chặt chẽ ràng buộc giới hạn vận hành công nghiệp của đội xe Scania.
-- Cung cấp gói mã nguồn khoa học, minh bạch và có khả năng ứng dụng thực tế cao.
+- **Khả năng tái lập khoa học (Reproducibility):**
+  - Môi trường: Python 3.11.9, seed cố định 42, khóa dependency qua `g3_requirements.lock.txt`.
+  - Quản lý tiến trình bằng Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s).
+  - Toàn bộ 271 Scania unit tests PASS 100%. Mọi artifact kết quả có chữ ký băm SHA-256 trong `checksums.json`.
+- **Khai báo AI hỗ trợ (AI Assistance Disclosure):**
+  - Codex & Antigravity hỗ trợ viết unit test, kiểm tra biên, rà soát I/O guard và khung tài liệu.
+  - Sinh viên tự kiểm chứng, trực tiếp xây dựng mô hình toán, xác thực dữ liệu và chịu trách nhiệm học thuật hoàn toàn.
+- **Kết luận:** Đề tài hoàn thành chuỗi logic: **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baseline $\rightarrow$ Tối ưu hóa $\rightarrow$ Thực nghiệm $\rightarrow$ Quyết định**, đáp ứng đầy đủ yêu cầu của bài tập lớn môn học.
