@@ -108,3 +108,80 @@ Mốc chi phí benchmark tốt nhất đạt được trong G4 là:
 $$\mathbf{C^*_{\text{G4}} = 10.230 \quad [\text{Mô hình B2 (Logistic Regression), } \tau = 10/510]}$$
 Đây là mốc chuẩn đối chiếu cho giai đoạn tối ưu hóa cốt lõi Phase 2 (Random Forest + Optuna TPE).
 *Lưu ý khoa học:* Thuật toán tối ưu hóa Random Forest không bắt buộc phải đánh bại mốc 10.230 này để được chấp nhận về mặt học thuật; nếu không vượt qua, đề tài sẽ phân tích nguyên nhân khoa học và biện minh cho quyết định lựa chọn mô hình cuối cùng dựa trên bằng chứng thực tế.
+
+---
+
+## 8. KẾT QUẢ THỰC NGHIỆM TỐI ƯU HÓA RÀNG BUỘC PHASE 2 (RUN `scania_phase2_rf_optuna_002`)
+
+### 8.1. Thông số xác thực run chính thức
+- **Mã thực nghiệm (Target Run ID):** `scania_phase2_rf_optuna_002`
+- **Căn cứ ủy quyền:** GitHub Issue #17 Comment ID `6720275906` (Chủ dự án PhucHuynh16 phê duyệt).
+- **Mã commit HEAD:** `7a58c5b3e473cf4c8c1a677a2feed464e6bdc42b`
+- **Mã băm cấu hình (Config SHA-256):** `df29dca49743a6d9e51bb5e0a08ec6b4b96e6527fc66192d45c8907032defc72`
+- **Trạng thái thực thi:** `COMPLETE` (100% hoàn tất 20/20 trials, 0 lỗi, 0 gián đoạn).
+- **Thời gian chạy thực tế:** `543.06` giây (nằm gọn trong trần 900 giây được phê duyệt).
+- **Đỉnh tiêu thụ RAM:** `159.82` MB (nằm trong giới hạn 2048 MB).
+- **Tập Official Test (16.000 mẫu):** **NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**.
+
+### 8.2. So sánh kết quả tối ưu toàn cục với các đường cơ sở
+
+| Tiêu chí / Mô hình | B0: Majority Dummy | B1: Decision Stump (P3) | B2: Logistic Regression (P5) | **Phase 2: Random Forest + Optuna (Trial 16)** |
+|---|:---:|:---:|:---:|:---:|
+| **Thuật toán / Chính sách** | Dự báo toàn bộ 0 | Cây 1 tầng ($\tau = 0.0196$) | Hồi quy Logistic ($\tau = 0.0196$) | **Random Forest ($\tau^* = 0.3232$)** |
+| **Siêu tham số tối ưu** | N/A | Feature `aa_000` | $C=1.0, \text{penalty}=l2$ | **$n_{\text{est}}=50, \text{depth}=10, \text{split}=10, \text{feat}=0.427$** |
+| **True Positives (TP)** | 0 | 160 | 186 | **195** / 200 ($Recall = 97.50\%$) |
+| **False Positives (FP)** | 0 | 253 | 323 | **383** |
+| **False Negatives (FN)** | 200 | 40 | 14 | **5** (Chỉ lọt 5 xe chết máy dọc đường) |
+| **True Negatives (TN)** | 11.800 | 11.547 | 11.477 | **11.417** |
+| **Chi phí kiểm tra xưởng ($10 \times FP$)** | 0 | 2.530 | 3.230 | **3.830** |
+| **Chi phí sự cố dọc đường ($500 \times FN$)** | 100.000 | 20.000 | 7.000 | **2.500** |
+| **Tổng chi phí benchmark** | **100.000** | **22.530** | **10.230** | **6.330** |
+| **Chi phí trung bình / xe** | 8.333 | 1.878 | 0.853 | **0.528** |
+| **Số xe vào xưởng ($M = TP + FP$)** | 0 | 413 | 509 | **578** (Giới hạn $K = 1.200$) |
+| **Tính khả thi năng lực xưởng** | FEASIBLE | FEASIBLE | FEASIBLE | **FEASIBLE (Dư 622 chỗ trống)** |
+| **Mức tiết kiệm chi phí vs B0** | 0.00% (Mốc chuẩn) | 77.47% | 89.77% | **93.67%** (Tiết kiệm 93.670 đơn vị) |
+| **Cắt giảm chi phí thêm so với B2** | N/A | N/A | Mốc chuẩn G4 | **-38.12%** (Giảm thêm 3.900 đơn vị) |
+
+### 8.3. Bảng tổng hợp chi tiết 20 Trials của Optuna TPE (Run 002)
+
+| Trial # | Chi phí | $M$ | Ngưỡng $\tau^*$ | TP | FP | FN | $n_{\text{est}}$ | depth | split | feat | Thời gian fit (s) | Trạng thái |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0 | 7.840 | 576 | 0.2588 | 192 | 384 | 8 | 30 | 12 | 8 | 0.380 | 18.80 | FEASIBLE |
+| 1 | 7.790 | 724 | 0.4363 | 195 | 529 | 5 | 20 | 5 | 2 | 0.460 | 7.00 | FEASIBLE |
+| 2 | 6.750 | 569 | 0.3154 | 194 | 375 | 6 | 50 | 10 | 2 | 0.491 | 34.68 | FEASIBLE |
+| 3 | 7.880 | 682 | 0.5201 | 194 | 488 | 6 | 60 | 5 | 3 | 0.255 | 11.76 | FEASIBLE |
+| 4 | 7.800 | 572 | 0.3978 | 192 | 380 | 8 | 30 | 8 | 5 | 0.287 | 10.13 | FEASIBLE |
+| 5 | 7.310 | 625 | 0.5609 | 194 | 431 | 6 | 50 | 5 | 4 | 0.310 | 11.73 | FEASIBLE |
+| 6 | 6.490 | 594 | 0.2417 | 195 | 399 | 5 | 40 | 11 | 3 | 0.354 | 21.62 | FEASIBLE |
+| 7 | 7.520 | 697 | 0.5887 | 195 | 502 | 5 | 40 | 4 | 7 | 0.251 | 6.21 | FEASIBLE |
+| 8 | 6.970 | 693 | 0.1801 | 196 | 497 | 4 | 20 | 12 | 10 | 0.443 | 14.61 | FEASIBLE |
+| 9 | 7.540 | 699 | 0.5696 | 195 | 504 | 5 | 30 | 4 | 8 | 0.332 | 6.14 | FEASIBLE |
+| 10 | 6.340 | 579 | 0.2408 | 195 | 384 | 5 | 60 | 12 | 7 | 0.433 | 71.20 | FEASIBLE |
+| 11 | 6.790 | 675 | 0.1739 | 196 | 479 | 4 | 50 | 11 | 4 | 0.388 | 32.75 | FEASIBLE |
+| 12 | 7.060 | 600 | 0.2261 | 194 | 406 | 6 | 60 | 12 | 7 | 0.435 | 44.51 | FEASIBLE |
+| 13 | 6.880 | 633 | 0.2428 | 195 | 438 | 5 | 20 | 10 | 2 | 0.484 | 14.20 | FEASIBLE |
+| 14 | 7.280 | 622 | 0.2200 | 194 | 428 | 6 | 40 | 12 | 6 | 0.500 | 32.49 | FEASIBLE |
+| 15 | 6.890 | 634 | 0.3268 | 195 | 439 | 5 | 60 | 8 | 7 | 0.370 | 27.30 | FEASIBLE |
+| **16** | **6.330** | **578** | **0.3232** | **195** | **383** | **5** | **50** | **10** | **10** | **0.427** | **38.61** | **FEASIBLE (BEST)** |
+| 17 | 6.650 | 610 | 0.2858 | 195 | 415 | 5 | 60 | 10 | 8 | 0.441 | 70.21 | FEASIBLE |
+| 18 | 7.070 | 652 | 0.2589 | 195 | 457 | 5 | 50 | 9 | 9 | 0.497 | 31.83 | FEASIBLE |
+| 19 | 7.240 | 618 | 0.2392 | 194 | 424 | 6 | 50 | 11 | 10 | 0.440 | 33.46 | FEASIBLE |
+
+### 8.4. Đồ thị trực quan hóa thực nghiệm đã trích xuất
+1. **Đường cong hội tụ tối ưu hóa:** `figures/optimization/optimization_convergence.png` — Minh họa trực quan đường chi phí tốt nhất lũy tiến hạ dần từ 7.840 xuống 6.330 so với hai mốc cơ sở $B_0$ (100.000) và $B_2$ (10.230).
+2. **Đường cong đánh đổi chi phí và năng lực xưởng:** `figures/optimization/cost_vs_capacity_tradeoff.png` — Minh họa đường quét thực nghiệm 101 điểm ngưỡng $\tau \in [0, 1]$ của mô hình tối ưu toàn cục cùng phân bố của 20 trials trong vùng khả thi $M \le 1200$.
+
+### 8.5. Danh mục và mã băm SHA-256 các artifact chính thức (Run 002)
+Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` đã được xác thực mã hóa:
+- `allowlist.json`: `fccc31e9d1870c737e90637bb274d3860669f18473ea4a267fc72f6902fe9af5`
+- `best_policy.json`: `182771635c4217858b3e1dcdc3bf657b03c214f2f110d7b82f89b64cfeb8df9c`
+- `config.json`: `b7de45a559a3f8e6eec4fd363426f4dc54870090e3a02bc224863b4d34fd57e5`
+- `environment.json`: `36d260232a7921910660e89c34d4be66255cd97c26659f9c45d5eea81ef10733`
+- `execution.txt`: `971dfc6f267d90e3cf023b6a29c26ead266868b0344b1453a767e5dace497c36`
+- `failure_diagnostics.json`: `8120fe1b6e9aa232ce6f414343ef61c788a648d5e85a7fc84cf718240d54210a`
+- `optuna_study.json`: `6d96de1465e4ea9f99602ec7a0b19afe2eafe753f5cae62fa657b68305c92bf6`
+- `run_summary.json`: `3c9baf79369cdbb91d6f9cde6106ae7cc89780d44c4130b1111e0e6351a74e4b`
+- `stable_manifest.json`: `fba71cf80babcd45ec897e2dd2cb9d5c52aeabac96391ae568a82eef4097a6b7`
+- `task_config.json`: `e8268e61eb535d2ab8c15098b7f57738851f0710d41191c6bf9cd3172270750f`
+- `trials_summary.csv`: `cd8377a83241e600f48db89bbe13d3564de83c478a1447759bfd244a45f0269a`
+- `worker_result.json`: `bbd3631bf56dc8673aeb8ee52952c6b1fa625cbc67a05f057dc26eda174a4755`

@@ -1,6 +1,6 @@
-# BẢN THẢO ĐỀ CƯƠNG SLIDES THUYẾT TRÌNH BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (7 SLIDES DRAFT)
+# BỘ SLIDES THUYẾT TRÌNH BÁO CÁO BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (8 SLIDES)
 
-> **TRẠNG THÁI TÀI LIỆU:** BẢN THẢO ĐỀ CƯƠNG (DRAFT OUTLINE) — Cần sinh bản trình chiếu chính thức (PPTX/PDF) và kiểm chứng trực quan trước khi báo cáo.
+> **TRẠNG THÁI TÀI LIỆU:** HOÀN CHỈNH — Đã tích hợp đầy đủ số liệu thực nghiệm đo đạc chính thức từ Baseline G4 (`scania_g4_b2_real_002`) và Tối ưu hóa có ràng buộc Phase 2 (`scania_phase2_rf_optuna_002`).
 
 **Đề tài:** Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)  
 **Sinh viên:** Huỳnh Phúc — Khoa Công nghệ Thông tin, Trường Đại học Văn Lang  
@@ -82,22 +82,41 @@
 | **P5** | **B2:** Logistic Regression | 0.0196 | 186 | 323 | 11.477 | 14 | **10.230** | $509$ | **Khả thi** | **+89.77%** |
 
 - **Nhận xét thực nghiệm cốt lõi:**
-  - **Mô hình tốt nhất:** Logistic Regression tại ngưỡng Bayes $\tau = 10/510 \approx 0.0196$ (P5) đạt chi phí **10.230 đơn vị chi phí benchmark**, bắt được $186/200$ ca lỗi APS (Recall 93.0%), tiết kiệm **+89.77%** so với B0.
-  - **Kiểm chứng khả thi:** Số xe kiểm tra $M = 509 \le 1.200$ xe (thỏa mãn ràng buộc công suất 10% của xưởng).
-  - **Tài nguyên thực thi:** Đúng 2 lượt fit thực tế (`B1=1, B2=1`), thời gian fit 1.417s, RAM đỉnh 201.90 MB, toàn bộ 11 artifacts được kiểm chứng toàn vẹn mã băm SHA-256 (`verify_run() == True`).
+  - **Mô hình tốt nhất G4:** Logistic Regression tại $\tau = 10/510$ (P5) đạt **10.230 đơn vị chi phí** ($Recall = 93.0\%$), thiết lập mốc chuẩn đối sánh cho Phase 2.
+  - **Kiểm chứng khả thi:** Số xe kiểm tra $M = 509 \le 1.200$ xe (thỏa mãn ràng buộc công suất 10%).
 
 ---
 
-## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & LỘ TRÌNH TỐI ƯU HÓA (PHASE 2)
+## SLIDE 7: KẾT QUẢ TỐI ƯU HÓA RÀNG BUỘC PHASE 2 (RUN 002 HOÀN TẤT)
 
-- **Mốc so sánh cơ sở đã khóa (Locked G4 Baseline Cost):**
-  - Chi phí benchmark cần vượt qua hoặc đối sánh trong Phase 2 là **10.230 đơn vị chi phí** (B2 tại $\tau = 0.0196$).
-- **Lộ trình tối ưu hóa cốt lõi (Phase 2 Optimization):**
-  - Thực thi thuật toán tối ưu bắt buộc của học phần: **Random Forest kết hợp Bayesian HPO (Optuna TPE)** và dò ngưỡng có điều kiện.
-  - Không gian tìm kiếm: Số cây $n \in [20, 60]$, độ sâu $d \in [4, 12]$, tỷ lệ thuộc tính $[0.2, 0.5]$, ngân sách 20 trials (1 fit/trial trên Train 48k, dò ngưỡng trên Validation 12k không cần refit).
-  - Sinh 02 đồ thị bắt buộc: (1) Đồ thị hội tụ Optuna, (2) Đồ thị đánh đổi Chi phí vs Công suất xưởng trên dải ngưỡng $\tau$.
-- **Khả năng tái lập khoa học & Liêm chính học thuật:**
-  - Môi trường: Python 3.11.9, seed cố định 42, khóa dependency qua `g3_requirements.lock.txt`.
+- **Cấu hình tối ưu hóa cốt lõi:**
+  - Thuật toán: **Random Forest** kết hợp **Bayesian HPO (Optuna TPE, seed=42)**.
+  - Ngân sách: 20 trials tuần tự, 1 native thread, trần 900s, fit trên Train 48k, dò ngưỡng vector hóa trên Validation 12k.
+- **Nghiệm tối ưu toàn cục (Trial 16):**
+  - **Siêu tham số:** $n_{\text{estimators}} = 50$, $\text{max\_depth} = 10$, $\text{min\_samples\_split} = 10$, $\text{max\_features} = 0.427$.
+  - **Ngưỡng tối ưu:** $\tau^* = 0.3232$.
+  - **Ma trận nhầm lẫn:** $TP = 195/200$ ($Recall = 97.50\%$), $FP = 383$, **$FN = 5$** (chỉ để lọt 5 xe chết máy), $TN = 11.417$.
+  - **Tổng chi phí benchmark:** **6.330 đơn vị** ($10 \times 383 + 500 \times 5 = 3.830 + 2.500$).
+  - **Năng lực tiếp nhận xưởng:** $M = 578 \le 1.200$ xe (**Khả thi**, dư 622 chỗ trống).
+- **So sánh hiệu năng:**
+  - Tiết kiệm **93.67%** chi phí so với mốc không can thiệp B0 ($100.000$).
+  - Cắt giảm thêm **38.12%** chi phí (tiết kiệm thêm $3.900$ đơn vị) so với mốc tốt nhất G4 B2 ($10.230$).
+- **Đồ thị minh chứng:** Đường cong hội tụ Optuna (`figures/optimization/optimization_convergence.png`) và Đường quét ngưỡng thực nghiệm 101 điểm (`figures/optimization/cost_vs_capacity_tradeoff.png`).
+
+---
+
+## SLIDE 8: TỔNG KẾT, TÍNH TÁI LẬP & LIÊM CHÍNH HỌC THUẬT
+
+- **Khả năng tái lập khoa học (Full Reproducibility):**
+  - Môi trường: Python 3.11.9, seed=42, khóa dependency qua `g3_requirements.lock.txt`.
+  - Windows Job Object giám sát tài nguyên: 1 thread cố định, đỉnh RAM 159.82 MB, thời gian 543.06s.
+  - Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` được ký băm SHA-256 (`verify_phase2_run() == True`).
+- **Liêm chính học thuật (Academic Integrity):**
+  - Bảo tồn nguyên vẹn các lần chạy thất bại tiền kiểm tra: Run 001 G4 (`PackageNotFoundError`) và Run 001 Phase 2 (`TimeoutError` tại 300s).
+  - Không bịa đặt số liệu, không nội suy kết quả thiếu.
+  - Phân biệt rõ ràng giữa mô phỏng chính sách trên tập Validation và đánh giá độc lập cuối kỳ.
+  - **Official Test set (16.000 xe) tiếp tục được niêm phong tuyệt đối đến Gate G10**.
+- **Kết luận:** Đề tài đã giải quyết trọn vẹn bài toán tối ưu hóa chi phí có ràng buộc trong công nghiệp bảo dưỡng dự đoán, mang lại giá trị thực tiễn và tính chuẩn mực học thuật cao.
   - Giám sát: Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s/300s).
   - **Official Test (16.000 mẫu) được niêm phong tuyệt đối (Sealed until G10)** nhằm chống rò rỉ và thiên lệch lựa chọn (selection bias).
 - **Khai báo AI hỗ trợ (AI Assistance Disclosure):**

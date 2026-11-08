@@ -84,11 +84,22 @@ def plot_phase2_cost_vs_capacity_tradeoff(
     capacity_limit: int = 1200,
     save_path: Optional[str] = None,
 ) -> plt.Figure:
-    """Plot Benchmark Cost vs Maintenance Capacity M across optimization configurations."""
+    """Plot Benchmark Cost vs Maintenance Capacity M across optimization configurations and genuine threshold sweep."""
     set_plot_style()
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Scatter of all trials (M vs Cost)
+    best_bp = best_trial.get("best_policy") if best_trial else None
+
+    # 1. Plot genuine threshold trade-off curve from saved threshold_curve observations
+    if best_bp and "threshold_curve" in best_bp:
+        tc = best_bp["threshold_curve"]
+        feas_tc = sorted([pt for pt in tc if pt.get("feasible")], key=lambda pt: pt["M"])
+        if feas_tc:
+            ax.plot([pt["M"] for pt in feas_tc], [pt["cost"] for pt in feas_tc],
+                    color="#1f77b4", linewidth=2.2, linestyle="-", zorder=3,
+                    label="Đường quét ngưỡng thực nghiệm τ* ∈ [0, 1] (Threshold Trade-off Curve)")
+
+    # 2. Scatter of all trial policies (M vs Cost across 20 trials)
     m_values = []
     costs = []
     labels = []
@@ -100,32 +111,32 @@ def plot_phase2_cost_vs_capacity_tradeoff(
             labels.append(t["trial_number"] + 1)
 
     if m_values:
-        scatter = ax.scatter(m_values, costs, c=labels, cmap="Blues", s=60, edgecolors="black", linewidth=0.8,
-                             alpha=0.85, label="Các trial tối ưu hóa (Phase 2 Trials)")
+        scatter = ax.scatter(m_values, costs, c=labels, cmap="YlGnBu", s=70, edgecolors="black", linewidth=0.8,
+                             alpha=0.9, zorder=4, label="Nghiệm tối ưu từng trial (20 Optuna Trials)")
         cbar = plt.colorbar(scatter, ax=ax)
-        cbar.set_label("Thứ tự Trial")
+        cbar.set_label("Thứ tự Trial (1–20)")
 
-    # Mark capacity limit
+    # 3. Mark capacity limit & feasible region
     ax.axvline(capacity_limit, color="#d62728", linestyle="--", linewidth=1.8,
-               label=f"Giới hạn công suất xưởng K = {capacity_limit} xe (10% N_val)")
-    ax.axvspan(0, capacity_limit, color="#2ca02c", alpha=0.08, label="Vùng khả thi (Feasible Domain: M <= 1200)")
+               label=f"Giới hạn năng lực xưởng K = {capacity_limit} xe (10% N_val)")
+    ax.axvspan(0, capacity_limit, color="#2ca02c", alpha=0.08, label="Vùng khả thi (Feasible Domain: M ≤ 1200)")
 
-    # Mark Best Selected Policy
-    best_bp = best_trial.get("best_policy") if best_trial else None
+    # 4. Mark Best Selected Policy
     if best_bp and best_bp.get("M") is not None:
-        ax.scatter([best_bp["M"]], [best_bp["total_cost"]], color="#ff7f0e", s=180, marker="*",
-                   edgecolors="black", linewidth=1.2, zorder=5,
-                   label=f"Nghiệm tối ưu được chọn (M={best_bp['M']}, Cost={best_bp['total_cost']:,}, τ={best_bp['threshold']:.4f})")
+        ax.scatter([best_bp["M"]], [best_bp["total_cost"]], color="#ff7f0e", s=200, marker="*",
+                   edgecolors="black", linewidth=1.4, zorder=6,
+                   label=f"Nghiệm tối ưu toàn cục Run 002 (M={best_bp['M']}, Cost={best_bp['total_cost']:,}, τ={best_bp['threshold']:.4f})")
 
-    # Reference B2 baseline point (M=509, Cost=10230)
-    ax.scatter([509], [10230], color="#2ca02c", s=120, marker="D", edgecolors="black", linewidth=1.0,
-               zorder=4, label="Mốc cơ sở B2 Logistic Regression (M=509, Cost=10,230)")
+    # 5. Reference B2 baseline point (M=509, Cost=10230)
+    ax.scatter([509], [10230], color="#2ca02c", s=130, marker="D", edgecolors="black", linewidth=1.2,
+               zorder=5, label="Mốc cơ sở B2 Logistic Regression (M=509, Cost=10,230)")
 
     ax.set_title("Đánh đổi giữa Chi phí Benchmark và Năng lực tiếp nhận của Xưởng (M = TP + FP)",
                  fontsize=13, fontweight="bold")
     ax.set_xlabel("Số lượt xe đưa vào kiểm tra APS (M = TP + FP)", fontsize=11)
     ax.set_ylabel("Tổng chi phí benchmark (Cost = 10*FP + 500*FN)", fontsize=11)
-    ax.legend(loc="upper right", frameon=True)
+    ax.set_xlim(-30, 1350)
+    ax.legend(loc="upper right", frameon=True, fontsize=9)
     ax.grid(True, linestyle="--", alpha=0.6)
 
     plt.tight_layout()
