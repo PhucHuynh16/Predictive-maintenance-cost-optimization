@@ -1,10 +1,20 @@
-# BÁO CÁO TỔNG KẾT ĐỀ TÀI: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN HỆ THỐNG KHÍ NÉN TRÊN XE TẢI NẶNG SCANIA APS (UCI 421)
+# BẢN THẢO ĐỀ CƯƠNG BÁO CÁO TỔNG KẾT: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN HỆ THỐNG KHÍ NÉN TRÊN XE TẢI NẶNG SCANIA APS (UCI 421)
+
+> **TRẠNG THÁI TÀI LIỆU:** BẢN THẢO ĐỀ CƯƠNG (DRAFT OUTLINE) — Đang chờ số liệu thực nghiệm đo đạc thật trên phân vùng Validation để xuất bản và kiểm chứng trực quan file Word/PDF chính thức.
 
 **Học phần:** Nhập môn Tối ưu hóa — Học kỳ 1, Năm học 2026–2027  
 **Đơn vị đào tạo:** Khoa Công nghệ Thông tin — Trường Đại học Văn Lang  
 **Sinh viên thực hiện:** Huỳnh Phúc  
 **Mã nguồn & Repository:** [PhucHuynh16/Predictive-maintenance-cost-optimization](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization)  
 **Tập dữ liệu nghiên cứu:** UCI Machine Learning Repository — Dataset #421: *APS Failure at Scania Trucks* (Scania CV AB, 2016)  
+
+---
+
+> [!IMPORTANT]
+> **RANH GIỚI KHOA HỌC BẮT BUỘC:**
+> Việc vượt qua các unit tests hoặc thực thi xong các mô hình cơ sở G4 Baselines (B0, B1, B2) **KHÔNG hoàn thành yêu cầu phương pháp tối ưu hóa bắt buộc của môn học**.
+> - G4 Baselines chỉ đóng vai trò cung cấp mốc so sánh cơ sở (reference benchmark).
+> - Phương pháp tối ưu hóa cốt lõi theo đề cương (Random Forest kết hợp Bayesian Hyperparameter Optimization & Threshold Tuning qua Optuna TPE) là một hạng mục nghiên cứu độc lập (Phase 2), cần được cấp quyền, thực thi và lưu trữ lịch sử tìm kiếm (search history) cùng ít nhất 02 đồ thị tối ưu (hội tụ / đánh đổi) từ dữ liệu thực tế.
 
 ---
 
@@ -15,7 +25,7 @@ Bảo trì dự đoán (Predictive Maintenance - PdM) là bài toán kinh điể
 Đặc thù bài toán là hàm chi phí phi đối xứng nghiêm ngặt theo chuẩn benchmark công nghiệp: chi phí bỏ sót một xe hỏng APS dẫn đến chết máy dọc đường (False Negative - FN) là **500 đơn vị chi phí benchmark**, trong khi chi phí kiểm tra định kỳ không cần thiết tại xưởng (False Positive - FP) là **10 đơn vị chi phí benchmark** (tỷ số $50:1$). Đồng thời, nghiên cứu đặt ra **giả định ràng buộc năng lực xưởng** (Maintenance Capacity Constraint assumption) với mức tiếp nhận tối đa không quá 10% quy mô phân vùng bảo dưỡng ($M = TP + FP \le \lfloor N/10 \rfloor$, tương ứng 1.200 lượt kiểm tra trên phân vùng Validation 12.000 xe).
 
 Nghiên cứu tuân thủ nghiêm ngặt chuẩn mực khoa học và phòng chống rò rỉ dữ liệu (No Data Leakage):
-1. **Phân vùng dữ liệu:** Khóa cố định tập Train (48.000 mẫu) / Validation (12.000 mẫu) dựa trên hash G3 đã nghiệm thu (`efe781b...`); **tuyệt đối niêm phong tập Official Test (16.000 mẫu)** cho đến giai đoạn đánh giá cuối cùng.
+1. **Phân vùng dữ liệu:** Khóa cố định tập Train (48.000 mẫu) / Validation (12.000 mẫu) dựa trên hash G3 đã nghiệm thu (`efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`); **tuyệt đối niêm phong tập Official Test (16.000 mẫu)** cho đến giai đoạn đánh giá cuối cùng.
 2. **Khung đường cơ sở (Baselines):** Xây dựng và kiểm chuẩn 3 mô hình: B0 (Majority Dummy — không can thiệp), B1 (Decision Stump — cây quyết định 1 tầng) và B2 (Logistic Regression chuẩn hóa L-BFGS `max_iter=2000`).
 3. **Mô hình hóa ngưỡng tối ưu:** Phân tích sự đánh đổi giữa ngưỡng xác suất chuẩn ($\tau = 0.5$) và ngưỡng lý thuyết Bayes tối ưu chi phí ($\tau = 10/510 \approx 0.0196$), chứng minh rằng trong điều kiện ràng buộc công suất xưởng có hiệu lực, ngưỡng tối ưu thực tế phải được tìm kiếm thông qua tối ưu hóa có điều kiện thay vì áp dụng trực tiếp công thức lý thuyết phi ràng buộc.
 
@@ -101,7 +111,7 @@ $$\iff P(y=1 \mid x) \ge \frac{10}{10 + 500} = \frac{10}{510} \approx 0.0196078$
 ## 4. DỮ LIỆU & GIAO THỨC THỰC NGHIỆM NGHIÊM NGẶT (G3 & G4)
 
 ### 4.1. Phân vùng dữ liệu đã khóa (Locked Partitions)
-Theo giao thức G3 đã được kiểm định toàn vẹn (`stable_manifest.json`, digest: `efe781b01fb54256eb91649f81ceef7c70c0cbb918116b4129b0d1e34552b04f`):
+Theo giao thức G3 đã được kiểm định toàn vẹn (`stable_manifest.json`, digest: `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`):
 - **Tập Train chính thức (60.000 mẫu):**
   - **Phân vùng Train:** 48.000 mẫu (800 ca dương tính $1.67\%$, 47.200 ca âm tính).
   - **Phân vùng Validation:** 12.000 mẫu (200 ca dương tính $1.67\%$, 11.800 ca âm tính).

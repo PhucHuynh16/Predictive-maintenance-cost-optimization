@@ -1,4 +1,6 @@
-# SLIDES THUYẾT TRÌNH BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (7 SLIDES)
+# BẢN THẢO ĐỀ CƯƠNG SLIDES THUYẾT TRÌNH BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (7 SLIDES DRAFT)
+
+> **TRẠNG THÁI TÀI LIỆU:** BẢN THẢO ĐỀ CƯƠNG (DRAFT OUTLINE) — Cần sinh bản trình chiếu chính thức (PPTX/PDF) và kiểm chứng trực quan trước khi báo cáo.
 
 **Đề tài:** Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)  
 **Sinh viên:** Huỳnh Phúc — Khoa Công nghệ Thông tin, Trường Đại học Văn Lang  
@@ -83,13 +85,16 @@
 
 ---
 
-## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & KHAI BÁO AI HỖ TRỢ
+## SLIDE 7: TỔNG KẾT, TÍNH TÁI LẬP & LỘ TRÌNH TỐI ƯU HÓA
 
-- **Khả năng tái lập khoa học (Reproducibility):**
+- **Ranh giới phương pháp tối ưu hóa cốt lõi:**
+  - Việc chạy G4 baselines (B0, B1, B2) chỉ hoàn thành mốc so sánh cơ sở.
+  - **Không hoàn thành yêu cầu phương pháp tối ưu bắt buộc của môn học**: Thuật toán tối ưu chính (Random Forest kết hợp Bayesian HPO Optuna TPE) là nghiên cứu Phase 2 cần thực thi riêng để sinh ra lịch sử tìm kiếm và 02 đồ thị tối ưu (đường cong hội tụ và đánh đổi).
+- **Khả năng tái lập khoa học (Reproducibility Protocol):**
   - Môi trường: Python 3.11.9, seed cố định 42, khóa dependency qua `g3_requirements.lock.txt`.
   - Quản lý tiến trình bằng Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s).
   - Toàn bộ 271 Scania unit tests PASS 100%. Mọi artifact kết quả có chữ ký băm SHA-256 trong `checksums.json`.
 - **Khai báo AI hỗ trợ (AI Assistance Disclosure):**
   - Codex & Antigravity hỗ trợ viết unit test, kiểm tra biên, rà soát I/O guard và khung tài liệu.
   - Sinh viên tự kiểm chứng, trực tiếp xây dựng mô hình toán, xác thực dữ liệu và chịu trách nhiệm học thuật hoàn toàn.
-- **Kết luận:** Đề tài hoàn thành chuỗi logic: **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baseline $\rightarrow$ Tối ưu hóa $\rightarrow$ Thực nghiệm $\rightarrow$ Quyết định**, đáp ứng đầy đủ yêu cầu của bài tập lớn môn học.
+- **Kết luận:** Đề tài đã hoàn thành vững chắc giai đoạn **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baselines**, sẵn sàng bước vào giai đoạn **Tối ưu hóa cốt lõi (Phase 2)** sau khi hoàn tất Gate B2.
