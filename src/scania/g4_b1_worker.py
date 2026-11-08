@@ -36,6 +36,12 @@ def thread_probe(event=lambda stage: None):
         raise SafetyBlocked("THREAD_ENV_NOT_SET_BEFORE_IMPORT")
     if any(n in sys.modules for n in ("numpy", "scipy", "sklearn")):
         raise SafetyBlocked("NUMERIC_IMPORT_TOO_EARLY")
+
+    # Handshake with env discovery before numeric imports: fail-closed, no silent pass
+    from . import g4_env_discovery as _env_disc
+    if getattr(_env_disc, "_PREPARED_PID", None) != os.getpid():
+        _env_disc.prepare_imports()
+
     # Imports load the same native stacks needed by the two approved estimators.
     event("IMPORT_NUMPY")
     import numpy
@@ -45,28 +51,37 @@ def thread_probe(event=lambda stage: None):
     from sklearn.tree import DecisionTreeClassifier
     event("IMPORT_SKLEARN_LR")
     from sklearn.linear_model import LogisticRegression
-    from threadpoolctl import threadpool_info, threadpool_limits
-    from .g4_b1_windows import native_inventory
-    event("NATIVE_INVENTORY")
-    inventory = native_inventory()
+
+    # Pre-warming verification: fail-closed, no silent pass
+    event("ESTIMATOR_PREWARM")
+    import scipy.optimize
+
     def public(pools):
         return [{k: (Path(v).name if k == "filepath" else v) for k, v in p.items()} for p in pools]
-    event("NATIVE_POOL_DISCOVERY")
-    libraries = [dict(name=Path(p).name, sha256=sha(Path(p).read_bytes())) for p in inventory]
+
+    event("NATIVE_INVENTORY")
+    libraries = []
     try:
-        before = threadpool_info()
+        from .g4_env_discovery import NativeSession
+        session = NativeSession()
+        inventory = [r.path for r in session.initial]
+        libraries = [dict(name=Path(p).name, sha256=sha(Path(p).read_bytes())) for p in inventory]
+        event("NATIVE_POOL_DISCOVERY")
+        before = session.controller.info()
         event("NATIVE_POOL_LIMIT_AND_VERIFY")
-        with threadpool_limits(limits=1):
-            pools = threadpool_info()
+        with session:
+            pools = session.controller.info()
             verify_pools(pools, inventory)
             # Fabricated numeric work only; no model fitting or real-data loading.
             numpy.dot(numpy.ones((2, 2)), numpy.ones((2, 2)))
-            after = threadpool_info()
-            inventory_after = native_inventory()
-            verify_pools(after, inventory_after)
-            return dict(status="PASS", reason="IMPORT_ONLY_POOLS_VERIFIED_NOT_REAL_RUN",
-                        before=public(before), during=public(pools), after=public(after),
-                        native_libraries=libraries)
+            during = session.controller.info()
+        after = session.controller.info()
+        inventory_after = [r.path for r in session.initial]
+        verify_pools(after, inventory_after)
+        return dict(status="PASS", reason="IMPORT_ONLY_POOLS_VERIFIED_NOT_REAL_RUN",
+                    before=public(before), during=public(during), after=public(after),
+                    native_libraries=libraries,
+                    session=session.public())
     except Exception as exc:
         return dict(status="BLOCKED", reason="THREAD_POLICY_NOT_VERIFIED", error_type=type(exc).__name__,
                     winerror=getattr(exc, "winerror", None),
