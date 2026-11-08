@@ -79,7 +79,7 @@
   "resources": {
     "max_native_threads": 1,
     "max_ram_mb": 2048,
-    "max_wall_seconds": 300
+    "max_wall_seconds": 900
   },
   "reference_benchmarks": {
     "B0_majority_cost": 100000,

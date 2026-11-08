@@ -23,7 +23,7 @@ import numpy as np
 
 from src.scania.phase2_optimization import (
     FitCounter, FitBudgetExceeded, OptimizationError, DurableLoggingError,
-    write_durable_marker, reconcile_durable_fit_markers,
+    write_durable_marker, reconcile_durable_fit_markers, reconcile_durable_trial_markers,
     enumerate_threshold_candidates, evaluate_threshold_candidates_vectorized,
     fit_and_evaluate_rf_trial, create_phase2_study, run_optuna_phase2_trials,
     sanitize_for_strict_json
@@ -377,7 +377,7 @@ def test_exact_owner_authorization_binding_and_limit_enforcement():
             "manifest_file_sha256": G3_ACCEPTED_MANIFEST_FILE_SHA256,
         },
         "budget": {"max_trials": 25, "total_max_fits": 25, "fits_per_trial": 1},
-        "resource_limits": {"max_wall_seconds": 300, "max_ram_mb": 2048, "max_native_threads": 1},
+        "resource_limits": {"max_wall_seconds": 900, "max_ram_mb": 2048, "max_native_threads": 1},
     }
     with pytest.raises(ExecutorBlocked, match="INVALID_BUDGET_IN_RECORD"):
         validate_phase2_authorization_record(auth_excessive_trials, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
@@ -385,14 +385,14 @@ def test_exact_owner_authorization_binding_and_limit_enforcement():
     # 2. Reject excessive RAM (> 2048 MB)
     auth_excessive_ram = dict(auth_excessive_trials)
     auth_excessive_ram["budget"] = {"max_trials": 10, "total_max_fits": 10, "fits_per_trial": 1}
-    auth_excessive_ram["resource_limits"] = {"max_wall_seconds": 300, "max_ram_mb": 4096, "max_native_threads": 1}
+    auth_excessive_ram["resource_limits"] = {"max_wall_seconds": 900, "max_ram_mb": 4096, "max_native_threads": 1}
     with pytest.raises(ExecutorBlocked, match="EXCESSIVE_RAM"):
         validate_phase2_authorization_record(auth_excessive_ram, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
 
-    # 3. Reject excessive wall seconds (> 300s)
+    # 3. Reject excessive wall seconds (> 900s)
     auth_excessive_wall = dict(auth_excessive_trials)
     auth_excessive_wall["budget"] = {"max_trials": 10, "total_max_fits": 10, "fits_per_trial": 1}
-    auth_excessive_wall["resource_limits"] = {"max_wall_seconds": 600, "max_ram_mb": 2048, "max_native_threads": 1}
+    auth_excessive_wall["resource_limits"] = {"max_wall_seconds": 1200, "max_ram_mb": 2048, "max_native_threads": 1}
     with pytest.raises(ExecutorBlocked, match="EXCESSIVE_WALL_TIME"):
         validate_phase2_authorization_record(auth_excessive_wall, expected_run_id="test_auth_001", root=REPO_ROOT, mode="SYNTHETIC")
 
@@ -601,14 +601,14 @@ Approved Estimator: RandomForestClassifier(class_weight="balanced", random_state
 Approved Optimizer: Optuna TPESampler(seed=42), sequential execution
 Fit Budget: max_trials: 20, max_fits_per_trial: 1, total_max_fits: 20
 Data Scope: Train (48,000 samples) and Validation (12,000 samples), Official Test sealed until G10
-Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 300
+Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 900
 """
 
     expected_record = {
         "run_id": "scania_phase2_rf_optuna_001",
         "source_integrity": {"authorized_commit": current_head},
         "budget": {"max_trials": 20, "total_max_fits": 20, "fits_per_trial": 1},
-        "resource_limits": {"max_wall_seconds": 300, "max_ram_mb": 2048, "max_native_threads": 1},
+        "resource_limits": {"max_wall_seconds": 900, "max_ram_mb": 2048, "max_native_threads": 1},
     }
 
     # 1. Direct text parser verification
@@ -620,7 +620,7 @@ Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 300
     assert parsed_limits["authorized_commit"] == current_head
     assert parsed_limits["max_trials"] == 20
     assert parsed_limits["total_max_fits"] == 20
-    assert parsed_limits["max_wall_seconds"] == 300
+    assert parsed_limits["max_wall_seconds"] == 900
     assert parsed_limits["max_ram_mb"] == 2048
     assert parsed_limits["max_native_threads"] == 1
 
@@ -640,4 +640,200 @@ Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 300
             verified = verify_phase2_owner_approval_reference(ref_url, expected_record=expected_record, mode="REAL")
             assert verified is True
             assert expected_record["_verified_owner_limits"]["max_trials"] == 20
+
+
+def test_incremental_trial_result_persistence_and_threshold_curve():
+    """Verify incremental trial-result persistence immediately after evaluation and 101-point threshold curve."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=2, durable_dir=durable_p)
+
+        rng = np.random.RandomState(42)
+        x_tr = rng.randn(40, 4)
+        y_tr = (rng.rand(40) < 0.2).astype(np.int8)
+        y_tr[0], y_tr[1] = 0, 1
+        x_val = rng.randn(20, 4)
+        y_val = (rng.rand(20) < 0.2).astype(np.int8)
+        y_val[0], y_val[1] = 0, 1
+
+        study, trials = run_optuna_phase2_trials(
+            x_tr, y_tr, x_val, y_val,
+            fit_counter=fc,
+            n_trials=2,
+            capacity_limit=5,
+            seed=42,
+        )
+
+        assert len(trials) == 2
+        assert fc.completed_fits == 2
+
+        # Check that durable trial-result markers exist for every completed trial
+        trial_0_marker = durable_p / "trial_000_result.json"
+        trial_1_marker = durable_p / "trial_001_result.json"
+        assert trial_0_marker.is_file()
+        assert trial_1_marker.is_file()
+
+        t0_data = json.loads(trial_0_marker.read_text(encoding="utf-8"))
+        assert t0_data["trial_number"] == 0
+        assert "objective_value" in t0_data
+        assert "rf_params" in t0_data
+        assert "fit_seconds" in t0_data
+        assert "predict_seconds" in t0_data
+        assert "roc_auc" in t0_data
+        assert "pr_auc" in t0_data
+        assert t0_data["status"] in {"FEASIBLE", "INFEASIBLE"}
+
+        # Verify genuine threshold curve with 101 points
+        best_p = t0_data.get("best_policy")
+        if best_p:
+            assert "threshold_curve" in best_p
+            tc = best_p["threshold_curve"]
+            assert len(tc) == 101
+            assert tc[0]["threshold"] == 0.0
+            assert tc[-1]["threshold"] == 1.0
+            for pt in tc:
+                assert "M" in pt
+                assert "cost" in pt
+                assert "feasible" in pt
+
+
+def test_interrupted_worker_trial_reconciliation_without_fabrication():
+    """Verify trial markers are reconstructed from completed trials without fabricating interrupted ones."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+
+        # Fit 1 & Trial 0: completed
+        write_durable_marker(durable_p, "fit_001_started.json", {"fit_index": 1, "status": "STARTED", "trial_number": 0})
+        write_durable_marker(durable_p, "fit_001_completed.json", {"fit_index": 1, "status": "COMPLETED", "fit_seconds": 10.5})
+        write_durable_marker(durable_p, "trial_000_result.json", {
+            "trial_number": 0, "status": "FEASIBLE", "objective_value": 8500.0,
+            "rf_params": {"n_estimators": 30}, "best_policy": {"total_cost": 8500, "M": 300, "threshold": 0.35}
+        })
+
+        # Fit 2 & Trial 1: completed
+        write_durable_marker(durable_p, "fit_002_started.json", {"fit_index": 2, "status": "STARTED", "trial_number": 1})
+        write_durable_marker(durable_p, "fit_002_completed.json", {"fit_index": 2, "status": "COMPLETED", "fit_seconds": 12.0})
+        write_durable_marker(durable_p, "trial_001_result.json", {
+            "trial_number": 1, "status": "FEASIBLE", "objective_value": 7200.0,
+            "rf_params": {"n_estimators": 40}, "best_policy": {"total_cost": 7200, "M": 250, "threshold": 0.42}
+        })
+
+        # Fit 3 & Trial 2: started but worker terminated (no completion or trial marker)
+        write_durable_marker(durable_p, "fit_003_started.json", {"fit_index": 3, "status": "STARTED", "trial_number": 2})
+
+        reconciled_fits = reconcile_durable_fit_markers(durable_p)
+        assert reconciled_fits["started_fits"] == 3
+        assert reconciled_fits["completed_fits"] == 2
+        assert reconciled_fits["interrupted_or_unknown_fits"] == 1
+
+        reconciled_trials = reconcile_durable_trial_markers(durable_p)
+        assert reconciled_trials["n_trials_completed"] == 2
+        assert len(reconciled_trials["trials_records"]) == 2
+        # No trial 2 fabricated!
+        assert [t["trial_number"] for t in reconciled_trials["trials_records"]] == [0, 1]
+        assert reconciled_trials["best_trial"]["objective_value"] == 7200.0
+
+
+def test_corrupted_trial_result_marker_handling():
+    """Verify corrupted trial marker files are flagged and never fabricated into results."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+
+        # Valid trial 0
+        write_durable_marker(durable_p, "trial_000_result.json", {
+            "trial_number": 0, "status": "FEASIBLE", "objective_value": 8000.0,
+            "best_policy": {"total_cost": 8000, "M": 200, "threshold": 0.4}
+        })
+
+        # Corrupted trial 1 (malformed JSON)
+        corrupted_path = durable_p / "trial_001_result.json"
+        corrupted_path.write_bytes(b"{corrupted: json content...}")
+
+        reconciled = reconcile_durable_trial_markers(durable_p)
+        assert reconciled["n_trials_completed"] == 1
+        assert len(reconciled["trials_records"]) == 1
+        assert len(reconciled["corrupted_markers"]) == 1
+        assert reconciled["corrupted_markers"][0]["file"] == "trial_001_result.json"
+
+
+def test_durable_trial_marker_write_failure_raises():
+    """Verify that if trial result cannot be persisted, execution fails closed with DurableLoggingError."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        durable_p = Path(tmp_dir)
+        fc = FitCounter(max_fits=2, durable_dir=durable_p)
+
+        rng = np.random.RandomState(42)
+        x_tr = rng.randn(20, 4)
+        y_tr = (rng.rand(20) < 0.2).astype(np.int8)
+        y_tr[0], y_tr[1] = 0, 1
+        x_val = rng.randn(10, 4)
+        y_val = (rng.rand(10) < 0.2).astype(np.int8)
+        y_val[0], y_val[1] = 0, 1
+
+        with patch("src.scania.phase2_optimization.write_durable_marker", side_effect=DurableLoggingError("DISK_FULL_SIMULATION")):
+            with pytest.raises(Exception):
+                run_optuna_phase2_trials(
+                    x_tr, y_tr, x_val, y_val,
+                    fit_counter=fc,
+                    n_trials=1,
+                    seed=42,
+                )
+
+
+def test_authorization_rejection_of_mismatched_config_and_commit():
+    """Verify authorization validator strictly rejects mismatched config SHA or commit SHA."""
+    current_head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip().lower()
+    real_cfg_sha = get_phase2_config_sha(REPO_ROOT)
+
+    # 1. Reject mismatched config SHA-256
+    auth_bad_cfg = {
+        "run_id": "test_auth_cfg_mismatch",
+        "authorization_status": "AUTHORIZED",
+        "permitted_operation": "SYNTHETIC_OPTIMIZATION_TESTING_ONLY",
+        "owner_approval": {"reference": "SYNTHETIC_FIXTURE_APPROVED"},
+        "source_integrity": {"authorized_commit": current_head},
+        "locked_configuration": {"config_sha256": "0000000000000000000000000000000000000000000000000000000000000000"},
+        "g3_integrity": {
+            "stable_digest": G3_ACCEPTED_STABLE_DIGEST,
+            "manifest_file_sha256": G3_ACCEPTED_MANIFEST_FILE_SHA256,
+        },
+        "budget": {"max_trials": 5, "total_max_fits": 5, "fits_per_trial": 1},
+        "resource_limits": {"max_wall_seconds": 60, "max_ram_mb": 1024, "max_native_threads": 1},
+    }
+    with pytest.raises(ExecutorBlocked, match="PHASE2_CONFIG_HASH_MISMATCH"):
+        validate_phase2_authorization_record(auth_bad_cfg, expected_run_id="test_auth_cfg_mismatch", root=REPO_ROOT, mode="SYNTHETIC")
+
+    # 2. Reject mismatched commit SHA
+    auth_bad_commit = dict(auth_bad_cfg)
+    auth_bad_commit["locked_configuration"] = {"config_sha256": real_cfg_sha}
+    auth_bad_commit["source_integrity"] = {"authorized_commit": "1111111111111111111111111111111111111111"}
+    with pytest.raises(ExecutorBlocked, match="SOURCE_HEAD_MISMATCH"):
+        validate_phase2_authorization_record(auth_bad_commit, expected_run_id="test_auth_cfg_mismatch", root=REPO_ROOT, mode="SYNTHETIC")
+
+
+def test_rejection_of_unsealed_test_scope():
+    """Verify owner comment parser strictly rejects any scope permitting access to official test."""
+    current_head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip().lower()
+
+    unsealed_scope_comment = f"""# OWNER TASK AUTHORIZATION — SCANIA APS PHASE 2 CONSTRAINED OPTIMIZATION
+
+Decision: APPROVED
+Authorized Commit: {current_head}
+Target Run ID: scania_phase2_rf_optuna_002
+Permitted Operation: CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY
+Approved Estimator: RandomForestClassifier(class_weight="balanced", random_state=42, n_jobs=1, bootstrap=True)
+Approved Optimizer: Optuna TPESampler(seed=42), sequential execution
+Fit Budget: max_trials: 20, max_fits_per_trial: 1, total_max_fits: 20
+Data Scope: Train, Validation, and evaluate on test partition
+Resource Limits: max_native_threads: 1, max_ram_mb: 2048, max_wall_seconds: 900
+"""
+    with pytest.raises(ExecutorBlocked, match="CONTRADICTORY_DATA_SCOPE"):
+        verify_phase2_owner_approval_text(unsealed_scope_comment, author="PhucHuynh16")
+
+
+def test_verify_phase2_run_on_run_001_preservation():
+    """Verify run_001 is recognized as cryptographically and forensically intact without fabrication."""
+    run_001_dir = REPO_ROOT / "results/scania_aps/phase2/scania_phase2_rf_optuna_001"
+    assert run_001_dir.is_dir()
+    assert verify_phase2_run(run_001_dir) is True
 

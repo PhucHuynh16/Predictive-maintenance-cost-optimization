@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
 import numpy as np
@@ -288,6 +288,63 @@ def reconcile_durable_fit_markers(durable_dir: Path) -> Dict[str, Any]:
     }
 
 
+def reconcile_durable_trial_markers(durable_dir: Union[str, Path]) -> Dict[str, Any]:
+    """Scan and reconstruct completed trial evaluations from durable trial markers on disk.
+
+    Reads:
+    - trial_{trial_number:03d}_result.json
+
+    Rebuilds:
+    - trials_records: list of verified trial dicts sorted by trial_number
+    - n_trials_completed: count of completed trial markers
+    - best_trial: trial record with lowest (total_cost, M, -threshold) among feasible completed trials
+
+    Never invents missing trials or interpolates uncompleted trials.
+    """
+    durable_dir = Path(durable_dir)
+    if not durable_dir.is_dir():
+        return {
+            "n_trials_completed": 0,
+            "trials_records": [],
+            "best_trial": None,
+            "corrupted_markers": [],
+        }
+
+    trial_files = sorted(durable_dir.glob("trial_*_result.json"))
+    trials_records = []
+    corrupted_markers = []
+
+    for fpath in trial_files:
+        try:
+            data = json.loads(fpath.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or "trial_number" not in data:
+                corrupted_markers.append({"file": fpath.name, "error": "MISSING_TRIAL_NUMBER"})
+                continue
+            trials_records.append(data)
+        except Exception as exc:
+            corrupted_markers.append({"file": fpath.name, "error": str(exc)})
+
+    # Sort strictly by trial_number
+    trials_records.sort(key=lambda t: t.get("trial_number", 0))
+
+    feasible_trials = [t for t in trials_records if t.get("status") == "FEASIBLE" and t.get("best_policy")]
+    if feasible_trials:
+        best_trial = min(feasible_trials, key=lambda t: (
+            t["best_policy"]["total_cost"],
+            t["best_policy"]["M"],
+            -t["best_policy"]["threshold"]
+        ))
+    else:
+        best_trial = None
+
+    return {
+        "n_trials_completed": len(trials_records),
+        "trials_records": trials_records,
+        "best_trial": best_trial,
+        "corrupted_markers": corrupted_markers,
+    }
+
+
 def enumerate_threshold_candidates(probs: np.ndarray) -> np.ndarray:
     """Enumerate all valid unique candidate thresholds in [0, 1] including endpoints."""
     p = probabilities(probs)
@@ -385,6 +442,29 @@ def evaluate_threshold_candidates_vectorized(
 
     excess = max(0, best_m - capacity_limit)
 
+    # Retain genuine 101-point threshold curve across [0.0, 1.0] without extra fitting
+    grid_taus = np.linspace(0.0, 1.0, 101)
+    grid_idx = np.searchsorted(p_sorted, grid_taus, side="left")
+    grid_m = n - grid_idx
+    grid_tp = total_p - cum_y[grid_idx]
+    grid_fp = grid_m - grid_tp
+    grid_fn = total_p - grid_tp
+    grid_cost = cost_fp * grid_fp + cost_fn * grid_fn
+    grid_feasible = grid_m <= capacity_limit
+
+    threshold_curve = [
+        {
+            "threshold": round(float(grid_taus[i]), 4),
+            "M": int(grid_m[i]),
+            "cost": int(grid_cost[i]),
+            "TP": int(grid_tp[i]),
+            "FP": int(grid_fp[i]),
+            "FN": int(grid_fn[i]),
+            "feasible": bool(grid_feasible[i]),
+        }
+        for i in range(len(grid_taus))
+    ]
+
     best_policy = {
         "threshold": best_tau,
         "TP": best_tp,
@@ -410,6 +490,7 @@ def evaluate_threshold_candidates_vectorized(
         "precision": precision,
         "recall": recall,
         "f1": f1,
+        "threshold_curve": threshold_curve,
     }
 
     return {
@@ -418,6 +499,7 @@ def evaluate_threshold_candidates_vectorized(
         "candidate_count": candidate_count,
         "feasible_count": len(feasible_indices),
         "objective_value": float(best_cost),
+        "threshold_curve": threshold_curve,
     }
 
 
@@ -592,6 +674,18 @@ def run_optuna_phase2_trials(
             "best_policy": best,
         }
         trials_records.append(rec)
+
+        # 4. Durable persistence of completed trial result immediately
+        durable_dir = getattr(fit_counter, "durable_dir", None)
+        if durable_dir is not None:
+            marker_name = f"trial_{trial.number:03d}_result.json"
+            try:
+                write_durable_marker(durable_dir, marker_name, sanitize_for_strict_json(rec))
+            except Exception as exc:
+                raise DurableLoggingError(
+                    f"DURABLE_TRIAL_RESULT_MARKER_FAILED: Failed to write {marker_name}: {exc}"
+                ) from exc
+
         return objective_val
 
     study.optimize(objective, n_trials=n_trials)

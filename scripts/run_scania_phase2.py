@@ -32,7 +32,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from src.scania.contracts import environment, digest
 from src.scania.artifacts import code_digest
-from src.scania.phase2_optimization import reconcile_durable_fit_markers
+from src.scania.phase2_optimization import reconcile_durable_fit_markers, reconcile_durable_trial_markers
 from src.scania.phase2_executor import (
     REPO_ROOT, ExecutorBlocked, ExecutorFailure,
     load_phase2_config, get_phase2_config_sha,
@@ -206,9 +206,10 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
         print(f"EXECUTION_FAILED: {type(exc).__name__}: {err_msg}", file=sys.stderr)
         errors.append({"error_type": type(exc).__name__, "reason": err_msg})
 
-        # FIX 2: Reconstruct confirmed started fits from durable markers on disk
+        # FIX 2: Reconstruct confirmed started fits and completed trials from durable markers on disk
         durable_dir = output_dir / "durable_fits"
-        reconciled = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {}
+        reconciled_fits = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {}
+        reconciled_trials = reconcile_durable_trial_markers(durable_dir) if durable_dir.is_dir() else {}
 
         w_res = getattr(exc, "worker_result", None)
         if not w_res:
@@ -221,11 +222,16 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
             else:
                 w_res = {}
 
-        started_fits = max(reconciled.get("started_fits", 0), w_res.get("started_estimator_fits", 0))
-        completed_fits = max(reconciled.get("completed_fits", 0), w_res.get("completed_estimator_fits", 0))
-        failed_fits = max(reconciled.get("failed_fits", 0), w_res.get("failed_estimator_fits", 0))
-        interrupted_fits = reconciled.get("interrupted_or_unknown_fits", 0)
-        fit_records = reconciled.get("fit_records") or w_res.get("fit_records", [])
+        started_fits = max(reconciled_fits.get("started_fits", 0), w_res.get("started_estimator_fits", 0))
+        completed_fits = max(reconciled_fits.get("completed_fits", 0), w_res.get("completed_estimator_fits", 0))
+        failed_fits = max(reconciled_fits.get("failed_fits", 0), w_res.get("failed_estimator_fits", 0))
+        interrupted_fits = reconciled_fits.get("interrupted_or_unknown_fits", 0)
+        fit_records = reconciled_fits.get("fit_records") or w_res.get("fit_records", [])
+
+        # Recover trials from durable trial markers or worker result
+        trials_records = reconciled_trials.get("trials_records") or w_res.get("trials_records", [])
+        n_trials = reconciled_trials.get("n_trials_completed", len(trials_records))
+        best_trial = reconciled_trials.get("best_trial") or w_res.get("best_trial")
 
         report = {
             "run_id": run_id,
@@ -237,8 +243,9 @@ def run_phase2_real(root=ROOT, run_id: str = "scania_phase2_rf_optuna_001", g3_r
             "completed_estimator_fits": completed_fits,
             "failed_estimator_fits": failed_fits,
             "interrupted_or_unknown_fits": interrupted_fits,
-            "n_trials_completed": w_res.get("n_trials_completed", completed_fits),
-            "trials_records": w_res.get("trials_records", []),
+            "n_trials_completed": n_trials,
+            "best_trial": best_trial,
+            "trials_records": trials_records,
             "fit_records": fit_records,
             "measured_wall_seconds": time.perf_counter() - t0_exec,
             "measured_peak_ram_mb": 0.0,

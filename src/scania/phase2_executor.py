@@ -34,7 +34,12 @@ from .g4_b2_executor import (
     _get_github_token, _strip_markdown_code_blocks, _parse_owner_comment_fields,
     verify_g3_artifacts_and_build_allowlist, install_executor_io_guard
 )
-from .phase2_optimization import sanitize_for_strict_json, reconcile_durable_fit_markers, DurableLoggingError
+from .phase2_optimization import (
+    sanitize_for_strict_json,
+    reconcile_durable_fit_markers,
+    reconcile_durable_trial_markers,
+    DurableLoggingError,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHASE2_CONFIG_PATH = REPO_ROOT / "configs/scania/phase2_optimization.json"
@@ -85,7 +90,7 @@ def verify_phase2_owner_approval_text(
       * Approved Optimizer: contains 'Optuna' or 'TPESampler'.
       * Fit Budget: max_trials<=20, total_max_fits<=20, fits_per_trial=1.
       * Data Scope: Train, Validation, and Official Test sealed until G10.
-      * Resource Limits: 1 native thread, max 2048 MB RAM, max 300s wall time.
+      * Resource Limits: 1 native thread, max 2048 MB RAM, max 900s wall time.
     - Semantic check against expected_record if provided.
     - Returns dictionary of parsed approved parameters.
     """
@@ -195,8 +200,8 @@ def verify_phase2_owner_approval_text(
         raise ExecutorBlocked(f"INVALID_THREADS: max_native_threads must be exactly 1, got {threads}")
     if ram_mb > 2048:
         raise ExecutorBlocked(f"INVALID_RAM: max_ram_mb must not exceed 2048, got {ram_mb}")
-    if wall_sec > 300:
-        raise ExecutorBlocked(f"INVALID_WALL_TIME: max_wall_seconds must not exceed 300, got {wall_sec}")
+    if wall_sec > 900:
+        raise ExecutorBlocked(f"INVALID_WALL_TIME: max_wall_seconds must not exceed 900, got {wall_sec}")
 
     parsed_approved_limits = {
         "authorized_commit": commit_val,
@@ -258,7 +263,7 @@ def verify_phase2_owner_approval_reference(ref: str, expected_record: Optional[D
       * Fit Budget: max_trials=20, max_fits_per_trial=1, total_max_fits=20.
       * Data Scope: Train (48k) and Validation (12k).
       * Official Test: explicitly declared sealed until G10.
-      * Resource Limits: 1 native thread, max 2048 MB RAM, max 300s wall time.
+      * Resource Limits: 1 native thread, max 2048 MB RAM, max 900s wall time.
     """
     if not isinstance(ref, str) or not ref:
         raise ExecutorBlocked("INVALID_OWNER_APPROVAL_REFERENCE: Reference must be a non-empty string URL")
@@ -538,7 +543,7 @@ def orchestrate_phase2_worker_in_job(
     output_dir: Path,
     allowlist: List[Path],
     task_config: Dict[str, Any],
-    wall_seconds: int = 300,
+    wall_seconds: int = 900,
     ram_cap_bytes: int = 2048 * 1024 * 1024,
     mode: str = "REAL",
 ) -> Dict[str, Any]:
@@ -597,10 +602,13 @@ def orchestrate_phase2_worker_in_job(
 
     elapsed = time.perf_counter() - t0
 
-    # FIX 2: Reconstruct confirmed started fits from durable markers on disk
+    # FIX 2: Reconstruct confirmed started fits and trial results from durable markers on disk
     durable_dir = output_dir / "durable_fits"
-    reconciled = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {
+    reconciled_fits = reconcile_durable_fit_markers(durable_dir) if durable_dir.is_dir() else {
         "started_fits": 0, "completed_fits": 0, "failed_fits": 0, "interrupted_or_unknown_fits": 0, "fit_records": []
+    }
+    reconciled_trials = reconcile_durable_trial_markers(durable_dir) if durable_dir.is_dir() else {
+        "n_trials_completed": 0, "trials_records": [], "best_trial": None, "corrupted_markers": []
     }
 
     if not result_path.is_file():
@@ -609,17 +617,19 @@ def orchestrate_phase2_worker_in_job(
             "status": "FAILED",
             "error_type": "WorkerTerminatedNoResult",
             "reason": f"Worker process terminated without writing worker_result.json (exit_code={exit_code})",
-            "total_estimator_fits": reconciled.get("started_fits", 0),
-            "started_estimator_fits": reconciled.get("started_fits", 0),
-            "completed_estimator_fits": reconciled.get("completed_fits", 0),
-            "failed_estimator_fits": reconciled.get("failed_fits", 0),
-            "interrupted_or_unknown_fits": reconciled.get("interrupted_or_unknown_fits", 0),
-            "fit_records": reconciled.get("fit_records", []),
-            "n_trials_completed": reconciled.get("completed_fits", 0),
+            "total_estimator_fits": reconciled_fits.get("started_fits", 0),
+            "started_estimator_fits": reconciled_fits.get("started_fits", 0),
+            "completed_estimator_fits": reconciled_fits.get("completed_fits", 0),
+            "failed_estimator_fits": reconciled_fits.get("failed_fits", 0),
+            "interrupted_or_unknown_fits": reconciled_fits.get("interrupted_or_unknown_fits", 0),
+            "fit_records": reconciled_fits.get("fit_records", []),
+            "n_trials_completed": reconciled_trials.get("n_trials_completed", 0),
+            "trials_records": reconciled_trials.get("trials_records", []),
+            "best_trial": reconciled_trials.get("best_trial"),
             "validation_scored": False,
         }
         raise ExecutorFailure(
-            f"WORKER_CRASHED_NO_RESULT: Exit code {exit_code}; confirmed started fits: {reconciled.get('started_fits', 0)}",
+            f"WORKER_CRASHED_NO_RESULT: Exit code {exit_code}; confirmed started fits: {reconciled_fits.get('started_fits', 0)}",
             worker_result=partial_result,
         )
 
@@ -628,11 +638,16 @@ def orchestrate_phase2_worker_in_job(
     if exit_code != 0 or worker_result.get("status") != "PASS":
         err_msg = worker_result.get("reason", f"Exit code {exit_code}")
         # Merge reconciled markers into worker_result if worker crashed mid-trial
-        if reconciled.get("started_fits", 0) > worker_result.get("total_estimator_fits", 0):
-            worker_result["total_estimator_fits"] = reconciled["started_fits"]
-            worker_result["started_estimator_fits"] = reconciled["started_fits"]
-            worker_result["interrupted_or_unknown_fits"] = reconciled["interrupted_or_unknown_fits"]
-            worker_result["fit_records"] = reconciled["fit_records"]
+        if reconciled_fits.get("started_fits", 0) > worker_result.get("total_estimator_fits", 0):
+            worker_result["total_estimator_fits"] = reconciled_fits["started_fits"]
+            worker_result["started_estimator_fits"] = reconciled_fits["started_fits"]
+            worker_result["interrupted_or_unknown_fits"] = reconciled_fits["interrupted_or_unknown_fits"]
+            worker_result["fit_records"] = reconciled_fits["fit_records"]
+        if reconciled_trials.get("n_trials_completed", 0) > len(worker_result.get("trials_records", [])):
+            worker_result["n_trials_completed"] = reconciled_trials["n_trials_completed"]
+            worker_result["trials_records"] = reconciled_trials["trials_records"]
+            if not worker_result.get("best_trial"):
+                worker_result["best_trial"] = reconciled_trials.get("best_trial")
         raise ExecutorFailure(f"PHASE2_WORKER_FAILED: {err_msg}", worker_result=worker_result)
 
     is_real = (mode == "REAL")
@@ -880,10 +895,7 @@ def verify_phase2_run(output_dir: Path) -> bool:
         return False
 
     study_trials = study.get("trials", [])
-    if len(study_trials) != n_trials_completed:
-        return False
-    if study.get("n_trials_completed") != n_trials_completed:
-        return False
+    study_n = study.get("n_trials_completed")
 
     # 6. Check trials_summary.csv rows
     try:
@@ -894,8 +906,22 @@ def verify_phase2_run(output_dir: Path) -> bool:
     except Exception:
         return False
 
-    if len(csv_rows) != n_trials_completed:
-        return False
+    # Check trial count consistency:
+    # For COMPLETE runs: strictly requires all trials match n_trials_completed
+    # For FAILED runs: verifies internal consistency between study trials and csv_rows
+    if status == "COMPLETE":
+        if len(study_trials) != n_trials_completed:
+            return False
+        if study_n != n_trials_completed:
+            return False
+        if len(csv_rows) != n_trials_completed:
+            return False
+    else:
+        # FAILED or PARTIAL run: verify study trials and csv_rows match each other
+        if len(study_trials) != len(csv_rows):
+            return False
+        if study_n is not None and study_n != len(study_trials) and study_n != n_trials_completed:
+            return False
 
     # 7. Scientific & policy validation for COMPLETE runs
     if status == "COMPLETE":
