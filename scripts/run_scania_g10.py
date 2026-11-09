@@ -30,7 +30,9 @@ def cmd_preflight(args):
     print("=" * 60)
     print("SCANIA APS — GATE G10 PREFLIGHT VERIFICATION")
     print("=" * 60)
-    auth_file = REPO_ROOT / f"configs/scania/authorizations/{TARGET_RUN_ID}.json"
+    cfg = load_g10_config(REPO_ROOT)
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
+    auth_file = REPO_ROOT / f"configs/scania/authorizations/{target_run_id}.json"
     summary = run_g10_preflight(root=REPO_ROOT, auth_path=auth_file)
     print(json.dumps(summary, indent=2))
     print("-" * 60)
@@ -50,8 +52,10 @@ def cmd_synthetic(args):
     print("Official Test set remains STRICTLY SEALED.")
     print("-" * 60)
 
+    cfg = load_g10_config(REPO_ROOT)
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_output = Path(tmpdir) / TARGET_RUN_ID
+        tmp_output = Path(tmpdir) / target_run_id
         result = execute_g10_evaluation(
             root=REPO_ROOT,
             mode="SYNTHETIC",
@@ -66,7 +70,9 @@ def cmd_execute(args):
     print("=" * 60)
     print("SCANIA APS — GATE G10 OFFICIAL TEST EXECUTION")
     print("=" * 60)
-    output_dir = REPO_ROOT / "results/scania_aps/g10" / TARGET_RUN_ID
+    cfg = load_g10_config(REPO_ROOT)
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
+    output_dir = REPO_ROOT / "results/scania_aps/g10" / target_run_id
     if output_dir.exists():
         print(f"[BLOCKED] Output directory already exists: {output_dir}")
         print("Re-running evaluation over existing results is prohibited.")
@@ -86,7 +92,9 @@ def cmd_verify(args):
     print("=" * 60)
     print("SCANIA APS — GATE G10 ARTIFACT & MANIFEST VERIFICATION")
     print("=" * 60)
-    run_dir = REPO_ROOT / "results/scania_aps/g10" / TARGET_RUN_ID
+    cfg = load_g10_config(REPO_ROOT)
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
+    run_dir = REPO_ROOT / "results/scania_aps/g10" / target_run_id
     if not run_dir.exists():
         print(f"[ERROR] Run directory not found: {run_dir}")
         return 1

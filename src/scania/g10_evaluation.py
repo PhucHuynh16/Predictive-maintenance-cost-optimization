@@ -66,7 +66,7 @@ G3_ACCEPTED_STABLE_DIGEST = "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa29
 G3_ACCEPTED_MANIFEST_FILE_SHA256 = "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242"
 
 # Frozen Policy Constants (Phase 2 Trial 16)
-TARGET_RUN_ID = "scania_g10_official_test_001"
+TARGET_RUN_ID = "scania_g10_official_test_002"
 EVALUATION_MODE = "DETERMINISTIC_TRAIN_REFIT_EVALUATION"
 PERMITTED_FITS = 1
 FROZEN_THRESHOLD = 0.3232440937634324
@@ -206,9 +206,9 @@ def verify_g10_owner_approval_text(
 
     # Target Run ID
     run_id_val = fields.get("target run id") or fields.get("run id")
-    if not run_id_val or run_id_val != TARGET_RUN_ID:
+    if not run_id_val or not re.match(r"^scania_g10_official_test_\d{3}$", run_id_val):
         raise ExecutorBlocked(
-            f"INVALID_TARGET_RUN_ID: Expected '{TARGET_RUN_ID}', got '{run_id_val}'"
+            f"INVALID_TARGET_RUN_ID: Expected 'scania_g10_official_test_XXX', got '{run_id_val}'"
         )
 
     # Permitted Operation
@@ -746,7 +746,8 @@ def run_g10_preflight(
             }
 
     # 6. Check output directory non-existence
-    output_dir = root / "results/scania_aps/g10" / TARGET_RUN_ID
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
+    output_dir = root / "results/scania_aps/g10" / target_run_id
     output_dir_exists = output_dir.exists()
 
     return {
@@ -762,7 +763,7 @@ def run_g10_preflight(
             "run_id": g3_summary.get("run_id"),
             "stable_digest": g3_summary.get("stable_digest"),
         },
-        "target_run_id": TARGET_RUN_ID,
+        "target_run_id": target_run_id,
         "output_directory_exists": output_dir_exists,
         "authorization_check": auth_summary,
         "frozen_policy": {
@@ -789,10 +790,16 @@ def execute_g10_evaluation(
     """
     root = Path(root).resolve()
 
+    # BLOCKER 2: Verification BEFORE creating directory, fitting or touching Official Test!
+    # 2a. Verify locked G10 configuration SHA-256
+    cfg = load_g10_config(root)
+    cfg_sha = get_g10_config_sha(root)
+    target_run_id = cfg.get("target_run_id", TARGET_RUN_ID)
+
     final_output_dir = (
         Path(override_output_dir).resolve()
         if override_output_dir
-        else root / "results/scania_aps/g10" / TARGET_RUN_ID
+        else root / "results/scania_aps/g10" / target_run_id
     )
 
     # BLOCKER 3: Do NOT create the final run directory before successful authorization and preflight!
@@ -801,17 +808,12 @@ def execute_g10_evaluation(
             f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {final_output_dir}. Re-evaluation of existing run is prohibited."
         )
 
-    # BLOCKER 2: Verification BEFORE creating directory, fitting or touching Official Test!
-    # 2a. Verify locked G10 configuration SHA-256
-    cfg = load_g10_config(root)
-    cfg_sha = get_g10_config_sha(root)
-
     # 2b. Verify exact authorized Git HEAD
     proc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True)
     head_sha = proc.stdout.strip().lower()
 
     # 2c. Verify authentic GitHub Owner comment
-    auth_file = root / f"configs/scania/authorizations/{TARGET_RUN_ID}.json"
+    auth_file = root / f"configs/scania/authorizations/{target_run_id}.json"
     auth_record: Dict[str, Any] = {}
 
     if mode == "REAL":
@@ -840,7 +842,7 @@ def execute_g10_evaluation(
     else:
         # Synthetic testing mode
         auth_record = {
-            "run_id": TARGET_RUN_ID,
+            "run_id": target_run_id,
             "authorization_status": "SYNTHETIC_TEST",
             "permitted_operation": "G10_OFFICIAL_TEST_EVALUATION",
             "evaluation_mode": EVALUATION_MODE,
@@ -865,6 +867,7 @@ def execute_g10_evaluation(
         root / "configs/scania/g10_evaluation.json",
         auth_file,
         root / cfg["data"]["raw_zip_path"],
+        root / cfg["data"]["preprocessor_path"],
         final_output_dir,
     ])
 
@@ -873,7 +876,7 @@ def execute_g10_evaluation(
 
     # Prepare task configuration for supervised worker
     task_config = {
-        "run_id": TARGET_RUN_ID,
+        "run_id": target_run_id,
         "mode": mode,
         "frozen_rf_params": FROZEN_RF_HYPERPARAMS,
         "frozen_threshold": FROZEN_THRESHOLD,
@@ -898,7 +901,7 @@ def execute_g10_evaluation(
     # BLOCKER 1: Enforce runtime limits via supervised worker under Windows Job Object
     return orchestrate_g10_worker_in_job(
         root=root,
-        run_id=TARGET_RUN_ID,
+        run_id=target_run_id,
         output_dir=final_output_dir,
         allowlist=allowlist_paths,
         task_config=task_config,

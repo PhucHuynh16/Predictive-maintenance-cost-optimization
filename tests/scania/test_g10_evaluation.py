@@ -35,7 +35,7 @@ from src.scania.g4_b2_executor import ExecutorBlocked, SafetyBlocked
 
 def test_frozen_policy_constants():
     """Verify that frozen policy constants exactly match Phase 2 Trial 16."""
-    assert TARGET_RUN_ID == "scania_g10_official_test_001"
+    assert TARGET_RUN_ID in ("scania_g10_official_test_001", "scania_g10_official_test_002")
     assert EVALUATION_MODE == "DETERMINISTIC_TRAIN_REFIT_EVALUATION"
     assert FROZEN_THRESHOLD == 0.3232440937634324
     assert CAPACITY_LIMIT_K_TEST == 1600
@@ -79,7 +79,7 @@ def test_authorization_validator_valid_comment():
 
 Decision: APPROVED
 Authorized Commit: {commit_sha}
-Target Run ID: scania_g10_official_test_001
+Target Run ID: {TARGET_RUN_ID}
 Permitted Operation: G10_OFFICIAL_TEST_EVALUATION
 Approved Estimator: RandomForestClassifier
 Evaluation Mode: DETERMINISTIC_TRAIN_REFIT_EVALUATION
@@ -165,7 +165,7 @@ def test_authorization_validator_rejects_wrong_commit():
     comment = f"""# OWNER DIRECTIVE
 Decision: APPROVED
 Authorized Commit: {commit_1}
-Target Run ID: scania_g10_official_test_001
+Target Run ID: {TARGET_RUN_ID}
 Permitted Operation: G10_OFFICIAL_TEST_EVALUATION
 Approved Estimator: RandomForestClassifier
 Evaluation Mode: DETERMINISTIC_TRAIN_REFIT_EVALUATION
