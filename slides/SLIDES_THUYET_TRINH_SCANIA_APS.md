@@ -59,7 +59,7 @@
 - **Phân vùng dữ liệu đã khóa (Locked G3 Split):**
   - Train: 48.000 mẫu ($800$ ca dương / $47.200$ ca âm — tỷ lệ $1.67\%$).
   - Validation: 12.000 mẫu ($200$ ca dương / $11.800$ ca âm — tỷ lệ $1.67\%$).
-  - **Official Test (16.000 mẫu): NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**.
+  - **Official Test (16.000 mẫu):** Niêm phong độc lập trong suốt Phase 2; mở đánh giá độc lập zero-tuning duy nhất một lần tại Gate G10 (Run 003).
 - **Nguyên tắc không rò rỉ dữ liệu (No Data Leakage):**
   - Điền khuyết thiếu (`median`) và chuẩn hóa (`StandardScaler`) fit duy nhất trên 48.000 mẫu Train.
 - **Hệ thống mô hình đường cơ sở (G4 Baselines):**
@@ -114,7 +114,9 @@
   - **Chỉ số đo đạc:** **$Recall = 95.20\%$**, **$Precision = 42.45\%$**, $ROC\text{-}AUC = 0.9861$, $PR\text{-}AUC = 0.7495$.
   - **Chi phí benchmark:** **13.840 đơn vị** (tiết kiệm **92.62%** so với mốc không can thiệp $187.500$).
   - **Ràng buộc công suất xưởng:** $M = 841 \le 1.600$ xe (**Khả thi**, dư 759 chỗ trống).
-- **Khả năng tái lập khoa học (Full Reproducibility) & Liêm chính học thuật:**
+  - **Minh bạch truy cập Test:** Ở Runs 001/002 bị gián đoạn, tệp CSV được nạp vào RAM nhưng tiến trình dừng ngay tại chốt preprocessor, tuyệt đối không có dự đoán hay tinh chỉnh nào.
+- **Khả năng tái lập khoa học & Phân biệt Benchmark vs Thực tế:**
+  - **Phân biệt Benchmark vs Vận hành thực địa:** Chi phí 13.840 đo lường theo chuẩn benchmark tĩnh IDA 2016 ($10 \cdot FP + 500 \cdot FN$); vận hành thực tế đội xe cần tích hợp thêm điều độ động, phụ tùng và nhân lực xưởng.
   - Giám sát nghiêm ngặt qua Windows Job Object: 1 thread cố định, đỉnh RAM < 202 MB.
   - Bảo tồn nguyên vẹn 100% bằng chứng và nhật ký sự cố các lần chạy trước (Runs 001, 002).
   - Mọi artifact từ G4, Phase 2 đến G10 đều được ký băm mật mã học SHA-256 (`verify` -> PASS).

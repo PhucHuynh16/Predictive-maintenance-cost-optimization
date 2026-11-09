@@ -118,7 +118,8 @@ Theo giao thức G3 đã được kiểm định toàn vẹn (`stable_manifest.j
   - **Phân vùng Validation:** 12.000 mẫu (200 ca dương tính $1.67\%$, 11.800 ca âm tính).
   - Hai phân vùng hoàn toàn tách biệt ($A \cap B = \emptyset, A \cup B = \{0, \dots, 59999\}$), bảo toàn đúng tỷ lệ phân bố lớp ban đầu.
 - **Tập Official Test (16.000 mẫu):**
-  - **Niêm phong tuyệt đối (STRICTLY SEALED UNTIL G10)**. Mọi mã nguồn thực thi bị chặn bằng I/O guard ở tầng Python hook; không tham gia vào bất kỳ khâu tiền xử lý, huấn luyện hay chọn ngưỡng nào.
+  - **Niêm phong độc lập trong tối ưu hóa (SEALED DURING PHASE 2)**: Được giữ niêm phong hoàn toàn trong suốt quá trình huấn luyện và tìm kiếm siêu tham số/ngưỡng Phase 2. Sau khi chính sách tối ưu hóa được khóa cố định tại Trial 16, tập Test được mở đánh giá độc lập duy nhất một lần tại Gate G10 (Run 003, zero tuning).
+  - **Minh bạch truy cập dữ liệu**: Trong hai lần chạy kiểm thử G10 bị gián đoạn trước đó (Run 001/002), tệp CSV kiểm thử được giải nén đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức tại chốt kiểm tra preprocessor, tuyệt đối không có bất kỳ bước dự đoán, suy diễn hay tinh chỉnh ngưỡng nào diễn ra trên dữ liệu Test.
 
 ### 4.2. Đường ống tiền xử lý không rò rỉ (Strict Train-Only Fitting)
 1. **Điền khuyết thiếu:** `SimpleImputer(strategy='median')` fit tham số trung vị duy nhất trên 48.000 mẫu Train, sau đó thực hiện `transform` tĩnh trên Validation.
@@ -148,7 +149,7 @@ Hệ thống thử nghiệm G4 thiết lập 3 mô hình cơ sở nhằm thiết
    - Kết quả đo đạc thực tế chính thức trên 12.000 mẫu Validation từ bộ dữ liệu UCI 421 sau khi huấn luyện trên 48.000 mẫu Train theo đúng ủy quyền Gate B2 của Chủ dự án (Run `scania_g4_b2_real_002`).
    - Đã kiểm chứng độc lập tính toàn vẹn 11 artifacts bằng `verify_run() == True` và chữ ký băm SHA-256.
 4. **Cấp độ Đánh giá kiểm thử cuối (Official Test Tier - 16.000 xe):**
-   - Hoàn toàn niêm phong (SEALED UNTIL G10), chưa được mở khóa và chưa từng chạy đánh giá.
+   - Được giữ niêm phong độc lập trong suốt quá trình huấn luyện và tối ưu hóa tham số (Phase 2). Sau khi chính sách tối ưu hóa được khóa cố định tại Trial 16, tập Official Test được giải phóng và đánh giá độc lập duy nhất một lần tại Gate G10 (Run 003) theo đúng ủy quyền của Chủ dự án (zero tuning, zero data leakage). Minh bạch toàn diện: ở các lượt chạy thử nghiệm G10 thất bại trước đó (Run 001/002), tệp CSV kiểm thử được giải nén đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức do cơ chế bảo vệ kiểm tra preprocessor trước khi bất kỳ suy diễn dự đoán hay tinh chỉnh ngưỡng nào diễn ra.
 
 ---
 
@@ -270,8 +271,8 @@ Trong ngân sách 20 trials thực nghiệm được phê duyệt, thuật toán
 - **Kiểm soát luồng & Bộ nhớ:** Tiến trình chạy đơn luồng bản địa (`max_native_threads = 1`), đỉnh tiêu thụ RAM thực tế ghi nhận qua Windows Job Object chỉ đạt **159.82 MB** (nằm sâu dưới trần cho phép 2048 MB).
 - **Thời gian thực thi:** Hoàn thành toàn bộ 20 trials trong **543.06 giây** (trung bình ~27.1 giây/trial), nằm hoàn toàn trong hạn ngạch thời gian tối đa 900 giây được Chủ dự án cấp quyền.
 - **Số lượt huấn luyện thật (Estimator Fits):** Ghi nhận chính xác **20/20 fits STARTED và COMPLETED**, $0$ fit thất bại, $0$ fit gián đoạn.
-- **Đánh giá độc lập Gate G10:** Sau khi hoàn tất Phase 2 và khóa chính sách tại Trial 16, tập dữ liệu Official Test 16.000 mẫu được mở niêm phong và đánh giá một lần duy nhất tại Gate G10 theo đúng phê duyệt của Chủ dự án.
-- **Bảo tồn khoa học các lần chạy lỗi:** Lần chạy trước `scania_phase2_rf_optuna_001` bị timeout ở giây 300 và các lần chạy gián đoạn G10 (`scania_g10_official_test_001`, `002`) đều được lưu trữ nguyên vẹn tại `results/scania_aps/` kèm biên bản pháp y độc lập.
+- **Đánh giá độc lập Gate G10:** Sau khi hoàn tất Phase 2 và khóa chính sách tại Trial 16, tập dữ liệu Official Test 16.000 mẫu được mở niêm phong và đánh giá một lần duy nhất tại Gate G10 Run 003 theo đúng phê duyệt của Chủ dự án.
+- **Bảo tồn khoa học các lần chạy lỗi:** Lần chạy trước `scania_phase2_rf_optuna_001` bị timeout ở giây 300 và các lần chạy gián đoạn G10 (`scania_g10_official_test_001`, `002` — trong đó tệp test CSV được giải nén đọc vào bộ nhớ nhưng tiến trình dừng ngay tại chốt kiểm tra preprocessor, không có dự đoán hay tinh chỉnh nào) đều được lưu trữ nguyên vẹn tại `results/scania_aps/` kèm biên bản pháp y độc lập.
 
 ---
 
@@ -315,6 +316,7 @@ Trong ngân sách 20 trials thực nghiệm được phê duyệt, thuật toán
 2. **Kiểm soát tuyệt đối tổn thất nghiêm trọng:** Mô hình bắt trúng $357 / 375$ ca hư hỏng thực tế ($Recall = 95.20\%$), chỉ lọt 18 trường hợp trong 16.000 xe.
 3. **Độ chuẩn xác được cải thiện trên dữ liệu thực:** Precision đạt **42.45%** (cao hơn mức 33.74% trên Validation), đồng thời độ đặc hiệu duy trì ở mức cao **96.90%**, cho thấy mô hình không bị dự đoán phóng đại bừa bãi.
 4. **Bảo toàn ràng buộc công suất xưởng:** Tổng số lượt xe cần đưa vào kiểm tra thực tế là 841 xe ($5.26\%$), hoàn toàn nằm trong giới hạn trần $K = 1.600$ xe ($10\%$). Xưởng dịch vụ còn dư 759 chỗ tiếp nhận, không bao giờ rơi vào trạng thái quá tải.
+5. **Phân biệt hiệu năng benchmark và triển khai thực tế:** Mức chi phí 13.840 đơn vị và mức tiết kiệm 92.62% được định lượng dựa trên hàm mục tiêu chuẩn tắc tĩnh của bài toán benchmark Scania IDA 2016 ($10 \cdot FP + 500 \cdot FN$). Trong môi trường công nghiệp thực tế, chi phí thực tế sẽ phụ thuộc vào nhiều yếu tố động phức tạp như chi phí nhân công xưởng theo giờ, sự biến động về nguồn cung phụ tùng thay thế, chi phí cứu hộ dọc đường thay đổi theo khoảng cách địa lý, lịch trình luân chuyển xe của đội vận tải, và thời gian xe phải nằm chờ tại trạm bảo dưỡng.
 
 ---
 
@@ -327,7 +329,7 @@ Trong ngân sách 20 trials thực nghiệm được phê duyệt, thuật toán
 - **Bảo toàn toàn vẹn:** Mọi artifact xuất xưởng từ cả ba giai đoạn G4 (`scania_g4_b2_real_002`), Phase 2 (`scania_phase2_rf_optuna_002`), và Gate G10 (`scania_g10_official_test_003`) đều được ký băm SHA-256 trong `checksums.json` / `stable_manifest.json` và nghiệm thu độc lập.
 
 ### 9.2. Giới hạn nghiên cứu (Limitations)
-1. **Bản chất mô phỏng chính sách:** Đánh giá chi phí trên tập Validation và Test dựa trên dữ liệu tĩnh lịch sử, không mô hình hóa tương tác động của tài xế và quy trình phụ tùng thay thế thực địa.
+1. **Phân biệt giữa mô phỏng benchmark tĩnh và triển khai thực địa:** Nghiên cứu đánh giá chính sách dựa trên tập dữ liệu tĩnh lịch sử chuẩn hóa theo quy ước IDA 2016 ($10 \cdot FP + 500 \cdot FN$). Triển khai thực tế trên đội xe vận tải đòi hỏi tích hợp thêm mô hình điều độ động (dynamic scheduling), tính sẵn sàng của phụ tùng thay thế, biến động chi phí nhân công xưởng, và hành vi lái xe trong điều kiện thời tiết thực tế.
 2. **Giả định về năng lực xưởng:** Giới hạn 10% ($M \le 1200$ trên Validation, $M \le 1600$ trên Test) là một giả định kịch bản vận hành thực nghiệm để phục vụ bài toán tối ưu hóa có ràng buộc.
 3. **Phạm vi không gian tìm kiếm:** Ngân sách thực nghiệm được giới hạn ở 20 trials tuần tự do kiểm soát an toàn tài nguyên.
 

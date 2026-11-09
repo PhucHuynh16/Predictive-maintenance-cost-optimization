@@ -39,7 +39,8 @@
   - **Tập Validation:** 12.000 mẫu ($200$ ca dương tính $1.67\%$, $11.800$ ca âm tính).
   - Hai phân vùng hoàn toàn tách biệt: $\text{Train} \cap \text{Validation} = \emptyset$.
 - **Tập Official Test (16.000 mẫu):**
-  - Tuyệt đối không được mở khóa hay truy cập. Mọi thao tác bị chặn bằng I/O hook bảo vệ.
+  - Được giữ niêm phong độc lập trong suốt quá trình tối ưu hóa Phase 2; mở đánh giá độc lập duy nhất một lần tại Gate G10 (Run 003, zero tuning).
+  - Minh bạch truy cập: Ở các lượt chạy thử nghiệm gián đoạn trước đó (Run 001/002), tệp CSV kiểm thử được đọc vào bộ nhớ nhưng tiến trình bị dừng ngay lập tức do cơ chế bảo vệ preprocessor trước khi có bất kỳ suy diễn dự đoán hay tinh chỉnh nào diễn ra.
 
 ---
 
@@ -62,6 +63,27 @@
 | **Trạng thái ràng buộc** | FEASIBLE | FEASIBLE | FEASIBLE | **FEASIBLE** |
 | **Mức tiết kiệm vs B0 Dummy** | $0.00\%$ | $77.47\%$ | $89.77\%$ | $\mathbf{93.67\%}$ |
 | **Mức giảm chi phí vs B2** | N/A | Tăng $+12.300$ | Mốc chuẩn G4 | **Giảm $-38.12\%$ ($-3.900$ đơn vị)** |
+
+### 3.2. Kết quả nghiệm thu độc lập Gate G10 trên tập Official Test (Run 003)
+
+| Tiêu chí | Đường cơ sở B0 (Không can thiệp) | Validation Guard (Trial 16) | **Official Test Độc lập (Run 003)** |
+|---|:---:|:---:|:---:|
+| **Quy mô mẫu ($N$)** | 16.000 | 12.000 | **16.000** |
+| **Số ca lỗi APS thực tế ($P$)** | 375 | 200 | **375** ($2.34\%$) |
+| **True Positives (TP)** | 0 | 195 | **357** |
+| **False Positives (FP)** | 0 | 383 | **484** |
+| **False Negatives (FN)** | 375 | 5 | **18** |
+| **True Negatives (TN)** | 15.625 | 11.417 | **15.141** |
+| **Độ nhạy (Recall)** | 0.00% | 97.50% | **95.20%** ($357/375$) |
+| **Độ chính xác (Precision)** | N/A | 33.74% | **42.45%** ($357/841$) |
+| **Độ đặc hiệu (Specificity)** | 100.00% | 96.75% | **96.90%** ($15.141/15.625$) |
+| **F1-Score** | 0.0000 | 0.5013 | **0.5872** |
+| **ROC-AUC / PR-AUC** | N/A | 0.9903 / 0.7059 | **0.9861 / 0.7495** |
+| **Tổng chi phí benchmark** | **187.500** | **6.330** | **13.840** |
+| **Lượt xe vào xưởng ($M \le 1600$)** | 0 | 578 | **841** (FEASIBLE, dư 759 chỗ) |
+| **Mức tiết kiệm chi phí vs B0** | 0.00% (Mốc chuẩn) | 93.67% | **92.62%** (Tiết kiệm 173.660 đơn vị) |
+
+> **Lưu ý khoa học về hàm chi phí benchmark:** Hàm mục tiêu $10 \cdot FP + 500 \cdot FN$ là quy ước chuẩn tắc tĩnh của bài toán benchmark Scania IDA 2016. Khi triển khai thực tế trên đội xe vận tải công nghiệp, các yếu tố biến động động như chi phí nhân công theo ca, tính sẵn có của phụ tùng thay thế, thời gian xe nằm xưởng (downtime), và chi phí cứu hộ đường dài theo cự ly sẽ cần được mô hình hóa bổ sung.
 
 ---
 

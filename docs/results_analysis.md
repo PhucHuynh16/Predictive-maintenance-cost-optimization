@@ -14,7 +14,7 @@
 1. **Kết quả đo đạc trên phân vùng Validation (Validation Policy Results):**
    - Số liệu trong báo cáo này được đo đạc trực tiếp trên 12.000 mẫu Validation tĩnh lịch sử từ bộ dữ liệu UCI 421 sau khi huấn luyện trên 48.000 mẫu Train.
    - Đây là sự mô phỏng chính sách (policy simulation) nhằm phục vụ so sánh khách quan giữa các mô hình đường cơ sở và làm mốc đối chiếu cho thuật toán tối ưu hóa.
-   - **Ranh giới học thuật:** Kết quả trên tập Validation này phản ánh hiệu năng nội bộ của quy trình thử nghiệm, phân biệt rõ với bước nghiệm thu độc lập cuối cùng của môn học và chưa bao gồm đánh giá trên tập Official Test (vốn được niêm phong tới G10).
+   - **Ranh giới học thuật:** Kết quả trên tập Validation này phản ánh hiệu năng nội bộ phục vụ so sánh và lựa chọn siêu tham số/ngưỡng Phase 2. Đánh giá kiểm định độc lập chính thức trên tập Official Test (16.000 mẫu) được thực hiện riêng biệt tại Gate G10 (Run 003).
 2. **Quy định về tỷ lệ tiết kiệm chi phí (`saving_pct`):**
    - Mức tiết kiệm chi phí so với đường cơ sở mặc định B0 ($100.000$ đơn vị chi phí) được định lượng theo giá trị dương:
      - Chính sách P3 (B1 tại $\tau = 0.0196$): Tiết kiệm **$77.47\%$** chi phí benchmark.
@@ -121,7 +121,7 @@ $$\mathbf{C^*_{\text{G4}} = 10.230 \quad [\text{Mô hình B2 (Logistic Regressio
 - **Trạng thái thực thi:** `COMPLETE` (100% hoàn tất 20/20 trials, 0 lỗi, 0 gián đoạn).
 - **Thời gian chạy thực tế:** `543.06` giây (nằm gọn trong trần 900 giây được phê duyệt).
 - **Đỉnh tiêu thụ RAM:** `159.82` MB (nằm trong giới hạn 2048 MB).
-- **Tập Official Test (16.000 mẫu):** **NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**.
+- **Tập Official Test (16.000 mẫu):** **NIÊM PHONG TRONG SUỐT PHASE 2 (SEALED DURING PHASE 2)** (Chỉ mở đánh giá độc lập một lần tại Gate G10 Run 003 sau khi chính sách được khóa cố định).
 
 ### 8.2. So sánh chính sách khả thi tốt nhất quan sát được (Trial 16) với các đường cơ sở
 
@@ -233,10 +233,13 @@ Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna
 2. **Bảo toàn tỷ lệ phát hiện hư hỏng (Recall 95.20%):** Ngăn chặn thành công 357 trên 375 sự cố chết máy dọc đường, chỉ lọt 18 trường hợp trong toàn bộ 16.000 xe.
 3. **Cải thiện độ chuẩn xác (Precision tăng từ 33.74% lên 42.45%):** Do tỷ lệ mẫu dương tính trên tập Test thực tế (2.34%) cao hơn trên Train/Validation (1.67%), mật độ dự đoán đúng tăng lên mà không làm bùng nổ số lượng False Positives.
 4. **Tuyệt đối thỏa mãn ràng buộc năng lực xưởng ($M = 841 \le 1600$):** Số lượng xe yêu cầu bảo dưỡng thực tế là 841 xe (5.26%), chỉ bằng hơn một nửa công suất tối đa cho phép của xưởng ($K = 1.600$), chứng minh tính khả thi thực tế cực kỳ vững chắc của chính sách.
-5. **Minh bạch hóa các lần chạy trước:**
-   - Run 001 (`scania_g10_official_test_001`): Chặn bởi I/O guard khi tải `tree_preprocessor.joblib`. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_001/`.
-   - Run 002 (`scania_g10_official_test_002`): Chặn bởi import guard `LATE_NUMERIC_IMPORT` khi unpickle `SimpleImputer`. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_002/`.
-   - Run 003 (`scania_g10_official_test_003`): Hoàn thành 100% đánh giá chính thức, được niêm phong mật mã học trong `stable_manifest.json`.
+5. **Minh bạch hóa các lần chạy trước & Chi tiết truy cập dữ liệu Test:**
+   - Run 001 (`scania_g10_official_test_001`): Tệp test CSV được giải nén và đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức bởi I/O guard khi tải `tree_preprocessor.joblib`. Hoàn toàn không có dự đoán hay tinh chỉnh nào diễn ra. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_001/`.
+   - Run 002 (`scania_g10_official_test_002`): Tệp test CSV được đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức bởi import guard `LATE_NUMERIC_IMPORT` khi unpickle `SimpleImputer`. Hoàn toàn không có dự đoán hay tinh chỉnh nào diễn ra. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_002/`.
+   - Run 003 (`scania_g10_official_test_003`): Hoàn thành 100% đánh giá độc lập chính thức (zero-tuning), được niêm phong mật mã học trong `stable_manifest.json`.
+6. **Phân biệt hiệu năng benchmark và triển khai vận hành thực địa:**
+   - Chi phí 13.840 đơn vị và mức tiết kiệm 92.62% được định lượng dựa trên hàm chi phí benchmark chuẩn hóa IDA 2016 ($10 \cdot FP + 500 \cdot FN$) trên dữ liệu tĩnh lịch sử.
+   - Khi triển khai thực tế trên đội xe công nghiệp, chi phí vận hành thực tế sẽ chịu tác động của nhiều yếu tố động: biến động chi phí nhân công xưởng, sự sẵn có và độ trễ chuỗi cung ứng phụ tùng thay thế, chi phí cứu hộ đường bộ biến thiên theo khoảng cách và thời gian dừng xe (downtime).
 
 ### 9.4. Danh mục và mã băm SHA-256 các artifact chính thức Gate G10 (Run 003)
 Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_003/` đã được kiểm chứng độc lập (`python scripts/run_scania_g10.py verify` -> PASS):
