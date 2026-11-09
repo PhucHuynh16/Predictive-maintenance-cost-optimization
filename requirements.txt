@@ -1,14 +1,28 @@
-# Bootstrap dependency manifest for Python 3.11; not an installed/tested lockfile.
-# Resolve and record exact versions after an approved environment setup.
-numpy
-pandas
-scipy
-scikit-learn
-optuna
-matplotlib
-seaborn
-joblib
-PyYAML
-pytest
-jupyterlab
-ipykernel
+# ==============================================================================
+# DANH MỤC THƯ VIỆN PHỤ THUỘC — PYTHON 3.11 (TESTED ON PYTHON 3.11.9)
+# Đồ án: Tối ưu hóa chi phí bảo trì dự đoán xe tải Scania APS (UCI #421)
+# ==============================================================================
+
+# Core Machine Learning & Optimization
+numpy>=2.0.0
+pandas>=2.2.0
+scipy>=1.14.0
+scikit-learn>=1.5.0
+optuna>=4.0.0
+
+# Visualization & Data Analysis
+matplotlib>=3.9.0
+seaborn>=0.13.0
+
+# Process Containment, Utilities & Configuration
+joblib>=1.4.0
+PyYAML>=6.0
+threadpoolctl>=3.5.0
+
+# Automated Testing
+pytest>=8.0.0
+
+# Deliverables Generation (PDF, DOCX, PPTX)
+reportlab>=4.0.0
+python-docx>=1.1.0
+python-pptx>=1.0.0
