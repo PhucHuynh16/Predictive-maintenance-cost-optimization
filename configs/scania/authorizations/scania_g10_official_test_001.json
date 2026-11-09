@@ -1,0 +1,39 @@
+{
+  "run_id": "scania_g10_official_test_001",
+  "authorization_status": "NOT_AUTHORIZED_AWAITING_OWNER_GITHUB_COMMENT",
+  "gate": "G10_FINAL_OFFICIAL_TEST_EVALUATION",
+  "permitted_operation": "G10_OFFICIAL_TEST_EVALUATION",
+  "evaluation_mode": "DETERMINISTIC_TRAIN_REFIT_EVALUATION",
+  "owner_approval": {
+    "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-AWAITING_OWNER_COMMENT",
+    "decision": "APPROVED",
+    "author": "PhucHuynh16"
+  },
+  "source_integrity": {
+    "authorized_commit": "AWAITING_COMMIT_SHA"
+  },
+  "locked_configuration": {
+    "config_sha256": "007de1edd958ba496cc47f98886d29f80fa81a721ef65efeed45fb31f1703f0f"
+  },
+  "g3_integrity": {
+    "run_id": "official_20261029_04",
+    "stable_digest": "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb",
+    "manifest_file_sha256": "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242"
+  },
+  "budget": {
+    "max_trials": 1,
+    "max_fits_per_trial": 1,
+    "total_max_fits": 1
+  },
+  "resource_limits": {
+    "max_native_threads": 1,
+    "max_ram_mb": 2048,
+    "max_wall_seconds": 180
+  },
+  "data_scope": {
+    "train_samples": 48000,
+    "validation_samples": 12000,
+    "official_test_samples": 16000,
+    "permitted_access": "EVALUATION_ONLY_ZERO_TUNING"
+  }
+}

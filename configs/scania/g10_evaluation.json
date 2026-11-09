@@ -1,0 +1,55 @@
+{
+  "gate": "G10_FINAL_OFFICIAL_TEST_EVALUATION",
+  "target_run_id": "scania_g10_official_test_001",
+  "evaluation_mode": "DETERMINISTIC_TRAIN_REFIT_EVALUATION",
+  "source_policy": {
+    "source_run_id": "scania_phase2_rf_optuna_002",
+    "selected_trial": 16,
+    "model_type": "RandomForestClassifier",
+    "rf_hyperparameters": {
+      "n_estimators": 50,
+      "max_depth": 10,
+      "min_samples_split": 10,
+      "max_features": 0.4268663927182804,
+      "class_weight": "balanced",
+      "random_state": 42,
+      "n_jobs": 1,
+      "bootstrap": true
+    },
+    "frozen_threshold": 0.3232440937634324,
+    "validation_expected_metrics": {
+      "TP": 195,
+      "FP": 383,
+      "FN": 5,
+      "TN": 11417,
+      "total_cost": 6330,
+      "M": 578,
+      "saving_pct": 93.67
+    }
+  },
+  "data": {
+    "train_processed_path": "data/processed/scania_aps/official_20261029_04/tree_train.npy",
+    "membership_path": "data/processed/scania_aps/official_20261029_04/membership.npz",
+    "validation_processed_path": "data/processed/scania_aps/official_20261029_04/tree_validation.npy",
+    "preprocessor_path": "data/processed/scania_aps/official_20261029_04/tree_preprocessor.joblib",
+    "raw_zip_path": "data/raw/scania_aps/aps+failure+at+scania+trucks.zip",
+    "raw_zip_sha256": "5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89",
+    "test_filename_in_zip": "aps_failure_test_set.csv",
+    "expected_test_rows": 16000,
+    "capacity_limit_K": 1600
+  },
+  "cost_model": {
+    "cost_fp": 10,
+    "cost_fn": 500
+  },
+  "budget": {
+    "max_trials": 1,
+    "max_fits_per_trial": 1,
+    "total_max_fits": 1
+  },
+  "resource_limits": {
+    "max_native_threads": 1,
+    "max_ram_mb": 2048,
+    "max_wall_seconds": 180
+  }
+}
