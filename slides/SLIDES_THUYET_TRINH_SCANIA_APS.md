@@ -1,6 +1,6 @@
 # BỘ SLIDES THUYẾT TRÌNH BÁO CÁO BÀI TẬP LỚN: NHẬP MÔN TỐI ƯU HÓA (8 SLIDES)
 
-> **TRẠNG THÁI TÀI LIỆU:** HOÀN CHỈNH — Đã tích hợp đầy đủ số liệu thực nghiệm đo đạc chính thức từ Baseline G4 (`scania_g4_b2_real_002`) và Tối ưu hóa có ràng buộc Phase 2 (`scania_phase2_rf_optuna_002`).
+> **TRẠNG THÁI TÀI LIỆU:** HOÀN CHỈNH — Đã tích hợp đầy đủ số liệu thực nghiệm đo đạc chính thức từ Baseline G4 (`scania_g4_b2_real_002`), Tối ưu hóa Phase 2 (`scania_phase2_rf_optuna_002`) và Đánh giá độc lập Official Test G10 (`scania_g10_official_test_003`).
 
 **Đề tài:** Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)  
 **Sinh viên:** Huỳnh Phúc — Khoa Công nghệ Thông tin, Trường Đại học Văn Lang  
@@ -105,18 +105,19 @@
 
 ---
 
-## SLIDE 8: TỔNG KẾT, TÍNH TÁI LẬP & LIÊM CHÍNH HỌC THUẬT
+## SLIDE 8: ĐÁNH GIÁ ĐỘC LẬP OFFICIAL TEST (G10), TÍNH TÁI LẬP & KẾT LUẬN
 
-- **Khả năng tái lập khoa học (Full Reproducibility):**
-  - Môi trường: Python 3.11.9, seed=42, khóa dependency qua `g3_requirements.lock.txt`.
-  - Windows Job Object giám sát tài nguyên: 1 thread cố định, đỉnh RAM 159.82 MB, thời gian 543.06s.
-  - Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` được ký băm SHA-256 (`verify_phase2_run() == True`).
-- **Liêm chính học thuật (Academic Integrity):**
-  - Bảo tồn nguyên vẹn các lần chạy thất bại tiền kiểm tra: Run 001 G4 (`PackageNotFoundError`) và Run 001 Phase 2 (`TimeoutError` tại 300s).
-  - Không bịa đặt số liệu, không nội suy kết quả thiếu.
-  - Phân biệt rõ ràng giữa mô phỏng chính sách trên tập Validation và đánh giá độc lập cuối kỳ.
-  - **Official Test set (16.000 xe) tiếp tục được niêm phong tuyệt đối đến Gate G10**.
+- **Đánh giá độc lập trên tập Official Test (Gate G10 — Run 003):**
+  - **Quy mô:** 16.000 mẫu kiểm thử hoàn toàn độc lập (375 ca lỗi APS thực tế).
+  - **Chính sách đóng băng:** Random Forest Trial 16 ($\tau^* = 0.3232$, $K=1.600$, 0 fit trên Test).
+  - **Hiệu năng thực tế:** $TP = 357$, $FP = 484$, **$FN = 18$**, $TN = 15.141$.
+  - **Chỉ số đo đạc:** **$Recall = 95.20\%$**, **$Precision = 42.45\%$**, $ROC\text{-}AUC = 0.9861$, $PR\text{-}AUC = 0.7495$.
+  - **Chi phí benchmark:** **13.840 đơn vị** (tiết kiệm **92.62%** so với mốc không can thiệp $187.500$).
+  - **Ràng buộc công suất xưởng:** $M = 841 \le 1.600$ xe (**Khả thi**, dư 759 chỗ trống).
+- **Khả năng tái lập khoa học (Full Reproducibility) & Liêm chính học thuật:**
+  - Giám sát nghiêm ngặt qua Windows Job Object: 1 thread cố định, đỉnh RAM < 202 MB.
+  - Bảo tồn nguyên vẹn 100% bằng chứng và nhật ký sự cố các lần chạy trước (Runs 001, 002).
+  - Mọi artifact từ G4, Phase 2 đến G10 đều được ký băm mật mã học SHA-256 (`verify` -> PASS).
 - **Khai báo AI hỗ trợ (AI Assistance Disclosure):**
-  - Trợ lý AI (Codex & Antigravity) hỗ trợ rà soát unit tests, runner CLI, kiểm tra I/O guard và khung tài liệu.
-  - Sinh viên tự xây dựng mô hình toán, xác thực dữ liệu, trực tiếp nghiệm thu và chịu trách nhiệm học thuật hoàn toàn.
-- **Kết luận:** Đề tài đã hoàn thành xuất sắc toàn bộ chu trình tối ưu hóa chi phí có ràng buộc trên xe tải Scania APS: từ bài toán công nghiệp $\rightarrow$ mô hình toán học $\rightarrow$ hệ thống cơ sở chuẩn tắc G4 $\rightarrow$ giải thuật tối ưu hóa Bayes Phase 2 với chi phí chỉ 6.330 đơn vị benchmark.
+  - Trợ lý AI (Codex & Antigravity) hỗ trợ rà soát unit tests, runner CLI và định dạng tài liệu. Sinh viên tự xây dựng mô hình toán, xác thực dữ liệu và chịu trách nhiệm học thuật hoàn toàn.
+- **Kết luận:** Đề tài đã giải quyết trọn vẹn bài toán tối ưu hóa chi phí có ràng buộc: từ bài toán công nghiệp $\rightarrow$ mô hình toán học $\rightarrow$ hệ thống cơ sở chuẩn tắc G4 $\rightarrow$ giải thuật tối ưu hóa Bayes Phase 2 $\rightarrow$ nghiệm thu thực nghiệm độc lập Gate G10 với mức tiết kiệm chi phí vượt trội **92.62%**.

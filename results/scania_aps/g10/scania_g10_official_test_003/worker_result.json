@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "run_id": "scania_g10_official_test_003",
+  "fits_consumed": 1,
+  "total_wall_seconds": 35.75788593292236,
+  "summary": {
+    "run_id": "scania_g10_official_test_003",
+    "gate": "G10",
+    "mode": "REAL",
+    "status": "COMPLETED_SUCCESSFULLY",
+    "evaluation_mode": "DETERMINISTIC_TRAIN_REFIT_EVALUATION",
+    "fits_consumed": 1,
+    "validation_guard": "PASSED",
+    "official_test_metrics": {
+      "TP": 357,
+      "FP": 484,
+      "FN": 18,
+      "TN": 15141,
+      "total_cost": 13840,
+      "capacity_M": 841,
+      "capacity_limit_K": 1600,
+      "feasible": 1,
+      "saving_pct": 92.6187,
+      "precision": 0.4244946492271106,
+      "recall": 0.952,
+      "f1": 0.587171052631579,
+      "roc_auc": 0.986111744,
+      "pr_auc": 0.7494807206624892
+    },
+    "timestamp_utc": "2026-11-09T02:46:45Z"
+  }
+}

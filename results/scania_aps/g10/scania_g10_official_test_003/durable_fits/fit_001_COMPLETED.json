@@ -1,0 +1,8 @@
+{
+  "fit_duration_seconds": 31.04569320002338,
+  "fit_index": 1,
+  "status": "COMPLETED",
+  "timestamp_completed": 1794192402.3874536,
+  "train_samples": 48000,
+  "trial_id": "g10_refit_001"
+}

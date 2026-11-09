@@ -224,11 +224,14 @@ def test_durable_marker_atomic_write():
         assert content == test_data
 
 
-def test_official_test_unsealed_fails_without_authorization():
+def test_official_test_unsealed_fails_without_authorization(monkeypatch):
     """Verify that running REAL evaluation without authorization fails closed and does NOT create directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_output = Path(tmpdir) / "unauthorized_target_dir"
         assert not tmp_output.exists()
+        fake_cfg = load_g10_config(REPO_ROOT)
+        fake_cfg["target_run_id"] = "scania_g10_unauthorized_999"
+        monkeypatch.setattr("src.scania.g10_evaluation.load_g10_config", lambda root=None: fake_cfg)
         with pytest.raises((ExecutorBlocked, SafetyBlocked)):
             execute_g10_evaluation(
                 root=REPO_ROOT,

@@ -4,8 +4,8 @@
 **Phân vùng dữ liệu:** Validation 12.000 mẫu (200 ca dương tính $y=1$, 11.800 ca âm tính $y=0$)  
 **Giao thức G3:** Khóa cố định theo manifest digest `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`  
 **Giao thức G4:** Fail-closed baseline gate (B0, B1, B2)  
-**Tập Official Test (16.000 mẫu):** **NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**  
-**Trạng thái nghiệm thu:** Đã được kiểm chứng độc lập bằng `verify_run()` và mã băm SHA-256 (Run `scania_g4_b2_real_002`)
+**Tập Official Test (16.000 mẫu):** **ĐÃ ĐƯỢC MỞ VÀ ĐÁNH GIÁ ĐỘC LẬP TẠI G10 (Run `scania_g10_official_test_003`, Tiết kiệm 92.62% chi phí)**  
+**Trạng thái nghiệm thu:** Đã nghiệm thu toàn diện G4 Baselines, Phase 2 Constrained Optimization, và G10 Official Test Evaluation bằng chữ ký băm SHA-256.
 
 ---
 
@@ -185,3 +185,67 @@ Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna
 - `task_config.json`: `e8268e61eb535d2ab8c15098b7f57738851f0710d41191c6bf9cd3172270750f`
 - `trials_summary.csv`: `cd8377a83241e600f48db89bbe13d3564de83c478a1447759bfd244a45f0269a`
 - `worker_result.json`: `bbd3631bf56dc8673aeb8ee52952c6b1fa625cbc67a05f057dc26eda174a4755`
+
+---
+
+## 9. KẾT QUẢ ĐÁNH GIÁ ĐỘC LẬP TRÊN TẬP KIỂM THỬ CHÍNH THỨC (GATE G10 — RUN `scania_g10_official_test_003`)
+
+### 9.1. Thông số xác thực run chính thức Gate G10
+- **Mã thực nghiệm (Target Run ID):** `scania_g10_official_test_003`
+- **Căn cứ ủy quyền:** GitHub Issue #17 Comment ID `6730936638` (Chủ dự án PhucHuynh16 phê duyệt).
+- **Mã commit HEAD:** `6dbc046c4a40bc11451db46664b91eae8b629d1e`
+- **Mã băm cấu hình (Config SHA-256):** `ca85eb951ba425bf81f8b34de01498483c40d50b6ea295953acd58666dddf51c`
+- **Chế độ đánh giá:** `DETERMINISTIC_TRAIN_REFIT_EVALUATION` (Đúng 1 lần huấn luyện tái lập trên 48.000 mẫu Train, 0 lần huấn luyện trên Test).
+- **Validation Regression Guard:** **PASSED** (Tái lập bit-for-bit chính xác các chỉ số Trial 16: $TP=195, FP=383, FN=5, TN=11.417, \text{Cost}=6.330, M=578, \text{saving\_pct}=93.67\%$).
+- **Thời gian huấn luyện refit:** `31.05` giây.
+- **Thời gian suy luận Test:** `0.039` giây (cho toàn bộ 16.000 xe).
+- **Quy mô tập Official Test:** 16.000 mẫu (375 ca dương tính $y=1$ chiếm 2.34%, 15.625 ca âm tính $y=0$ chiếm 97.66%).
+- **Ràng buộc năng lực xưởng:** $K = 1.600$ xe (10% của 16.000 mẫu).
+
+### 9.2. Bảng kết quả chính thức trên tập Official Test (So sánh Train-Validation-Test)
+
+| Tiêu chí | Đường cơ sở B0 (Không can thiệp) | Validation Guard (Trial 16 — 12.000 mẫu) | **Official Test Độc lập (G10 — 16.000 mẫu)** |
+|---|:---:|:---:|:---:|
+| **Mô hình & Ngưỡng** | Mặc định lớp đa số | Random Forest ($\tau^* = 0.3232$) | **Random Forest ($\tau^* = 0.3232$, Frozen)** |
+| **Quy mô mẫu ($N$)** | 16.000 | 12.000 | **16.000** |
+| **Số ca lỗi thực tế ($P$)** | 375 | 200 | **375** (Tỷ lệ 2.34%) |
+| **True Positives (TP)** | 0 | 195 | **357** |
+| **False Positives (FP)** | 0 | 383 | **484** |
+| **False Negatives (FN)** | 375 | 5 | **18** |
+| **True Negatives (TN)** | 15.625 | 11.417 | **15.141** |
+| **Recall (Độ nhạy)** | 0.00% | 97.50% | **95.20%** ($357 / 375$) |
+| **Precision (Độ chuẩn xác)** | N/A | 33.74% | **42.45%** ($357 / 841$) |
+| **Specificity (Độ đặc hiệu)** | 100.00% | 96.75% | **96.90%** ($15.141 / 15.625$) |
+| **F1-Score** | 0.0000 | 0.5013 | **0.5872** |
+| **ROC-AUC** | N/A | 0.9903 | **0.9861** |
+| **PR-AUC** | N/A | 0.7059 | **0.7495** |
+| **Chi phí kiểm tra ($10 \times FP$)** | 0 | 3.830 | **4.840** |
+| **Chi phí chết máy ($500 \times FN$)** | 187.500 | 2.500 | **9.000** |
+| **Tổng chi phí benchmark** | **187.500** | **6.330** | **13.840** |
+| **Chi phí trung bình / xe** | 11.719 | 0.528 | **0.865** |
+| **Số xe vào xưởng ($M = TP + FP$)** | 0 | 578 | **841** (Giới hạn $K = 1.600$) |
+| **Tỷ lệ bảo dưỡng ($M / N$)** | 0.00% | 4.82% | **5.26%** |
+| **Tính khả thi năng lực xưởng** | FEASIBLE | FEASIBLE | **FEASIBLE (Dư 759 chỗ trống)** |
+| **Mức tiết kiệm chi phí vs B0** | 0.00% (Mốc chuẩn) | 93.67% | **92.62%** (Tiết kiệm 173.660 đơn vị) |
+
+### 9.3. Nhận định khoa học về năng lực tổng quát hóa (Generalization Assessment)
+1. **Khả năng tổng quát hóa xuất sắc:** Khi chuyển từ phân vùng Validation sang Official Test hoàn toàn độc lập, chính sách tối ưu vẫn duy trì mức cắt giảm chi phí ấn tượng **92.62%** (từ 187.500 đơn vị chi phí mặc định xuống chỉ còn 13.840 đơn vị chi phí).
+2. **Bảo toàn tỷ lệ phát hiện hư hỏng (Recall 95.20%):** Ngăn chặn thành công 357 trên 375 sự cố chết máy dọc đường, chỉ lọt 18 trường hợp trong toàn bộ 16.000 xe.
+3. **Cải thiện độ chuẩn xác (Precision tăng từ 33.74% lên 42.45%):** Do tỷ lệ mẫu dương tính trên tập Test thực tế (2.34%) cao hơn trên Train/Validation (1.67%), mật độ dự đoán đúng tăng lên mà không làm bùng nổ số lượng False Positives.
+4. **Tuyệt đối thỏa mãn ràng buộc năng lực xưởng ($M = 841 \le 1600$):** Số lượng xe yêu cầu bảo dưỡng thực tế là 841 xe (5.26%), chỉ bằng hơn một nửa công suất tối đa cho phép của xưởng ($K = 1.600$), chứng minh tính khả thi thực tế cực kỳ vững chắc của chính sách.
+5. **Minh bạch hóa các lần chạy trước:**
+   - Run 001 (`scania_g10_official_test_001`): Chặn bởi I/O guard khi tải `tree_preprocessor.joblib`. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_001/`.
+   - Run 002 (`scania_g10_official_test_002`): Chặn bởi import guard `LATE_NUMERIC_IMPORT` khi unpickle `SimpleImputer`. Lưu giữ đầy đủ tại `results/scania_aps/g10/scania_g10_official_test_002/`.
+   - Run 003 (`scania_g10_official_test_003`): Hoàn thành 100% đánh giá chính thức, được niêm phong mật mã học trong `stable_manifest.json`.
+
+### 9.4. Danh mục và mã băm SHA-256 các artifact chính thức Gate G10 (Run 003)
+Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_003/` đã được kiểm chứng độc lập (`python scripts/run_scania_g10.py verify` -> PASS):
+- `allowlist.json`: `b4ca16e1e50d4f919e27b67ce1b3738300320b520688b806f09dc91135248ad5`
+- `best_policy.json`: `f950e08d55971d6ced163ae63e731ac090e5bb2999d5aa7b2febeb1eaf20e051`
+- `confusion_matrix_test.csv`: `2db1fef9f2895166b41072cd4c1bd43a7b026e95672ae94fc43925794e1b5a6a`
+- `durable_fits/fit_001_COMPLETED.json`: `c192b81ba3b537faa6f8a38cc1e1db346b3f39703531b9c6eba794239c7909aa`
+- `durable_fits/fit_001_STARTED.json`: `fc735bb54e2612ac22eeaa4340d00fa9a33908d421336cff2b0d981536cbcff7`
+- `run_summary.json`: `09f84ed4a1f787bbd28accac8da30596cc11d3ed04a83e36411dab5c38a70516`
+- `task_config.json`: `d7677777c5cc65966c668bcc8fbccc2e7e036e862b69c483a19cce54654a984c`
+- `test_metrics.json`: `53e06202f6d944944b2401fb593acc81cdd6a0b12ec20cb702ed37d45522bc1a`
+- `validation_guard_metrics.json`: `0c7310e0f94ef3d1ae200e1c31090aedfde59c5aefe710df2dc67d84a709b1c3`

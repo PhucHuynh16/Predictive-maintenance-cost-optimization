@@ -4,7 +4,7 @@
 > **Học phần:** Nhập môn Tối ưu hóa — HK1, Năm học 2026–2027 (Đại học Văn Lang)  
 > **Sinh viên:** Huỳnh Phúc  
 > **Mã nguồn:** [GitHub PhucHuynh16/Predictive-maintenance-cost-optimization](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization)  
-> **Trạng thái niêm phong tập kiểm thử:** **Official Test (16.000 mẫu) ĐƯỢC NIÊM PHONG TUYỆT ĐỐI ĐẾN G10** (0 lượt truy cập, 0 byte dữ liệu).
+> **Trạng thái tập kiểm thử:** **Official Test (16.000 mẫu) ĐÃ ĐƯỢC ĐÁNH GIÁ ĐỘC LẬP TẠI G10 (Run `scania_g10_official_test_003`)** — Tiết kiệm **92.62%** chi phí, 0 lần tuning, thỏa mãn 100% ràng buộc.
 
 ---
 
@@ -115,6 +115,24 @@ Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna
 }
 ```
 
+### 5.2. Chữ ký băm mật mã học Gate G10 (Official Test Run 003)
+
+Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_003/` khớp chính xác chữ ký mã hóa SHA-256 LF-normalized:
+
+```json
+{
+  "allowlist.json": "b4ca16e1e50d4f919e27b67ce1b3738300320b520688b806f09dc91135248ad5",
+  "best_policy.json": "f950e08d55971d6ced163ae63e731ac090e5bb2999d5aa7b2febeb1eaf20e051",
+  "confusion_matrix_test.csv": "2db1fef9f2895166b41072cd4c1bd43a7b026e95672ae94fc43925794e1b5a6a",
+  "durable_fits/fit_001_COMPLETED.json": "c192b81ba3b537faa6f8a38cc1e1db346b3f39703531b9c6eba794239c7909aa",
+  "durable_fits/fit_001_STARTED.json": "fc735bb54e2612ac22eeaa4340d00fa9a33908d421336cff2b0d981536cbcff7",
+  "run_summary.json": "09f84ed4a1f787bbd28accac8da30596cc11d3ed04a83e36411dab5c38a70516",
+  "task_config.json": "d7677777c5cc65966c668bcc8fbccc2e7e036e862b69c483a19cce54654a984c",
+  "test_metrics.json": "53e06202f6d944944b2401fb593acc81cdd6a0b12ec20cb702ed37d45522bc1a",
+  "validation_guard_metrics.json": "0c7310e0f94ef3d1ae200e1c31090aedfde59c5aefe710df2dc67d84a709b1c3"
+}
+```
+
 ---
 
 ## 6. HƯỚNG DẪN KIỂM CHỨNG & TÁI LẬP (REPRODUCTION COMMANDS)
@@ -128,12 +146,17 @@ print('VERIFICATION SUCCESS: All 12 artifacts match SHA-256 checksums!')
 "
 ```
 
-### 6.2. Kiểm thử tự động bộ test suite (28 Phase 2 unit tests):
+### 6.2. Kiểm chứng tính toàn vẹn Gate G10 Official Test (Run 003):
 ```powershell
-pytest tests/scania/test_phase2_optimization.py -v
+python scripts/run_scania_g10.py verify
 ```
 
-### 6.3. Tái tạo 02 đồ thị từ dữ liệu đã nghiệm thu:
+### 6.3. Kiểm thử tự động bộ test suite (Phase 2 + G10):
+```powershell
+pytest tests/scania/test_phase2_optimization.py tests/scania/test_g10_evaluation.py -v
+```
+
+### 6.4. Tái tạo 02 đồ thị từ dữ liệu đã nghiệm thu:
 ```powershell
 python -m scripts.run_scania_phase2 generate-figures --run-id scania_phase2_rf_optuna_002
 ```

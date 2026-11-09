@@ -4,7 +4,7 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11.9-blue.svg)](#)
 [![Dataset](https://img.shields.io/badge/UCI-Scania%20APS%20%23421-orange.svg)](https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks)
 [![Status](https://img.shields.io/badge/Status-Final%20Submission%20Ready-brightgreen.svg)](#)
-[![Official Test](https://img.shields.io/badge/Official%20Test-Strictly%20Sealed%20Until%20G10-red.svg)](#)
+[![Official Test](https://img.shields.io/badge/Official%20Test-Evaluated%20(92.62%25%20Saving)-success.svg)](#)
 
 Đồ án môn học **Nhập môn Tối ưu hóa** — Học kỳ 1, Năm học 2026–2027  
 **Khoa Công nghệ Thông tin — Trường Đại học Văn Lang**  
@@ -57,29 +57,54 @@ Toàn bộ các sản phẩm học thuật chính thức được đóng gói t�
 | **Mức tiết kiệm vs B0 Dummy** | $0.00\%$ | $77.47\%$ | $89.77\%$ | $\mathbf{93.67\%}$ |
 | **Mức giảm chi phí vs B2** | N/A | Tăng $+12.300$ | Mốc chuẩn G4 | **Giảm $-38.12\%$ ($-3.900$ đơn vị)** |
 
+### 2.3. Kết quả đánh giá độc lập trên tập Official Test (Gate G10 — Run 003)
+
+Sau khi đóng băng chính sách tối ưu tại Trial 16 ($\tau^* = 0.323244$, $K=1.600$), mô hình được đánh giá độc lập duy nhất một lần (single-pass, zero tuning) trên toàn bộ 16.000 mẫu tập Official Test theo đúng phê duyệt của Chủ dự án:
+
+| Tiêu chí đánh giá | Đường cơ sở B0 (Mặc định) | Validation Guard (12.000 mẫu) | **Official Test Độc lập (16.000 mẫu)** |
+|---|:---:|:---:|:---:|
+| **Quy mô mẫu ($N$)** | 16.000 | 12.000 | **16.000** |
+| **Số ca sự cố APS thực tế ($P$)** | 375 | 200 | **375** ($2.34\%$) |
+| **True Positives (TP)** | 0 | 195 | **357** |
+| **False Positives (FP)** | 0 | 383 | **484** |
+| **False Negatives (FN)** | 375 | 5 | **18** |
+| **True Negatives (TN)** | 15.625 | 11.417 | **15.141** |
+| **Recall (Độ nhạy)** | 0.00% | 97.50% | **95.20%** ($357 / 375$) |
+| **Precision (Độ chuẩn xác)** | N/A | 33.74% | **42.45%** ($357 / 841$) |
+| **ROC-AUC / PR-AUC** | N/A | 0.9903 / 0.7059 | **0.9861 / 0.7495** |
+| **Tổng chi phí benchmark** | **187.500** | **6.330** | **13.840** |
+| **Chi phí trung bình / xe** | 11.719 | 0.528 | **0.865** |
+| **Số xe vào xưởng ($M = TP + FP$)** | 0 | 578 | **841** (Giới hạn $K = 1.600$) |
+| **Mức tiết kiệm chi phí vs B0** | 0.00% (Mốc chuẩn) | 93.67% | **92.62%** (Tiết kiệm 173.660 đơn vị) |
+
 ---
 
 ## 3. KHẢ NĂNG TÁI LẬP KHOA HỌC & KIỂM ĐỊNH
 
-### 3.1. Xác thực tính toàn vẹn chữ ký số SHA-256 (Run 002)
+### 3.1. Xác thực tính toàn vẹn chữ ký số SHA-256 (Phase 2 Run 002)
 ```powershell
 python -c "from src.scania.phase2_executor import verify_phase2_run; assert verify_phase2_run('results/scania_aps/phase2/scania_phase2_rf_optuna_002') == True; print('PASS: Run 002 verified!')"
 ```
 
-### 3.2. Chạy bộ kiểm thử tự động (Unit Tests)
+### 3.2. Xác thực tính toàn vẹn chữ ký số Gate G10 (Official Test Run 003)
 ```powershell
-pytest tests/scania/test_phase2_optimization.py -v
+python scripts/run_scania_g10.py verify
 ```
 
-### 3.3. Tái tạo hai đồ thị thực nghiệm
+### 3.3. Chạy bộ kiểm thử tự động (Unit Tests)
+```powershell
+pytest tests/scania/test_phase2_optimization.py tests/scania/test_g10_evaluation.py -v
+```
+
+### 3.4. Tái tạo hai đồ thị thực nghiệm
 ```powershell
 python -m scripts.run_scania_phase2 generate-figures --run-id scania_phase2_rf_optuna_002
 ```
 
 ---
 
-## 4. RANH GIỚI KHOA HỌC & NIÊM PHONG OFFICIAL TEST
+## 4. RANH GIỚI KHOA HỌC & TÍNH TOÀN VẸN THỰC NGHIỆM
 
-- **Official Test (16.000 mẫu):** **ĐƯỢC NIÊM PHONG TUYỆT ĐỐI ĐẾN G10**. Toàn bộ quá trình tiền xử lý, huấn luyện siêu tham số và tinh chỉnh ngưỡng chỉ diễn ra trên tập Train (48.000) và Validation (12.000). Tập Test không hề bị truy cập nhằm phòng chống rò rỉ dữ liệu và thiên lệch lựa chọn.
-- **Bảo tồn các lần chạy lỗi:** Lần chạy lỗi tiền kiểm tra G4 (`scania_g4_b2_real_001`) và lần chạy timeout 300s Phase 2 (`scania_phase2_rf_optuna_001`) được lưu trữ nguyên vẹn theo chuẩn mực minh bạch khoa học.
+- **Đánh giá độc lập Official Test (16.000 mẫu):** Tập dữ liệu kiểm thử được giữ niêm phong tuyệt đối cho đến Gate G10. Việc đánh giá được thực hiện đúng 1 lần duy nhất với chính sách đóng băng, zero tuning, zero data leakage, đảm bảo tính khách quan khoa học 100%.
+- **Bảo tồn các lần chạy sự cố:** Toàn bộ các lần chạy lỗi tiền kiểm tra G4 (`scania_g4_b2_real_001`), timeout Phase 2 (`scania_phase2_rf_optuna_001`), và sự cố I/O/import G10 (`scania_g10_official_test_001`, `002`) đều được lưu trữ đầy đủ kèm bản ghi pháp y `incident_forensic_note.json` theo chuẩn mực minh bạch khoa học.
 - **Khai báo công cụ hỗ trợ AI:** Sử dụng Codex và Antigravity để hỗ trợ rà soát unit tests, runner script và định dạng tài liệu. Sinh viên tự xây dựng mô hình toán, kiểm chứng thực nghiệm và chịu trách nhiệm học thuật hoàn toàn.
