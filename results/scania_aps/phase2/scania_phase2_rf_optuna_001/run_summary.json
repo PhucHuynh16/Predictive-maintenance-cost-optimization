@@ -1,0 +1,209 @@
+{
+  "run_id": "scania_phase2_rf_optuna_001",
+  "mode": "REAL",
+  "status": "FAILED",
+  "lifecycle": "FAILED",
+  "real_estimator_fits": 12,
+  "started_estimator_fits": 12,
+  "completed_estimator_fits": 11,
+  "failed_estimator_fits": 0,
+  "interrupted_or_unknown_fits": 1,
+  "n_trials_completed": 11,
+  "trials_records": [],
+  "fit_records": [
+    {
+      "fit_index": 1,
+      "trial_number": 0,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 30,
+        "max_depth": 12,
+        "min_samples_split": 8,
+        "max_features": 0.379597545259111
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121775.8467836,
+      "end_time": 1794121795.786419,
+      "fit_seconds": 19.935656600049697,
+      "error": null
+    },
+    {
+      "fit_index": 2,
+      "trial_number": 1,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 20,
+        "max_depth": 5,
+        "min_samples_split": 2,
+        "max_features": 0.45985284373248053
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121795.8223455,
+      "end_time": 1794121803.2226365,
+      "fit_seconds": 7.397004700032994,
+      "error": null
+    },
+    {
+      "fit_index": 3,
+      "trial_number": 2,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 50,
+        "max_depth": 10,
+        "min_samples_split": 2,
+        "max_features": 0.4909729556485983
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121803.244146,
+      "end_time": 1794121880.1331203,
+      "fit_seconds": 76.88494990003528,
+      "error": null
+    },
+    {
+      "fit_index": 4,
+      "trial_number": 3,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 60,
+        "max_depth": 5,
+        "min_samples_split": 3,
+        "max_features": 0.2550213529560302
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121880.181224,
+      "end_time": 1794121911.6157556,
+      "fit_seconds": 31.431445299996994,
+      "error": null
+    },
+    {
+      "fit_index": 5,
+      "trial_number": 4,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 30,
+        "max_depth": 8,
+        "min_samples_split": 5,
+        "max_features": 0.2873687420594126
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121911.9079657,
+      "end_time": 1794121941.567808,
+      "fit_seconds": 29.644998300005682,
+      "error": null
+    },
+    {
+      "fit_index": 6,
+      "trial_number": 5,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 50,
+        "max_depth": 5,
+        "min_samples_split": 4,
+        "max_features": 0.3099085529881075
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121941.70991,
+      "end_time": 1794121963.26664,
+      "fit_seconds": 21.52206839999417,
+      "error": null
+    },
+    {
+      "fit_index": 7,
+      "trial_number": 6,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 40,
+        "max_depth": 11,
+        "min_samples_split": 3,
+        "max_features": 0.3542703315240835
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121963.3057406,
+      "end_time": 1794121985.1420557,
+      "fit_seconds": 21.83367930003442,
+      "error": null
+    },
+    {
+      "fit_index": 8,
+      "trial_number": 7,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 40,
+        "max_depth": 4,
+        "min_samples_split": 7,
+        "max_features": 0.2511572371061875
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121985.1852853,
+      "end_time": 1794121991.3250694,
+      "fit_seconds": 6.136902300000656,
+      "error": null
+    },
+    {
+      "fit_index": 9,
+      "trial_number": 8,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 20,
+        "max_depth": 12,
+        "min_samples_split": 10,
+        "max_features": 0.4425192044349383
+      },
+      "status": "COMPLETED",
+      "start_time": 1794121991.3585856,
+      "end_time": 1794122006.1057465,
+      "fit_seconds": 14.745334599982016,
+      "error": null
+    },
+    {
+      "fit_index": 10,
+      "trial_number": 9,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 30,
+        "max_depth": 4,
+        "min_samples_split": 8,
+        "max_features": 0.33204574812188037
+      },
+      "status": "COMPLETED",
+      "start_time": 1794122006.1287422,
+      "end_time": 1794122012.1784735,
+      "fit_seconds": 6.0475684000412,
+      "error": null
+    },
+    {
+      "fit_index": 11,
+      "trial_number": 10,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 60,
+        "max_depth": 12,
+        "min_samples_split": 7,
+        "max_features": 0.43307549223657693
+      },
+      "status": "COMPLETED",
+      "start_time": 1794122012.2089016,
+      "end_time": 1794122055.2094033,
+      "fit_seconds": 42.998095600050874,
+      "error": null
+    },
+    {
+      "fit_index": 12,
+      "trial_number": 11,
+      "estimator": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 50,
+        "max_depth": 11,
+        "min_samples_split": 4,
+        "max_features": 0.3876031429235677
+      },
+      "status": "INTERRUPTED_OR_UNKNOWN",
+      "start_time": 1794122055.2655733,
+      "end_time": null,
+      "fit_seconds": null,
+      "error": "WORKER_TERMINATED_DURING_FIT"
+    }
+  ],
+  "measured_wall_seconds": 300.3336270999862,
+  "measured_peak_ram_mb": 0.0
+}

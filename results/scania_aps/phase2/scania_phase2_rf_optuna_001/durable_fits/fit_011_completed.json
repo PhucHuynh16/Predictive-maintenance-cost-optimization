@@ -1,0 +1,16 @@
+{
+  "fit_index": 11,
+  "trial_number": 10,
+  "estimator": "RandomForestClassifier",
+  "params": {
+    "n_estimators": 60,
+    "max_depth": 12,
+    "min_samples_split": 7,
+    "max_features": 0.43307549223657693
+  },
+  "status": "COMPLETED",
+  "start_time": 1794122012.2089016,
+  "end_time": 1794122055.2094033,
+  "fit_seconds": 42.998095600050874,
+  "error": null
+}

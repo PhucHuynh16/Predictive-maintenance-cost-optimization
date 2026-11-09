@@ -190,63 +190,63 @@ Nhằm vượt qua ranh giới của các mô hình tuyến tính đơn giản �
 
 ### 7.2. Bảng kết quả đo đạc thực nghiệm 20 Trials từ Run `scania_phase2_rf_optuna_002`
 
-Dưới đây là dữ liệu thực nghiệm đo đạc chính thức từ 20 lượt huấn luyện thực tế trên phân vùng Validation (12.000 mẫu: 200 ca dương tính, 11.800 ca âm tính):
+Dưới đây là dữ liệu thực nghiệm đo đạc chính thức từ 20 lượt huấn luyện thực tế trên phân vùng Validation (12.000 mẫu: 200 ca dương tính, 11.800 ca âm tính) trích xuất trực tiếp từ `results/scania_aps/phase2/scania_phase2_rf_optuna_002/trials_summary.csv`:
 
-| Trial | n_est | depth | split | max_feat | Ngưỡng $\tau^*$ | Chi phí | $M \le 1200$ | TP | FP | FN | TN | Recall | Precision | Trạng thái |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 | 50 | 16 | 8 | 0.499 | 0.2224 | 9.250 | 575 | 193 | 382 | 7 | 11.418 | 96.50% | 33.57% | FEASIBLE |
-| 1 | 30 | 8 | 2 | 0.262 | 0.2755 | 9.770 | 627 | 193 | 434 | 7 | 11.366 | 96.50% | 30.78% | FEASIBLE |
-| 2 | 30 | 16 | 8 | 0.440 | 0.2816 | 9.800 | 530 | 192 | 338 | 8 | 11.462 | 96.00% | 36.23% | FEASIBLE |
-| 3 | 60 | 14 | 2 | 0.588 | 0.2282 | 9.270 | 577 | 193 | 384 | 7 | 11.416 | 96.50% | 33.45% | FEASIBLE |
-| 4 | 30 | 16 | 8 | 0.479 | 0.3000 | 10.360 | 486 | 191 | 295 | 9 | 11.505 | 95.50% | 39.30% | FEASIBLE |
-| 5 | 40 | 10 | 2 | 0.273 | 0.3541 | 8.870 | 537 | 193 | 344 | 7 | 11.456 | 96.50% | 35.94% | FEASIBLE |
-| 6 | 40 | 8 | 4 | 0.237 | 0.3541 | 8.890 | 539 | 193 | 346 | 7 | 11.454 | 96.50% | 35.81% | FEASIBLE |
-| 7 | 30 | 16 | 2 | 0.586 | 0.2520 | 9.720 | 522 | 192 | 330 | 8 | 11.470 | 96.00% | 36.78% | FEASIBLE |
-| 8 | 70 | 16 | 8 | 0.525 | 0.2816 | 9.170 | 567 | 193 | 374 | 7 | 11.426 | 96.50% | 34.04% | FEASIBLE |
-| 9 | 60 | 14 | 8 | 0.443 | 0.2633 | 9.120 | 562 | 193 | 369 | 7 | 11.431 | 96.50% | 34.34% | FEASIBLE |
-| 10 | 40 | 10 | 6 | 0.201 | 0.3541 | 8.780 | 528 | 193 | 335 | 7 | 11.465 | 96.50% | 36.55% | FEASIBLE |
-| 11 | 40 | 10 | 6 | 0.208 | 0.3541 | 9.240 | 474 | 192 | 282 | 8 | 11.518 | 96.00% | 40.51% | FEASIBLE |
-| 12 | 80 | 10 | 6 | 0.364 | 0.3357 | 8.860 | 536 | 193 | 343 | 7 | 11.457 | 96.50% | 36.01% | FEASIBLE |
-| 13 | 50 | 12 | 10 | 0.356 | 0.2755 | 9.150 | 565 | 193 | 372 | 7 | 11.428 | 96.50% | 34.16% | FEASIBLE |
-| 14 | 80 | 6 | 10 | 0.344 | 0.3173 | 8.350 | 585 | 195 | 390 | 5 | 11.410 | 97.50% | 33.33% | FEASIBLE |
-| 15 | 80 | 6 | 10 | 0.354 | 0.3173 | 8.320 | 582 | 195 | 387 | 5 | 11.413 | 97.50% | 33.51% | FEASIBLE |
-| **16** | **50** | **10** | **10** | **0.427** | **0.3232** | **6.330** | **578** | **195** | **383** | **5** | **11.417** | **97.50%** | **33.74%** | **FEASIBLE (BEST)** |
-| 17 | 50 | 12 | 4 | 0.406 | 0.2633 | 8.990 | 549 | 193 | 356 | 7 | 11.444 | 96.50% | 35.15% | FEASIBLE |
-| 18 | 50 | 12 | 4 | 0.413 | 0.2571 | 8.960 | 546 | 193 | 353 | 7 | 11.447 | 96.50% | 35.35% | FEASIBLE |
-| 19 | 70 | 6 | 10 | 0.443 | 0.3232 | 7.820 | 582 | 196 | 386 | 4 | 11.414 | 98.00% | 33.68% | FEASIBLE |
+| Trial # | Chi phí | $M$ | Ngưỡng $\tau^*$ | TP | FP | FN | $n_{\text{est}}$ | depth | split | feat | Thời gian fit (s) | Trạng thái |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0 | 7.840 | 576 | 0.2588 | 192 | 384 | 8 | 30 | 12 | 8 | 0.380 | 18.80 | FEASIBLE |
+| 1 | 7.790 | 724 | 0.4363 | 195 | 529 | 5 | 20 | 5 | 2 | 0.460 | 7.00 | FEASIBLE |
+| 2 | 6.750 | 569 | 0.3154 | 194 | 375 | 6 | 50 | 10 | 2 | 0.491 | 34.68 | FEASIBLE |
+| 3 | 7.880 | 682 | 0.5201 | 194 | 488 | 6 | 60 | 5 | 3 | 0.255 | 11.76 | FEASIBLE |
+| 4 | 7.800 | 572 | 0.3978 | 192 | 380 | 8 | 30 | 8 | 5 | 0.287 | 10.13 | FEASIBLE |
+| 5 | 7.310 | 625 | 0.5609 | 194 | 431 | 6 | 50 | 5 | 4 | 0.310 | 11.73 | FEASIBLE |
+| 6 | 6.490 | 594 | 0.2417 | 195 | 399 | 5 | 40 | 11 | 3 | 0.354 | 21.62 | FEASIBLE |
+| 7 | 7.520 | 697 | 0.5887 | 195 | 502 | 5 | 40 | 4 | 7 | 0.251 | 6.21 | FEASIBLE |
+| 8 | 6.970 | 693 | 0.1801 | 196 | 497 | 4 | 20 | 12 | 10 | 0.443 | 14.61 | FEASIBLE |
+| 9 | 7.540 | 699 | 0.5696 | 195 | 504 | 5 | 30 | 4 | 8 | 0.332 | 6.14 | FEASIBLE |
+| 10 | 6.340 | 579 | 0.2408 | 195 | 384 | 5 | 60 | 12 | 7 | 0.433 | 71.20 | FEASIBLE |
+| 11 | 6.790 | 675 | 0.1739 | 196 | 479 | 4 | 50 | 11 | 4 | 0.388 | 32.75 | FEASIBLE |
+| 12 | 7.060 | 600 | 0.2261 | 194 | 406 | 6 | 60 | 12 | 7 | 0.435 | 44.51 | FEASIBLE |
+| 13 | 6.880 | 633 | 0.2428 | 195 | 438 | 5 | 20 | 10 | 2 | 0.484 | 14.20 | FEASIBLE |
+| 14 | 7.280 | 622 | 0.2200 | 194 | 428 | 6 | 40 | 12 | 6 | 0.500 | 32.49 | FEASIBLE |
+| 15 | 6.890 | 634 | 0.3268 | 195 | 439 | 5 | 60 | 8 | 7 | 0.370 | 27.30 | FEASIBLE |
+| **16** | **6.330** | **578** | **0.3232** | **195** | **383** | **5** | **50** | **10** | **10** | **0.427** | **38.61** | **FEASIBLE (BEST)** |
+| 17 | 6.650 | 610 | 0.2858 | 195 | 415 | 5 | 60 | 10 | 8 | 0.441 | 70.21 | FEASIBLE |
+| 18 | 7.070 | 652 | 0.2589 | 195 | 457 | 5 | 50 | 9 | 9 | 0.497 | 31.83 | FEASIBLE |
+| 19 | 7.240 | 618 | 0.2392 | 194 | 424 | 6 | 50 | 11 | 10 | 0.440 | 33.46 | FEASIBLE |
 
-### 7.3. Phân tích chính sách tối ưu toàn cục (Optimal Policy — Trial 16)
-Thuật toán Optuna TPE đã hội tụ và tìm thấy cấu hình tối ưu toàn cục tại **Trial 16** với các thông số:
-- **Bộ siêu tham số rừng ngẫu nhiên:** `n_estimators = 50`, `max_depth = 10`, `min_samples_split = 10`, `max_features = 0.426743`.
+### 7.3. Phân tích chính sách khả thi tốt nhất quan sát được (Trial 16)
+Trong ngân sách 20 trials thực nghiệm được phê duyệt, thuật toán Optuna TPE đã tìm thấy chính sách khả thi tốt nhất quan sát được tại **Trial 16** với các thông số:
+- **Bộ siêu tham số rừng ngẫu nhiên:** `n_estimators = 50`, `max_depth = 10`, `min_samples_split = 10`, `max_features = 0.426866`.
 - **Ngưỡng quyết định can thiệp tối ưu:** $\tau^* = 0.323244$.
 - **Ma trận nhầm lẫn đo đạc:**
   - $TP = 195$ (Phát hiện chính xác 195/200 xe hỏng APS thực tế, Recall đạt $97.50\%$).
   - $FP = 383$ (383 xe hỏng bộ phận khác bị kiểm tra thêm APS tại xưởng).
   - $FN = 5$ (Chỉ bỏ sót đúng 5 ca hỏng APS dẫn đến sự cố dọc đường).
   - $TN = 11.417$ (11.417 xe hỏng bộ phận khác được cho xuất xưởng an toàn).
-- **Tổng chi phí benchmark tối ưu:**
+- **Tổng chi phí benchmark quan sát được:**
   $$f^* = 10 \cdot 383 + 500 \cdot 5 = 3.830 + 2.500 = \mathbf{6.330} \text{ đơn vị chi phí benchmark}$$
 - **Kiểm định ràng buộc công suất xưởng:**
-  $$M^* = TP + FP = 195 + 383 = 578 \text{ xe} \le 1.200 \text{ xe} \quad (\text{Thỏa mãn ràng buộc, dư thừa năng lực tiếp nhận } 622 \text{ xe})$$
+  $$M^* = TP + FP = 195 + 383 = 578 \text{ xe} \le 1.200 \text{ xe} \quad (\text{Thỏa mãn ràng buộc khả thi, dư thừa năng lực tiếp nhận } 622 \text{ xe})$$
 
 ### 7.4. Phân tích trực quan hóa hai đồ thị tối ưu hóa thực nghiệm
 
 #### Đồ thị 1: Lịch sử hội tụ của thuật toán tối ưu hóa (Optuna TPE Convergence History)
-Đồ thị [optimization_convergence.png](file:///d:/Năm%203/HK1_2026/Nhập%20môn%20tối%20ưu%20hóa/baitaplon/worktrees/antigravity/figures/optimization/optimization_convergence.png) trực quan hóa tiến trình tìm kiếm của Optuna TPE qua 20 trials:
-- **Đường chấm xanh (Trial Cost):** Chi phí khả thi của từng trial dao động trong khoảng từ $10.360$ (Trial 4) đến $6.330$ (Trial 16).
-- **Đường bậc thang đỏ (Best Feasible Cost):** Khởi đầu ở mức $9.250$ tại Trial 0, được cải thiện từng bước qua các vùng tham số tiềm năng: xuống $8.870$ (Trial 5), $8.780$ (Trial 10), $8.350$ (Trial 14), $8.320$ (Trial 15), và xác lập kỷ lục cực tiểu **$6.330$** tại Trial 16.
-- **Đường đứt nét xám (B2 Baseline):** Mốc chi phí chuẩn $10.230$ của mô hình Logistic Regression G4. Đồ thị chứng minh rõ ràng: **19/20 trials của Random Forest đều đạt chi phí thấp hơn đáng kể so với mô hình cơ sở B2**, chứng tỏ ưu thế áp đảo của mô hình học máy phi tuyến khi kết hợp cùng bộ điều chỉnh siêu tham số Bayes.
+Đồ thị `figures/optimization/optimization_convergence.png` trực quan hóa tiến trình tìm kiếm của Optuna TPE qua 20 trials trên 2 khung nhìn:
+- **Khung nhìn toàn cảnh (Global Perspective):** So sánh mức chi phí đạt được so với mốc trần không can thiệp B0 Majority Dummy ($100.000$) và mốc cơ sở B2 Logistic Regression ($10.230$). Toàn bộ 20/20 trials của Random Forest đều đạt chi phí thấp hơn đáng kể so với B2 (dao động từ $6.330$ đến $7.880$).
+- **Khung nhìn chi tiết thu phóng (Zoomed Convergence):** Chi phí khả thi tốt nhất lũy tiến khởi đầu ở mức $7.840$ tại Trial 0, liên tục được cải thiện qua các mốc: $7.790$ (Trial 1), $6.750$ (Trial 2), $6.490$ (Trial 6), $6.340$ (Trial 10), và đạt mức chi phí thấp nhất **$6.330$** tại Trial 16.
 
 #### Đồ thị 2: Đánh đổi Chi phí - Năng lực xưởng và đường cong quét ngưỡng (Cost vs Capacity Trade-off)
-Đồ thị [cost_vs_capacity_tradeoff.png](file:///d:/Năm%203/HK1_2026/Nhập%20môn%20tối%20ưu%20hóa/baitaplon/worktrees/antigravity/figures/optimization/cost_vs_capacity_tradeoff.png) trực quan hóa không gian tìm kiếm đa chiều giữa Chi phí benchmark và Số lượng xe kiểm tra ($M$):
-- **Vùng bóng xanh lục (Feasible Region):** Đại diện cho miền chấp nhận được của xưởng dịch vụ ($M \le 1.200$).
-- **Đường cong quét ngưỡng 101 điểm của Trial 16 (Đường liền nét xanh đậm):**
-  - Khi ngưỡng $\tau \to 0$: Chi phí phạt $FN \to 0$ nhưng số lượng cảnh báo sai $FP$ bùng nổ, kéo theo $M$ tăng vọt vượt qua $1.200$, đẩy chính sách vào vùng **Không khả thi (Infeasible)**.
-  - Khi ngưỡng $\tau \to 1$: Số xe kiểm tra $M \to 0$ nhưng số ca bỏ sót $FN \to 200$, chi phí bùng nổ tiệm cận $100.000$ (mức trần của B0 Dummy).
-  - Điểm cực tiểu đáy parabol đạt chính xác tại $\mathbf{M = 578, \text{Cost} = 6.330}$ ứng với $\tau^* = 0.3232$, nằm sâu an toàn bên trong vùng khả thi.
-- **Ngôi sao đỏ:** Tọa độ chính sách tối ưu toàn cục của Trial 16.
-- **Điểm vuông màu tím:** Tọa độ mô hình cơ sở G4 B2 Logistic Regression ($M = 509, \text{Cost} = 10.230$).
-- **Điểm tròn xanh nhạt:** Tọa độ của 19 trials còn lại trong Phase 2, đều phân bố tập trung trong dải $M \in [474, 627]$ và chi phí $[7.820, 10.360]$.
+Đồ thị `figures/optimization/cost_vs_capacity_tradeoff.png` trực quan hóa không gian tìm kiếm giữa Chi phí benchmark và Số lượng xe kiểm tra ($M$):
+- **Vùng khả thi (Feasible Domain):** Miền tiếp nhận của xưởng dịch vụ ($M \le 1.200$).
+- **Đường quét ngưỡng thực nghiệm 101 điểm của Trial 16:**
+  - Được tính toán bằng phương pháp vector hóa trên các dự báo xác suất cố định của Trial 16 với 101 điểm ngưỡng $\tau \in \{0.00, 0.01, \dots, 1.00\}$.
+  - Khi $\tau < 0.05$: Số xe kiểm tra $M$ vượt ngưỡng $1.200$ (ví dụ: $\tau=0.04$ có $M=1.314$, $\tau=0.00$ có $M=12.000$), chính sách rơi vào vùng **Không khả thi (Infeasible)**.
+  - Khi $\tau \ge 0.05$: Chính sách trở nên khả thi ($M \le 1.200$). Chi phí giảm dần khi $\tau$ tăng và đạt giá trị cực tiểu thực nghiệm tại $\mathbf{M = 578, \text{Cost} = 6.330}$ ứng với $\tau^* = 0.3232$.
+  - Khi $\tau > 0.33$: Số ca bỏ sót $FN$ tăng dần làm chi phí tăng trở lại và đạt mức trần $100.000$ khi $\tau = 1.0$ ($M=0, FN=200$).
+- **Ngôi sao cam:** Vị trí chính sách khả thi tốt nhất quan sát được tại Trial 16 ($M = 578, \text{Cost} = 6.330$).
+- **Hình thoi xanh lục:** Vị trí mốc cơ sở G4 B2 Logistic Regression ($M = 509, \text{Cost} = 10.230$).
+- **Phân bố 20 trials:** Toàn bộ 20 cấu hình đều nằm trọn trong vùng khả thi ($M \in [569, 724]$) với chi phí thấp hơn $B_2$.
 
 ### 7.5. Bảng tổng hợp so sánh hiệu quả giữa các giai đoạn nghiên cứu
 
@@ -290,7 +290,7 @@ Thuật toán Optuna TPE đã hội tụ và tìm thấy cấu hình tối ưu t
 ### 8.3. Kết luận
 Đề tài đã hoàn thành xuất sắc việc giải quyết bài toán bảo trì kỹ thuật công nghiệp phức tạp dưới lăng kính toán học tối ưu hóa có ràng buộc:
 1. Thiết lập hệ thống cơ sở chuẩn tắc khoa học vững chắc từ G4 baselines ($C^*_{\text{G4}} = 10.230$).
-2. Triển khai thành công mô hình tối ưu hóa cốt lõi Phase 2 kết hợp Random Forest và Optuna TPE, xác định chính sách can thiệp tối ưu toàn cục tại Trial 16 với chi phí chỉ **6.330 đơn vị benchmark**, giúp tiết kiệm **93.67%** chi phí so với việc không can thiệp (B0 Dummy) và giảm tiếp **38.12%** chi phí so với mô hình cơ sở tốt nhất G4 (B2 Logistic Regression).
+2. Triển khai thành công mô hình tối ưu hóa cốt lõi Phase 2 kết hợp Random Forest và Optuna TPE, xác định chính sách can thiệp khả thi tốt nhất quan sát được tại Trial 16 trong 20 trials Optuna với chi phí chỉ **6.330 đơn vị benchmark**, giúp tiết kiệm **93.67%** chi phí so với việc không can thiệp (B0 Dummy) và giảm tiếp **38.12%** chi phí so với mô hình cơ sở tốt nhất G4 (B2 Logistic Regression).
 3. Chứng minh trên thực nghiệm sự khác biệt cốt lõi giữa ngưỡng giải tích Bayes phi ràng buộc và ngưỡng tối ưu thực tế trong điều kiện xưởng dịch vụ có giới hạn tài nguyên tiếp nhận.
 4. Bảo đảm tính trung thực học thuật tuyệt đối: không rò rỉ tập dữ liệu kiểm thử Official Test, minh bạch hóa lịch sử lỗi, và xác thực 100% kết quả thông qua chữ ký băm mật mã học SHA-256.
 

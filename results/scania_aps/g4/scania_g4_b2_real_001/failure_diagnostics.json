@@ -1,0 +1,1 @@
+{"errors":[{"error_type":"PackageNotFoundError","official_test":"SEALED_UNTIL_G10","partial_telemetry":null,"real_estimator_fits":0,"real_validation_scored":false,"reason":"No package metadata was found for pytest","stage":"GATE_B2_AUTHORIZATION","synthetic_estimator_fits":0,"synthetic_validation_scored":false,"warnings":[]}]}

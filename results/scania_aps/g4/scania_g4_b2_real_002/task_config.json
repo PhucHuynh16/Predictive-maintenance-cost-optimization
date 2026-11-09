@@ -1,0 +1,37 @@
+{
+  "run_id": "scania_g4_b2_real_002",
+  "mode": "REAL",
+  "membership_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\membership.npz",
+  "tree_train_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\tree_train.npy",
+  "tree_val_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\tree_validation.npy",
+  "lr_train_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\lr_train.npy",
+  "lr_val_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\lr_validation.npy",
+  "b1_params": {
+    "ccp_alpha": 0.0,
+    "class_weight": null,
+    "criterion": "gini",
+    "max_depth": 1,
+    "max_features": null,
+    "max_leaf_nodes": null,
+    "min_impurity_decrease": 0.0,
+    "min_samples_leaf": 1,
+    "min_samples_split": 2,
+    "min_weight_fraction_leaf": 0.0,
+    "monotonic_cst": null,
+    "random_state": 42,
+    "splitter": "best"
+  },
+  "b2_params": {
+    "C": 1.0,
+    "class_weight": null,
+    "dual": false,
+    "fit_intercept": true,
+    "l1_ratio": 0.0,
+    "max_iter": 2000,
+    "random_state": 42,
+    "solver": "lbfgs",
+    "tol": 0.0001,
+    "verbose": 0,
+    "warm_start": false
+  }
+}

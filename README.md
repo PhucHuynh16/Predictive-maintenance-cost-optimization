@@ -1,85 +1,85 @@
-# Tối ưu chi phí bảo trì dự đoán bằng Machine Learning
+# Tối Ưu Hóa Chi Phí Bảo Trì Dự Đoán Hệ Thống Khí Nén Xe Tải Nặng Scania APS (UCI 421)
 
-Đồ án cá nhân môn **Nhập môn tối ưu hóa**, thực hiện trong **5 tuần / 10 giai đoạn** với sự hỗ trợ của Codex và Antigravity.
+[![Academic Submission](https://img.shields.io/badge/Coursework-Introduction%20to%20Optimization-blue.svg)](#)
+[![Python 3.11](https://img.shields.io/badge/python-3.11.9-blue.svg)](#)
+[![Dataset](https://img.shields.io/badge/UCI-Scania%20APS%20%23421-orange.svg)](https://archive.ics.uci.edu/dataset/421/aps+failure+at+scania+trucks)
+[![Status](https://img.shields.io/badge/Status-Final%20Submission%20Ready-brightgreen.svg)](#)
+[![Official Test](https://img.shields.io/badge/Official%20Test-Strictly%20Sealed%20Until%20G10-red.svg)](#)
 
-## Mục tiêu
+Đồ án môn học **Nhập môn Tối ưu hóa** — Học kỳ 1, Năm học 2026–2027  
+**Khoa Công nghệ Thông tin — Trường Đại học Văn Lang**  
+**Sinh viên thực hiện:** Huỳnh Phúc  
+**Mã nguồn Repository:** [PhucHuynh16/Predictive-maintenance-cost-optimization](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization)
 
-Sử dụng xác suất hỏng hóc từ Machine Learning để lựa chọn chính sách bảo trì nhằm giảm **chi phí mô phỏng**, có kiểm tra ràng buộc nguồn lực và so sánh với baseline.
+---
 
-Dataset: [AI4I 2020 — UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), dữ liệu tổng hợp gồm 10.000 quan sát.
+## 1. TỔNG QUAN HỒ SƠ NỘP BÀI (FINAL SUBMISSION PACKAGE)
 
-Chi phí và hiệu quả bảo trì là giả định mô phỏng đã được phê duyệt trong phạm vi [PROJECT_SPEC](docs/PROJECT_SPEC.md); không phải dữ liệu chi phí thực tế hay bằng chứng tiết kiệm tại nhà máy.
+Toàn bộ các sản phẩm học thuật chính thức được đóng gói tại các đường dẫn sau:
 
-## Trạng thái
+| STT | Sản phẩm nộp bài | Định dạng | Quy mô / Trang | Đường dẫn tệp |
+|:---:|---|:---:|:---:|---|
+| 1 | **Báo cáo tổng kết đồ án (PDF)** | PDF | **9 trang** | [`report/BAO_CAO_CUOI_KY_SCANIA_APS.pdf`](report/BAO_CAO_CUOI_KY_SCANIA_APS.pdf) |
+| 2 | **Báo cáo tổng kết đồ án (DOCX)** | Word | **9–10 trang** | [`report/BAO_CAO_CUOI_KY_SCANIA_APS.docx`](report/BAO_CAO_CUOI_KY_SCANIA_APS.docx) |
+| 3 | **Slide thuyết trình bảo vệ (PDF)** | PDF | **8 slides** | [`slides/SLIDES_THUYET_TRINH_SCANIA_APS.pdf`](slides/SLIDES_THUYET_TRINH_SCANIA_APS.pdf) |
+| 4 | **Slide thuyết trình bảo vệ (PPTX)** | PowerPoint | **8 slides** | [`slides/SLIDES_THUYET_TRINH_SCANIA_APS.pptx`](slides/SLIDES_THUYET_TRINH_SCANIA_APS.pptx) |
+| 5 | **Đồ thị 1: Tiến trình hội tụ tối ưu** | PNG (300 DPI) | 2 bảng thu phóng | [`figures/optimization/optimization_convergence.png`](figures/optimization/optimization_convergence.png) |
+| 6 | **Đồ thị 2: Đánh đổi Chi phí & Năng lực** | PNG (300 DPI) | Quét ngưỡng 101 điểm | [`figures/optimization/cost_vs_capacity_tradeoff.png`](figures/optimization/cost_vs_capacity_tradeoff.png) |
+| 7 | **Bằng chứng tái lập khoa học** | Markdown | Đầy đủ mã băm SHA-256 | [`docs/reproducibility_evidence.md`](docs/reproducibility_evidence.md) |
+| 8 | **Phân tích kết quả chuyên sâu** | Markdown | Chi tiết 20 trials | [`docs/results_analysis.md`](docs/results_analysis.md) |
 
-Cập nhật ngày **2026-10-23 (Asia/Saigon)**: **đạt checkpoint sản phẩm W1** theo ROADMAP (repository public, README, formulation, đề cương, pipeline và kế hoạch 5 tuần). Đã xác minh PR [#1](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/1), [#3](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/3), [#4](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/4), [#5](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/pull/5) đã merge vào `main`; mốc đối chiếu `d6d0bb95520cb46ccf4888cbd8aa86bf2d7b212f`.
+---
 
-| Sản phẩm đã tích hợp | Bằng chứng | Giới hạn |
-|---|---|---|
-| W1-G1-C: formulation, cost/constraints review, thiết kế API và 40 ca kiểm tra dự kiến | PR #3; spec quyết định hiện hành ở PR #1 | Bảng test là thiết kế, chưa có cost code/unit tests thực thi |
-| W1-G1-A: đề cương và pipeline Mermaid | PR #4 | Là thiết kế phương pháp, chưa phải pipeline đã chạy |
-| W1-G2-A: dictionary, EDA report, notebook có output, 6 hình và module visualization | PR #5 | Antigravity đã chạy EDA trên Python 3.14.3; Codex chỉ đối chiếu source/output, chưa chạy lại raw/notebook |
+## 2. TÓM TẮT BÀI TOÁN & KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC
 
-Raw đã được Antigravity tải và kiểm tra local ngày 2026-10-21; **không commit CSV/ZIP lên GitHub**. [Provenance](data/README.md) ghi rõ nguồn chứng cứ. Chưa có split chính thức, preprocessing, baseline metrics, huấn luyện ML hay optimization; hình EDA không phải kết quả tối ưu.
+### 2.1. Phát biểu bài toán tối ưu hóa có ràng buộc
+- **Bộ dữ liệu:** UCI Machine Learning Repository #421 (*APS Failure at Scania Trucks*, Scania CV AB, 2016).
+  - Lớp dương ($y=1$): Xe vào xưởng hỏng do hệ thống khí nén APS ($1.67\%$).
+  - Lớp âm ($y=0$): Xe vào xưởng do hỏng ở các **bộ phận KHÁC** ($98.33\%$).
+- **Hàm mục tiêu chi phí benchmark phi đối xứng (IDA 2016):**
+  $$\min_{\theta, \tau} \quad f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \quad [\text{đơn vị chi phí benchmark}]$$
+- **Ràng buộc công suất tiếp nhận của xưởng bảo dưỡng:**
+  $$M(\theta, \tau) = TP + FP \le K = \left\lfloor \frac{N}{10} \right\rfloor = 1.200 \text{ lượt xe trên tập Validation } (N=12.000)$$
 
-**Cổng G3 vẫn đóng:** A5 được duyệt một phần, cần chốt phụ thuộc hàng, duplicate, exposure từ EDA toàn dữ liệu và protocol chi tiết. [Bản rà soát A5](docs/experimental_protocol.md) chỉ là đề xuất. Checkpoint W1 không cấp quyền G3/G4 hoặc mở test; PR quản lý checkpoint này còn chờ chủ dự án duyệt/merge.
+### 2.2. Bảng so sánh hiệu quả giữa các giai đoạn nghiên cứu
 
-Hai AI làm việc trên nhánh/worktree riêng; chỉ chủ dự án phê duyệt thay đổi file chung, công thức và việc tích hợp vào `main`.
+| Tiêu chí | G4 B0: Majority Dummy | G4 B1: Decision Stump | G4 B2: Logistic Regression | Phase 2: Random Forest + Optuna TPE |
+|---|:---:|:---:|:---:|:---:|
+| **Ngưỡng quyết định $\tau$** | N/A | $0.0196$ | $0.0196$ | $\mathbf{0.3232}$ |
+| **True Positives (TP)** | $0$ | $160$ | $186$ | $\mathbf{195}$ / 200 ($Recall = 97.50\%$) |
+| **False Positives (FP)** | $0$ | $253$ | $323$ | $383$ |
+| **False Negatives (FN)** | $200$ | $40$ | $14$ | $\mathbf{5}$ (Chỉ lọt đúng 5 ca) |
+| **Chi phí kiểm tra ($10 \times FP$)** | $0$ | $2.530$ | $3.230$ | $3.830$ |
+| **Chi phí sự cố ($500 \times FN$)** | $100.000$ | $20.000$ | $7.000$ | $2.500$ |
+| **Tổng chi phí benchmark** | **100.000** | **22.530** | **10.230** | $\mathbf{6.330}$ |
+| **Số xe vào xưởng ($M \le 1200$)** | $0$ | $413$ | $509$ | **578** (Dư 622 chỗ) |
+| **Trạng thái ràng buộc** | FEASIBLE | FEASIBLE | FEASIBLE | **FEASIBLE** |
+| **Mức tiết kiệm vs B0 Dummy** | $0.00\%$ | $77.47\%$ | $89.77\%$ | $\mathbf{93.67\%}$ |
+| **Mức giảm chi phí vs B2** | N/A | Tăng $+12.300$ | Mốc chuẩn G4 | **Giảm $-38.12\%$ ($-3.900$ đơn vị)** |
 
-## Tài liệu
+---
 
-- [Lộ trình gốc: 10 giai đoạn / 5 tuần](docs/ROADMAP.md), được sao chép nguyên văn từ tài liệu chủ dự án cung cấp.
-- [Quy tắc cho hai AI](AGENTS.md).
-- [Đặc tả: quyết định đã duyệt và chi tiết còn chờ](docs/PROJECT_SPEC.md).
-- [Bảng nhiệm vụ](docs/TASK_BOARD.md).
-- [Formulation review lịch sử](docs/problem_formulation.md) và [cost model review](docs/cost_model_review.md).
-- [Đề cương](docs/project_proposal.md) và [pipeline Mermaid](figures/pipeline.mmd).
-- [Data dictionary](docs/data_dictionary.md), [EDA findings](docs/eda_findings.md) và [notebook EDA](notebooks/01_eda.ipynb).
-- [Rà soát A5 trước G3 — đề xuất chờ duyệt](docs/experimental_protocol.md).
-- [Prompt Antigravity tuần 1](docs/WEEK1_ANTIGRAVITY.md).
-- [Prompt Codex tuần 1](docs/WEEK1_CODEX.md).
-- [Nguồn và cách quản lý dữ liệu](data/README.md).
-- [Bàn giao và kiểm tra Git](docs/BOOTSTRAP_HANDOFF.md).
+## 3. KHẢ NĂNG TÁI LẬP KHOA HỌC & KIỂM ĐỊNH
 
-## Cấu trúc
-
-```text
-configs/     cấu hình được phê duyệt
-data/        hướng dẫn dữ liệu; raw/processed được Git bỏ qua
-docs/        lộ trình, đặc tả, nhiệm vụ và bàn giao
-notebooks/   EDA và phân tích do Antigravity phụ trách
-src/         pipeline, ML, cost model, constraints và optimization
-scripts/     entry point thực nghiệm/tái lập; demo có phân quyền riêng
-tests/       kiểm thử của Codex sau phê duyệt công thức
-results/     logs và kết quả thực nghiệm thật, có nguồn gốc
-figures/     biểu đồ do Antigravity tạo từ dữ liệu/logs được phép
-report/      báo cáo
-slides/      thuyết trình
-```
-
-Các thư mục chưa có sản phẩm dùng `.gitkeep`. Source hiện có `src/visualization.py` và notebook EDA của Antigravity; các module pipeline/ML/cost/optimization chưa được triển khai.
-
-## Môi trường Codex
-
-Python mục tiêu **3.11**. Kết quả kiểm tra ngày 2026-10-23 và các lệnh thực sự đã chạy được ghi ở [TASK_BOARD](docs/TASK_BOARD.md#kiem-tra-moi-truong-codex). `requirements.txt` vẫn là manifest chưa khóa version; không thay đổi file này trong nhiệm vụ checkpoint. Chưa có lệnh tái lập thực nghiệm ML để chạy.
-
-Mỗi AI dùng `.venv` riêng trong worktree của mình. Lệnh chuẩn bị môi trường từ đúng worktree:
-
+### 3.1. Xác thực tính toàn vẹn chữ ký số SHA-256 (Run 002)
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+python -c "from src.scania.phase2_executor import verify_phase2_run; assert verify_phase2_run('results/scania_aps/phase2/scania_phase2_rf_optuna_002') == True; print('PASS: Run 002 verified!')"
 ```
 
-Nếu alias `py` không chạy, dùng đường dẫn Python 3.11 thật trên máy; ví dụ máy khởi tạo:
-
+### 3.2. Chạy bộ kiểm thử tự động (Unit Tests)
 ```powershell
-& 'C:\Users\Huỳnh Phúc\AppData\Local\Python\pythoncore-3.11-64\python.exe' -X utf8 -m venv .venv
+pytest tests/scania/test_phase2_optimization.py -v
 ```
 
-Đường dẫn trên đã chạy được Python 3.11.9 trong phiên kiểm tra; alias `py`/`python` qua WindowsApps không chạy được. `-X utf8` tránh lỗi encoding khi in đường dẫn tiếng Việt. Đề nghị khóa dependency trong nhiệm vụ riêng có phê duyệt file chung sau khi kiểm chứng cài đặt. Demo Streamlit chỉ là tùy chọn về sau, chưa thêm dependency.
+### 3.3. Tái tạo hai đồ thị thực nghiệm
+```powershell
+python -m scripts.run_scania_phase2 generate-figures --run-id scania_phase2_rf_optuna_002
+```
 
-## Giới hạn nghiên cứu
+---
 
-Tối ưu chi phí trên nhãn validation là đánh giá chính sách mô phỏng, không chứng minh tác động nhân quả của bảo trì. EDA ban đầu đã xem toàn bộ dataset và nhãn; không thể tuyên bố các hàng test tương lai hoàn toàn chưa từng bị xem xét. Việc cô lập test sau này chỉ ngăn tiếp tục sử dụng trong development. Random split, nếu được chấp thuận sau review, đánh giá nội suy trên cùng bộ dữ liệu tổng hợp có phụ thuộc, không chứng minh tổng quát hóa theo thời gian/nhà máy mới. Các thông số đã duyệt nằm trong đặc tả; ví dụ khác trong lộ trình không tự trở thành cấu hình.
+## 4. RANH GIỚI KHOA HỌC & NIÊM PHONG OFFICIAL TEST
 
-Các trạng thái bootstrap trong `AGENTS.md`, prompt, `BOOTSTRAP_HANDOFF.md` và một số đoạn lịch sử của spec/review phản ánh lúc viết. Bằng chứng merge và chỉ dẫn quản lý checkpoint ngày 2026-10-23 được ghi tại TASK_BOARD; lượt này không sửa các tài liệu lịch sử hoặc quyết định A1–A7.
+- **Official Test (16.000 mẫu):** **ĐƯỢC NIÊM PHONG TUYỆT ĐỐI ĐẾN G10**. Toàn bộ quá trình tiền xử lý, huấn luyện siêu tham số và tinh chỉnh ngưỡng chỉ diễn ra trên tập Train (48.000) và Validation (12.000). Tập Test không hề bị truy cập nhằm phòng chống rò rỉ dữ liệu và thiên lệch lựa chọn.
+- **Bảo tồn các lần chạy lỗi:** Lần chạy lỗi tiền kiểm tra G4 (`scania_g4_b2_real_001`) và lần chạy timeout 300s Phase 2 (`scania_phase2_rf_optuna_001`) được lưu trữ nguyên vẹn theo chuẩn mực minh bạch khoa học.
+- **Khai báo công cụ hỗ trợ AI:** Sử dụng Codex và Antigravity để hỗ trợ rà soát unit tests, runner script và định dạng tài liệu. Sinh viên tự xây dựng mô hình toán, kiểm chứng thực nghiệm và chịu trách nhiệm học thuật hoàn toàn.

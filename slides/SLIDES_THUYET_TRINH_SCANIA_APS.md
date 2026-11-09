@@ -92,7 +92,7 @@
 - **Cấu hình tối ưu hóa cốt lõi:**
   - Thuật toán: **Random Forest** kết hợp **Bayesian HPO (Optuna TPE, seed=42)**.
   - Ngân sách: 20 trials tuần tự, 1 native thread, trần 900s, fit trên Train 48k, dò ngưỡng vector hóa trên Validation 12k.
-- **Nghiệm tối ưu toàn cục (Trial 16):**
+- **Chính sách khả thi tốt nhất quan sát được (Trial 16):**
   - **Siêu tham số:** $n_{\text{estimators}} = 50$, $\text{max\_depth} = 10$, $\text{min\_samples\_split} = 10$, $\text{max\_features} = 0.427$.
   - **Ngưỡng tối ưu:** $\tau^* = 0.3232$.
   - **Ma trận nhầm lẫn:** $TP = 195/200$ ($Recall = 97.50\%$), $FP = 383$, **$FN = 5$** (chỉ để lọt 5 xe chết máy), $TN = 11.417$.
@@ -116,10 +116,7 @@
   - Không bịa đặt số liệu, không nội suy kết quả thiếu.
   - Phân biệt rõ ràng giữa mô phỏng chính sách trên tập Validation và đánh giá độc lập cuối kỳ.
   - **Official Test set (16.000 xe) tiếp tục được niêm phong tuyệt đối đến Gate G10**.
-- **Kết luận:** Đề tài đã giải quyết trọn vẹn bài toán tối ưu hóa chi phí có ràng buộc trong công nghiệp bảo dưỡng dự đoán, mang lại giá trị thực tiễn và tính chuẩn mực học thuật cao.
-  - Giám sát: Windows Job Object (1 thread, trần RAM 2048 MB, timeout 120s/300s).
-  - **Official Test (16.000 mẫu) được niêm phong tuyệt đối (Sealed until G10)** nhằm chống rò rỉ và thiên lệch lựa chọn (selection bias).
 - **Khai báo AI hỗ trợ (AI Assistance Disclosure):**
   - Trợ lý AI (Codex & Antigravity) hỗ trợ rà soát unit tests, runner CLI, kiểm tra I/O guard và khung tài liệu.
   - Sinh viên tự xây dựng mô hình toán, xác thực dữ liệu, trực tiếp nghiệm thu và chịu trách nhiệm học thuật hoàn toàn.
-- **Kết luận:** Đề tài đã hoàn thành vững chắc giai đoạn **Bài toán $\rightarrow$ Mô hình hóa $\rightarrow$ Baselines**, sẵn sàng bước vào giai đoạn **Tối ưu hóa cốt lõi (Phase 2)** nhằm tìm kiếm chính sách tối ưu toàn diện.
+- **Kết luận:** Đề tài đã hoàn thành xuất sắc toàn bộ chu trình tối ưu hóa chi phí có ràng buộc trên xe tải Scania APS: từ bài toán công nghiệp $\rightarrow$ mô hình toán học $\rightarrow$ hệ thống cơ sở chuẩn tắc G4 $\rightarrow$ giải thuật tối ưu hóa Bayes Phase 2 với chi phí chỉ 6.330 đơn vị benchmark.

@@ -1,0 +1,2 @@
+Stopped at GATE_B2_AUTHORIZATION: No package metadata was found for pytest
+status=FAILED

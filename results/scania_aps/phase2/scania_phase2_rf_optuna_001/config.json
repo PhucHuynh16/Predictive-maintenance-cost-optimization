@@ -1,0 +1,89 @@
+{
+  "phase": "PHASE_2_CONSTRAINED_OPTIMIZATION",
+  "estimator": "RandomForestClassifier",
+  "estimator_fixed_params": {
+    "class_weight": "balanced",
+    "random_state": 42,
+    "n_jobs": 1,
+    "bootstrap": true
+  },
+  "optimizer": {
+    "library": "optuna",
+    "sampler": "TPESampler",
+    "sampler_seed": 42,
+    "direction": "minimize",
+    "execution_mode": "sequential"
+  },
+  "search_space": {
+    "n_estimators": {
+      "type": "int",
+      "low": 20,
+      "high": 60,
+      "step": 10
+    },
+    "max_depth": {
+      "type": "int",
+      "low": 4,
+      "high": 12
+    },
+    "min_samples_split": {
+      "type": "int",
+      "low": 2,
+      "high": 10
+    },
+    "max_features": {
+      "type": "float",
+      "low": 0.2,
+      "high": 0.5
+    }
+  },
+  "budget": {
+    "max_trials": 20,
+    "max_fits_per_trial": 1,
+    "total_max_fits": 20,
+    "retries_permitted": false,
+    "hidden_refitting_permitted": false
+  },
+  "objective": {
+    "cost_fp": 10,
+    "cost_fn": 500,
+    "formula": "10*FP + 500*FN",
+    "units": "benchmark_cost_units"
+  },
+  "constraint": {
+    "formula": "TP + FP <= floor(N_validation / 10)",
+    "validation_samples": 12000,
+    "capacity_fraction": 0.1,
+    "max_maintenance_units": 1200
+  },
+  "threshold_policy": {
+    "contract": "P02",
+    "domain": "[0, 1]",
+    "comparator": ">=",
+    "tie_breaking": [
+      "minimum_cost",
+      "lower_M",
+      "higher_threshold"
+    ],
+    "refitting_on_threshold_search": false
+  },
+  "data": {
+    "g3_input_run": "official_20261029_04",
+    "g3_stable_digest": "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb",
+    "g3_manifest_file_sha256": "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242",
+    "train_samples": 48000,
+    "validation_samples": 12000,
+    "features": 170,
+    "official_test": "SEALED_UNTIL_G10"
+  },
+  "resources": {
+    "max_native_threads": 1,
+    "max_ram_mb": 2048,
+    "max_wall_seconds": 300
+  },
+  "reference_benchmarks": {
+    "B0_majority_cost": 100000,
+    "B2_best_baseline_cost": 10230,
+    "B2_best_baseline_capacity": 509
+  }
+}

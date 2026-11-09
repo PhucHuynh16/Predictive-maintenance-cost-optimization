@@ -1,0 +1,36 @@
+{
+  "run_id": "scania_phase2_rf_optuna_002",
+  "authorization_status": "AUTHORIZED",
+  "permitted_operation": "CONSTRAINED_OPTIMIZATION_VALIDATION_ONLY",
+  "owner_approval": {
+    "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-6720275906",
+    "decision": "APPROVED",
+    "author": "PhucHuynh16"
+  },
+  "source_integrity": {
+    "authorized_commit": "7a58c5b3e473cf4c8c1a677a2feed464e6bdc42b"
+  },
+  "locked_configuration": {
+    "config_sha256": "df29dca49743a6d9e51bb5e0a08ec6b4b96e6527fc66192d45c8907032defc72"
+  },
+  "g3_integrity": {
+    "run_id": "official_20261029_04",
+    "stable_digest": "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb",
+    "manifest_file_sha256": "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242"
+  },
+  "budget": {
+    "max_trials": 20,
+    "max_fits_per_trial": 1,
+    "total_max_fits": 20
+  },
+  "resource_limits": {
+    "max_native_threads": 1,
+    "max_ram_mb": 2048,
+    "max_wall_seconds": 900
+  },
+  "data_scope": {
+    "train_samples": 48000,
+    "validation_samples": 12000,
+    "official_test": "SEALED_UNTIL_G10"
+  }
+}

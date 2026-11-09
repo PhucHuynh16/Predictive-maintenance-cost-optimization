@@ -1,0 +1,2 @@
+Gate B2 baseline execution completed successfully
+status=GATE_B2_SUCCESS

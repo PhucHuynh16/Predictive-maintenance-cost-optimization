@@ -1,0 +1,7 @@
+{
+  "run_id": "scania_phase2_rf_optuna_001",
+  "mode": "REAL",
+  "n_trials_completed": 11,
+  "best_trial": null,
+  "trials": []
+}

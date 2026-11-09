@@ -1,0 +1,10 @@
+{
+  "mode": "REAL",
+  "n_trials": 20,
+  "max_fits": 20,
+  "seed": 42,
+  "capacity_limit": 1200,
+  "membership_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\membership.npz",
+  "tree_train_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\tree_train.npy",
+  "tree_val_path": "D:\\N\u0103m 3\\HK1_2026\\Nh\u1eadp m\u00f4n t\u1ed1i \u01b0u h\u00f3a\\baitaplon\\worktrees\\antigravity\\data\\processed\\scania_aps\\official_20261029_04\\tree_validation.npy"
+}

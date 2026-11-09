@@ -123,7 +123,7 @@ $$\mathbf{C^*_{\text{G4}} = 10.230 \quad [\text{Mô hình B2 (Logistic Regressio
 - **Đỉnh tiêu thụ RAM:** `159.82` MB (nằm trong giới hạn 2048 MB).
 - **Tập Official Test (16.000 mẫu):** **NIÊM PHONG TUYỆT ĐỐI (SEALED UNTIL G10)**.
 
-### 8.2. So sánh kết quả tối ưu toàn cục với các đường cơ sở
+### 8.2. So sánh chính sách khả thi tốt nhất quan sát được (Trial 16) với các đường cơ sở
 
 | Tiêu chí / Mô hình | B0: Majority Dummy | B1: Decision Stump (P3) | B2: Logistic Regression (P5) | **Phase 2: Random Forest + Optuna (Trial 16)** |
 |---|:---:|:---:|:---:|:---:|
@@ -168,8 +168,8 @@ $$\mathbf{C^*_{\text{G4}} = 10.230 \quad [\text{Mô hình B2 (Logistic Regressio
 | 19 | 7.240 | 618 | 0.2392 | 194 | 424 | 6 | 50 | 11 | 10 | 0.440 | 33.46 | FEASIBLE |
 
 ### 8.4. Đồ thị trực quan hóa thực nghiệm đã trích xuất
-1. **Đường cong hội tụ tối ưu hóa:** `figures/optimization/optimization_convergence.png` — Minh họa trực quan đường chi phí tốt nhất lũy tiến hạ dần từ 7.840 xuống 6.330 so với hai mốc cơ sở $B_0$ (100.000) và $B_2$ (10.230).
-2. **Đường cong đánh đổi chi phí và năng lực xưởng:** `figures/optimization/cost_vs_capacity_tradeoff.png` — Minh họa đường quét thực nghiệm 101 điểm ngưỡng $\tau \in [0, 1]$ của mô hình tối ưu toàn cục cùng phân bố của 20 trials trong vùng khả thi $M \le 1200$.
+1. **Đường cong hội tụ tối ưu hóa:** `figures/optimization/optimization_convergence.png` — Minh họa trực quan 2 bảng: Toàn cảnh chi phí so với $B_0$ (100.000) và chi tiết quá trình hội tụ qua 20 trials, trong đó chi phí khả thi tốt nhất hạ dần từ 7.840 xuống 6.330 so với mốc cơ sở $B_2$ (10.230).
+2. **Đường cong đánh đổi chi phí và năng lực xưởng:** `figures/optimization/cost_vs_capacity_tradeoff.png` — Minh họa đường quét thực nghiệm 101 điểm ngưỡng $\tau \in [0, 1]$ của Trial 16 (chính sách khả thi tốt nhất quan sát được) cùng phân bố của 20 trials trong vùng khả thi $M \le 1200$. Thể hiện rõ tính bất khả thi khi $\tau < 0.05$ ($M > 1200$) và điểm chi phí nhỏ nhất tại $\tau^* = 0.3232$.
 
 ### 8.5. Danh mục và mã băm SHA-256 các artifact chính thức (Run 002)
 Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` đã được xác thực mã hóa:

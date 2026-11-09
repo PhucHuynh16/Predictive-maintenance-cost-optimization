@@ -1,0 +1,13 @@
+run_id=scania_phase2_rf_optuna_001
+mode=REAL
+status=FAILED
+lifecycle=FAILED
+real_estimator_fits=12
+synthetic_estimator_fits=0
+started_estimator_fits=12
+completed_estimator_fits=11
+failed_estimator_fits=0
+interrupted_or_unknown_fits=1
+n_trials_completed=11
+wall_seconds=300.3336
+peak_ram_mb=0.00

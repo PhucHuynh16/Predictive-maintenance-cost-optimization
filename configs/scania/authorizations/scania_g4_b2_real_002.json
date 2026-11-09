@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "run_id": "scania_g4_b2_real_002",
+  "authorization_status": "AUTHORIZED",
+  "mode": "REAL",
+  "permitted_operation": "BASELINE_FITTING_VALIDATION_ONLY",
+  "owner_approval": {
+    "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-6717782794",
+    "directive": "OWNER TASK AUTHORIZATION — SC-G4-B2 REAL BASELINE FITTING",
+    "decision": "APPROVED",
+    "approved_by": "PhucHuynh16"
+  },
+  "source_integrity": {
+    "authorized_commit": "df5cb02ca53d35b9fd4a5a991c7ba5d287e2859d",
+    "canonical_config_sha256": "8b9cbbd2a14d23f256a677fc6a61eecf7dbf7c6261c78529670cbfddc00b88ad"
+  },
+  "data_scope": {
+    "accepted_g3_run_id": "official_20261029_04",
+    "accepted_g3_manifest_sha256": "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb",
+    "allowed_partitions": [
+      "train",
+      "validation"
+    ],
+    "official_test_sealed": true
+  },
+  "approved_models": [
+    "B0",
+    "B1",
+    "B2"
+  ],
+  "fit_budget": {
+    "B0": 0,
+    "B1": 1,
+    "B2": 1,
+    "total_max_fits": 2
+  },
+  "resource_limits": {
+    "max_native_threads": 1,
+    "max_ram_mb": 2048,
+    "max_wall_seconds": 120
+  }
+}

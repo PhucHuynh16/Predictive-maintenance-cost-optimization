@@ -1,0 +1,953 @@
+{
+  "trial_number": 8,
+  "status": "FEASIBLE",
+  "objective_value": 6970.0,
+  "rf_params": {
+    "n_estimators": 20,
+    "max_depth": 12,
+    "min_samples_split": 10,
+    "max_features": 0.4425192044349383
+  },
+  "fit_index": 9,
+  "fit_seconds": 14.607116000028327,
+  "predict_seconds": 0.013812499993946403,
+  "roc_auc": 0.9859963983050848,
+  "pr_auc": 0.740176588836957,
+  "best_policy": {
+    "threshold": 0.18007098013722284,
+    "TP": 196,
+    "FP": 497,
+    "FN": 4,
+    "TN": 11303,
+    "N": 12000,
+    "P": 200,
+    "M": 693,
+    "K": 1200,
+    "maintenance_rate": 0.05775,
+    "excess": 0,
+    "excess_rate": 0.0,
+    "feasible": 1,
+    "policy_status": "FEASIBLE",
+    "cost_fp": 4970,
+    "cost_fn": 2000,
+    "total_cost": 6970,
+    "cost_per_observation": 0.5808333333333333,
+    "reference_cost": 100000,
+    "absolute_saving": 93030,
+    "saving_pct": 93.03,
+    "precision": 0.2828282828282828,
+    "recall": 0.98,
+    "f1": 0.43896976483762595,
+    "threshold_curve": [
+      {
+        "threshold": 0.0,
+        "M": 12000,
+        "cost": 118000,
+        "TP": 200,
+        "FP": 11800,
+        "FN": 0,
+        "feasible": 0
+      },
+      {
+        "threshold": 0.01,
+        "M": 2639,
+        "cost": 25410,
+        "TP": 198,
+        "FP": 2441,
+        "FN": 2,
+        "feasible": 0
+      },
+      {
+        "threshold": 0.02,
+        "M": 1685,
+        "cost": 15870,
+        "TP": 198,
+        "FP": 1487,
+        "FN": 2,
+        "feasible": 0
+      },
+      {
+        "threshold": 0.03,
+        "M": 1408,
+        "cost": 13100,
+        "TP": 198,
+        "FP": 1210,
+        "FN": 2,
+        "feasible": 0
+      },
+      {
+        "threshold": 0.04,
+        "M": 1329,
+        "cost": 12310,
+        "TP": 198,
+        "FP": 1131,
+        "FN": 2,
+        "feasible": 0
+      },
+      {
+        "threshold": 0.05,
+        "M": 1135,
+        "cost": 10370,
+        "TP": 198,
+        "FP": 937,
+        "FN": 2,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.06,
+        "M": 1015,
+        "cost": 9680,
+        "TP": 197,
+        "FP": 818,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.07,
+        "M": 987,
+        "cost": 9400,
+        "TP": 197,
+        "FP": 790,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.08,
+        "M": 971,
+        "cost": 9240,
+        "TP": 197,
+        "FP": 774,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.09,
+        "M": 945,
+        "cost": 8980,
+        "TP": 197,
+        "FP": 748,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.1,
+        "M": 847,
+        "cost": 8000,
+        "TP": 197,
+        "FP": 650,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.11,
+        "M": 829,
+        "cost": 7820,
+        "TP": 197,
+        "FP": 632,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.12,
+        "M": 820,
+        "cost": 7730,
+        "TP": 197,
+        "FP": 623,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.13,
+        "M": 809,
+        "cost": 7620,
+        "TP": 197,
+        "FP": 612,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.14,
+        "M": 791,
+        "cost": 7440,
+        "TP": 197,
+        "FP": 594,
+        "FN": 3,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.15,
+        "M": 715,
+        "cost": 7190,
+        "TP": 196,
+        "FP": 519,
+        "FN": 4,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.16,
+        "M": 708,
+        "cost": 7120,
+        "TP": 196,
+        "FP": 512,
+        "FN": 4,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.17,
+        "M": 704,
+        "cost": 7080,
+        "TP": 196,
+        "FP": 508,
+        "FN": 4,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.18,
+        "M": 693,
+        "cost": 6970,
+        "TP": 196,
+        "FP": 497,
+        "FN": 4,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.19,
+        "M": 677,
+        "cost": 7320,
+        "TP": 195,
+        "FP": 482,
+        "FN": 5,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.2,
+        "M": 646,
+        "cost": 8030,
+        "TP": 193,
+        "FP": 453,
+        "FN": 7,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.21,
+        "M": 644,
+        "cost": 8010,
+        "TP": 193,
+        "FP": 451,
+        "FN": 7,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.22,
+        "M": 638,
+        "cost": 7950,
+        "TP": 193,
+        "FP": 445,
+        "FN": 7,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.23,
+        "M": 628,
+        "cost": 7850,
+        "TP": 193,
+        "FP": 435,
+        "FN": 7,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.24,
+        "M": 610,
+        "cost": 7670,
+        "TP": 193,
+        "FP": 417,
+        "FN": 7,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.25,
+        "M": 589,
+        "cost": 7970,
+        "TP": 192,
+        "FP": 397,
+        "FN": 8,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.26,
+        "M": 587,
+        "cost": 7950,
+        "TP": 192,
+        "FP": 395,
+        "FN": 8,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.27,
+        "M": 584,
+        "cost": 7920,
+        "TP": 192,
+        "FP": 392,
+        "FN": 8,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.28,
+        "M": 581,
+        "cost": 7890,
+        "TP": 192,
+        "FP": 389,
+        "FN": 8,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.29,
+        "M": 567,
+        "cost": 7750,
+        "TP": 192,
+        "FP": 375,
+        "FN": 8,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.3,
+        "M": 549,
+        "cost": 8080,
+        "TP": 191,
+        "FP": 358,
+        "FN": 9,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.31,
+        "M": 548,
+        "cost": 8070,
+        "TP": 191,
+        "FP": 357,
+        "FN": 9,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.32,
+        "M": 540,
+        "cost": 7990,
+        "TP": 191,
+        "FP": 349,
+        "FN": 9,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.33,
+        "M": 531,
+        "cost": 7900,
+        "TP": 191,
+        "FP": 340,
+        "FN": 9,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.34,
+        "M": 519,
+        "cost": 8800,
+        "TP": 189,
+        "FP": 330,
+        "FN": 11,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.35,
+        "M": 508,
+        "cost": 9710,
+        "TP": 187,
+        "FP": 321,
+        "FN": 13,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.36,
+        "M": 507,
+        "cost": 9700,
+        "TP": 187,
+        "FP": 320,
+        "FN": 13,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.37,
+        "M": 498,
+        "cost": 9610,
+        "TP": 187,
+        "FP": 311,
+        "FN": 13,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.38,
+        "M": 491,
+        "cost": 9540,
+        "TP": 187,
+        "FP": 304,
+        "FN": 13,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.39,
+        "M": 479,
+        "cost": 9930,
+        "TP": 186,
+        "FP": 293,
+        "FN": 14,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.4,
+        "M": 471,
+        "cost": 10870,
+        "TP": 184,
+        "FP": 287,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.41,
+        "M": 470,
+        "cost": 10860,
+        "TP": 184,
+        "FP": 286,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.42,
+        "M": 469,
+        "cost": 10850,
+        "TP": 184,
+        "FP": 285,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.43,
+        "M": 465,
+        "cost": 10810,
+        "TP": 184,
+        "FP": 281,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.44,
+        "M": 456,
+        "cost": 10720,
+        "TP": 184,
+        "FP": 272,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.45,
+        "M": 452,
+        "cost": 10680,
+        "TP": 184,
+        "FP": 268,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.46,
+        "M": 451,
+        "cost": 10670,
+        "TP": 184,
+        "FP": 267,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.47,
+        "M": 447,
+        "cost": 10630,
+        "TP": 184,
+        "FP": 263,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.48,
+        "M": 442,
+        "cost": 10580,
+        "TP": 184,
+        "FP": 258,
+        "FN": 16,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.49,
+        "M": 433,
+        "cost": 11000,
+        "TP": 183,
+        "FP": 250,
+        "FN": 17,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.5,
+        "M": 431,
+        "cost": 10980,
+        "TP": 183,
+        "FP": 248,
+        "FN": 17,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.51,
+        "M": 426,
+        "cost": 10930,
+        "TP": 183,
+        "FP": 243,
+        "FN": 17,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.52,
+        "M": 425,
+        "cost": 10920,
+        "TP": 183,
+        "FP": 242,
+        "FN": 17,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.53,
+        "M": 417,
+        "cost": 11350,
+        "TP": 182,
+        "FP": 235,
+        "FN": 18,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.54,
+        "M": 411,
+        "cost": 11800,
+        "TP": 181,
+        "FP": 230,
+        "FN": 19,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.55,
+        "M": 410,
+        "cost": 11790,
+        "TP": 181,
+        "FP": 229,
+        "FN": 19,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.56,
+        "M": 409,
+        "cost": 11780,
+        "TP": 181,
+        "FP": 228,
+        "FN": 19,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.57,
+        "M": 406,
+        "cost": 11750,
+        "TP": 181,
+        "FP": 225,
+        "FN": 19,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.58,
+        "M": 395,
+        "cost": 11640,
+        "TP": 181,
+        "FP": 214,
+        "FN": 19,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.59,
+        "M": 388,
+        "cost": 13100,
+        "TP": 178,
+        "FP": 210,
+        "FN": 22,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.6,
+        "M": 385,
+        "cost": 13070,
+        "TP": 178,
+        "FP": 207,
+        "FN": 22,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.61,
+        "M": 382,
+        "cost": 13550,
+        "TP": 177,
+        "FP": 205,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.62,
+        "M": 379,
+        "cost": 13520,
+        "TP": 177,
+        "FP": 202,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.63,
+        "M": 367,
+        "cost": 13400,
+        "TP": 177,
+        "FP": 190,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.64,
+        "M": 360,
+        "cost": 13330,
+        "TP": 177,
+        "FP": 183,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.65,
+        "M": 360,
+        "cost": 13330,
+        "TP": 177,
+        "FP": 183,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.66,
+        "M": 359,
+        "cost": 13320,
+        "TP": 177,
+        "FP": 182,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.67,
+        "M": 357,
+        "cost": 13300,
+        "TP": 177,
+        "FP": 180,
+        "FN": 23,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.68,
+        "M": 344,
+        "cost": 13680,
+        "TP": 176,
+        "FP": 168,
+        "FN": 24,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.69,
+        "M": 332,
+        "cost": 14580,
+        "TP": 174,
+        "FP": 158,
+        "FN": 26,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.7,
+        "M": 330,
+        "cost": 15070,
+        "TP": 173,
+        "FP": 157,
+        "FN": 27,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.71,
+        "M": 328,
+        "cost": 15050,
+        "TP": 173,
+        "FP": 155,
+        "FN": 27,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.72,
+        "M": 327,
+        "cost": 15040,
+        "TP": 173,
+        "FP": 154,
+        "FN": 27,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.73,
+        "M": 319,
+        "cost": 15470,
+        "TP": 172,
+        "FP": 147,
+        "FN": 28,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.74,
+        "M": 301,
+        "cost": 16820,
+        "TP": 169,
+        "FP": 132,
+        "FN": 31,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.75,
+        "M": 300,
+        "cost": 17320,
+        "TP": 168,
+        "FP": 132,
+        "FN": 32,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.76,
+        "M": 298,
+        "cost": 17300,
+        "TP": 168,
+        "FP": 130,
+        "FN": 32,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.77,
+        "M": 296,
+        "cost": 17790,
+        "TP": 167,
+        "FP": 129,
+        "FN": 33,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.78,
+        "M": 286,
+        "cost": 18710,
+        "TP": 165,
+        "FP": 121,
+        "FN": 35,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.79,
+        "M": 274,
+        "cost": 21650,
+        "TP": 159,
+        "FP": 115,
+        "FN": 41,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.8,
+        "M": 272,
+        "cost": 22650,
+        "TP": 157,
+        "FP": 115,
+        "FN": 43,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.81,
+        "M": 270,
+        "cost": 22630,
+        "TP": 157,
+        "FP": 113,
+        "FN": 43,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.82,
+        "M": 267,
+        "cost": 23110,
+        "TP": 156,
+        "FP": 111,
+        "FN": 44,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.83,
+        "M": 255,
+        "cost": 25030,
+        "TP": 152,
+        "FP": 103,
+        "FN": 48,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.84,
+        "M": 242,
+        "cost": 27450,
+        "TP": 147,
+        "FP": 95,
+        "FN": 53,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.85,
+        "M": 240,
+        "cost": 28450,
+        "TP": 145,
+        "FP": 95,
+        "FN": 55,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.86,
+        "M": 237,
+        "cost": 28930,
+        "TP": 144,
+        "FP": 93,
+        "FN": 56,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.87,
+        "M": 234,
+        "cost": 28900,
+        "TP": 144,
+        "FP": 90,
+        "FN": 56,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.88,
+        "M": 219,
+        "cost": 30280,
+        "TP": 141,
+        "FP": 78,
+        "FN": 59,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.89,
+        "M": 206,
+        "cost": 33720,
+        "TP": 134,
+        "FP": 72,
+        "FN": 66,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.9,
+        "M": 204,
+        "cost": 34210,
+        "TP": 133,
+        "FP": 71,
+        "FN": 67,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.91,
+        "M": 202,
+        "cost": 34190,
+        "TP": 133,
+        "FP": 69,
+        "FN": 67,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.92,
+        "M": 197,
+        "cost": 35160,
+        "TP": 131,
+        "FP": 66,
+        "FN": 69,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.93,
+        "M": 181,
+        "cost": 38060,
+        "TP": 125,
+        "FP": 56,
+        "FN": 75,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.94,
+        "M": 159,
+        "cost": 43450,
+        "TP": 114,
+        "FP": 45,
+        "FN": 86,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.95,
+        "M": 150,
+        "cost": 46930,
+        "TP": 107,
+        "FP": 43,
+        "FN": 93,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.96,
+        "M": 148,
+        "cost": 46910,
+        "TP": 107,
+        "FP": 41,
+        "FN": 93,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.97,
+        "M": 145,
+        "cost": 47900,
+        "TP": 105,
+        "FP": 40,
+        "FN": 95,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.98,
+        "M": 103,
+        "cost": 59720,
+        "TP": 81,
+        "FP": 22,
+        "FN": 119,
+        "feasible": 1
+      },
+      {
+        "threshold": 0.99,
+        "M": 30,
+        "cost": 85510,
+        "TP": 29,
+        "FP": 1,
+        "FN": 171,
+        "feasible": 1
+      },
+      {
+        "threshold": 1.0,
+        "M": 0,
+        "cost": 100000,
+        "TP": 0,
+        "FP": 0,
+        "FN": 200,
+        "feasible": 1
+      }
+    ]
+  }
+}

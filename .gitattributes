@@ -2,3 +2,9 @@
 docs/ROADMAP.md -text
 # Markdown uses trailing spaces for intentional hard line breaks.
 *.md whitespace=-blank-at-eol
+
+# Binary deliverables
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.png binary

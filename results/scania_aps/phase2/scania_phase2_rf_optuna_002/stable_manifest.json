@@ -1,0 +1,10 @@
+{
+  "mode": "REAL",
+  "phase": "PHASE_2_CONSTRAINED_OPTIMIZATION",
+  "run_id": "scania_phase2_rf_optuna_002",
+  "g3_input_run": "official_20261029_04",
+  "g3_stable_digest": "efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb",
+  "g3_manifest_file_sha256": "7d3d68b694b2c260cfc89087f1dd8a5cfd35784ae303803fd0687c530d412242",
+  "phase2_config_sha256": "df29dca49743a6d9e51bb5e0a08ec6b4b96e6527fc66192d45c8907032defc72",
+  "code_digest": "939d8bd7816d3d831894c962159ba02ce10e8b9003e486df7c89bc44f1a238d2"
+}
