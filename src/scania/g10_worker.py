@@ -291,6 +291,10 @@ def execute_worker() -> int:
         import numpy as np
         from sklearn.ensemble import RandomForestClassifier
         import joblib
+        import sklearn.impute
+        from sklearn.impute import SimpleImputer
+        import sklearn.pipeline
+        from .preprocessing import FeatureContract
 
         from .contracts import FEATURES, digest
         from .g10_evaluation import install_g10_io_guard
@@ -395,8 +399,11 @@ def execute_worker() -> int:
                 json.dumps(sanitize_for_strict_json(val_metrics), indent=2), encoding="utf-8"
             )
 
-            # Step 12: Test Ingestion & Transformation
+            # Step 12: Preprocessor & Test Ingestion
             if mode == "REAL":
+                preproc_path = root_dir / task_config["preprocessor_path"]
+                preprocessor = joblib.load(preproc_path)
+
                 raw_zip_path = root_dir / task_config["raw_zip_path"]
                 expected_zip_sha = task_config["raw_zip_sha256"]
                 test_csv_filename = task_config["test_filename_in_zip"]
@@ -409,9 +416,6 @@ def execute_worker() -> int:
                     expected_rows,
                     tuple(FEATURES),
                 )
-
-                preproc_path = root_dir / task_config["preprocessor_path"]
-                preprocessor = joblib.load(preproc_path)
                 X_test_transformed = preprocessor.transform(X_test_raw)
             else:
                 # Synthetic mode

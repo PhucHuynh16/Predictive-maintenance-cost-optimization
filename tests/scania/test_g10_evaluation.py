@@ -35,7 +35,11 @@ from src.scania.g4_b2_executor import ExecutorBlocked, SafetyBlocked
 
 def test_frozen_policy_constants():
     """Verify that frozen policy constants exactly match Phase 2 Trial 16."""
-    assert TARGET_RUN_ID in ("scania_g10_official_test_001", "scania_g10_official_test_002")
+    assert TARGET_RUN_ID in (
+        "scania_g10_official_test_001",
+        "scania_g10_official_test_002",
+        "scania_g10_official_test_003",
+    )
     assert EVALUATION_MODE == "DETERMINISTIC_TRAIN_REFIT_EVALUATION"
     assert FROZEN_THRESHOLD == 0.3232440937634324
     assert CAPACITY_LIMIT_K_TEST == 1600

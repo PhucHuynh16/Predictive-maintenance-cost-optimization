@@ -1,16 +1,16 @@
 {
   "run_id": "scania_g10_official_test_002",
-  "authorization_status": "NOT_AUTHORIZED_AWAITING_OWNER_GITHUB_COMMENT",
+  "authorization_status": "AUTHORIZED",
   "gate": "G10_FINAL_OFFICIAL_TEST_EVALUATION",
   "permitted_operation": "G10_OFFICIAL_TEST_EVALUATION",
   "evaluation_mode": "DETERMINISTIC_TRAIN_REFIT_EVALUATION",
   "owner_approval": {
-    "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-AWAITING_OWNER_COMMENT",
+    "reference": "https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization/issues/17#issuecomment-6730663709",
     "decision": "APPROVED",
     "author": "PhucHuynh16"
   },
   "source_integrity": {
-    "authorized_commit": "AWAITING_COMMIT_SHA"
+    "authorized_commit": "2507500759a2f9b717d0b6bb6527e17463de7afd"
   },
   "locked_configuration": {
     "config_sha256": "47e7d4470a4c0e2f88cdf3767b09cf02e34b1e4fe9a26c36dfb993700d0a4db9"

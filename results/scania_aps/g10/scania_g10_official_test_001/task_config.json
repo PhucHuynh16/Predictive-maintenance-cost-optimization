@@ -1,0 +1,26 @@
+{
+  "run_id": "scania_g10_official_test_001",
+  "mode": "REAL",
+  "frozen_rf_params": {
+    "n_estimators": 50,
+    "max_depth": 10,
+    "min_samples_split": 10,
+    "max_features": 0.4268663927182804,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "n_jobs": 1,
+    "bootstrap": true
+  },
+  "frozen_threshold": 0.3232440937634324,
+  "capacity_limit_K": 1600,
+  "expected_test_rows": 16000,
+  "cost_fp": 10,
+  "cost_fn": 500,
+  "raw_zip_path": "data/raw/scania_aps/aps+failure+at+scania+trucks.zip",
+  "raw_zip_sha256": "5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89",
+  "test_filename_in_zip": "aps_failure_test_set.csv",
+  "train_processed_path": "data/processed/scania_aps/official_20261029_04/tree_train.npy",
+  "membership_path": "data/processed/scania_aps/official_20261029_04/membership.npz",
+  "validation_processed_path": "data/processed/scania_aps/official_20261029_04/tree_validation.npy",
+  "preprocessor_path": "data/processed/scania_aps/official_20261029_04/tree_preprocessor.joblib"
+}

@@ -1,0 +1,14 @@
+{
+  "run_id": "scania_g10_official_test_001",
+  "incident_classification": "SECURITY_IO_GUARD_PREPROCESSOR_READ_BLOCK",
+  "timestamp_utc": "2026-11-09T02:04:36Z",
+  "forensic_correction": {
+    "test_data_access": "OCCURRED (parse_official_test_set_from_zip executed and parsed raw test set in-memory prior to preprocessor load)",
+    "test_prediction_evaluation": "NOT_EXECUTED (worker aborted at joblib.load(preproc_path) before feature transformation and model.predict_proba)",
+    "exact_failure_point": "joblib.load(preproc_path) in g10_worker.py:414",
+    "root_cause": "tree_preprocessor.joblib was omitted from allowlist_paths in g10_evaluation.py, triggering SafetyBlocked from install_g10_io_guard",
+    "validation_guard_status": "PASSED (reproduced exact Phase 2 Trial 16 metrics: TP=195, FP=383, FN=5, TN=11417, Cost=6330, M=578, saving_pct=93.67%)",
+    "train_refit_status": "COMPLETED in 34.6s (1 fit consumed under verified authorization)"
+  },
+  "preservation_status": "ALL_ORIGINAL_EVIDENCE_PRESERVED_WITHOUT_ALTERATION"
+}
