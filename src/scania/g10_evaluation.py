@@ -13,6 +13,13 @@ Safety & Contract boundaries:
   * Truthful fit accounting: records atomic STARTED marker before model.fit().
   * Validation regression guard: reproduces exact Trial 16 validation metrics
     (TP=195, FP=383, FN=5, TN=11417, Cost=6330, M=578) before touching Official Test.
+- Runtime containment:
+  * Supervised worker execution under Windows Job Object.
+  * 1 native compute thread, max 2048 MB RAM, max 180s wall clock time.
+  * Stop without retry on timeout or failure.
+- Directory lifecycle:
+  * Final run directory is NOT created before successful authorization and preflight.
+  * Durable fit accounting and failure evidence preserved indefinitely.
 - Official Test set (16,000 samples):
   * Sealed inside data/raw/scania_aps/aps+failure+at+scania+trucks.zip.
   * Evaluated strictly single-pass read-only.
@@ -424,7 +431,6 @@ def parse_official_test_set_from_zip(
     if not zip_path.is_file():
         raise SafetyBlocked(f"RAW_ZIP_MISSING: {zip_path}")
 
-    # Check zip SHA256
     zip_bytes = zip_path.read_bytes()
     actual_zip_sha = digest(zip_bytes)
     if actual_zip_sha != expected_sha256:
@@ -510,11 +516,9 @@ def evaluate_policy_predictions(
     total_cost = cost_fp_total + cost_fn_total
     cost_per_obs = total_cost / n if n > 0 else 0.0
 
-    # Feasibility check against capacity constraint
     feasible = bool(m <= capacity_limit_K)
     excess = max(0, m - capacity_limit_K)
 
-    # Reference baseline B0 (Do nothing: all negative)
     reference_cost = p * cost_fn
     absolute_saving = reference_cost - total_cost
     saving_pct = (absolute_saving / reference_cost * 100.0) if reference_cost > 0 else 0.0
@@ -564,56 +568,140 @@ def evaluate_policy_predictions(
     }
 
 
-def execute_deterministic_train_refit(
-    train_X: np.ndarray,
-    train_y: np.ndarray,
-    marker_dir: Path,
-) -> Tuple[RandomForestClassifier, Dict[str, Any]]:
-    """Execute exactly 1 deterministic refit on Train with fail-closed durable accounting."""
-    marker_dir = Path(marker_dir).resolve()
-    marker_dir.mkdir(parents=True, exist_ok=True)
+def install_g10_io_guard(root: Path, output: Path, allowlist: List[Path], mode: str = "REAL"):
+    """Enforce strict I/O boundaries during G10 execution via sys.addaudithook."""
+    root = Path(root).resolve()
+    output = Path(output).resolve()
+    resolved_allowlist = {Path(p).resolve() for p in allowlist}
 
-    fit_marker_start = {
-        "fit_index": 1,
-        "trial_id": "g10_refit_001",
-        "status": "STARTED",
-        "timestamp_start": time.time(),
-        "model_type": "RandomForestClassifier",
-        "hyperparameters": FROZEN_RF_HYPERPARAMS,
-        "train_samples": len(train_y),
-    }
+    def audit(name, args):
+        if name != "open" or isinstance(args[0], int):
+            return
+        raw = os.fsdecode(args[0])
+        p = Path(raw).resolve()
 
-    # Fail closed if start marker cannot be written
-    try:
-        write_durable_marker(marker_dir, "fit_001_STARTED.json", fit_marker_start)
-    except Exception as exc:
-        raise SafetyBlocked(f"DURABLE_FIT_START_MARKER_FAILED: {exc}") from exc
+        # In SYNTHETIC mode: strict test set barrier
+        if mode == "SYNTHETIC":
+            name_lower = p.name.casefold()
+            if "aps_failure_test" in name_lower or p.suffix.casefold() == ".zip":
+                raise SafetyBlocked("TEST_SET_ACCESS_DENIED_IN_SYNTHETIC_MODE")
+
+        # Detect write intents
+        mode_arg = args[1] if len(args) > 1 else "r"
+        flags = args[2] if len(args) > 2 else 0
+        writing = (isinstance(mode_arg, str) and any(c in mode_arg for c in "wax+")) or bool(
+            flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT)
+        )
+
+        if writing:
+            # Writes are allowed ONLY inside the designated run output directory
+            if not p.is_relative_to(output):
+                raise SafetyBlocked(f"EXECUTOR_WRITE_OUTSIDE_OWN_RUN: {p.name}")
+            # Source directories, raw data, and G3 processed artifacts are read-only
+            if p.is_relative_to(root / "data") or p.is_relative_to(root / "results/scania_aps/g3"):
+                raise SafetyBlocked(f"SOURCE_OR_G3_ARTIFACT_WRITE_FORBIDDEN: {p.name}")
+        else:
+            # Files inside output directory can always be read back
+            if p.is_relative_to(output):
+                return
+            # Reads within data/ or with data-bearing suffixes must be explicitly allowlisted
+            is_data_path = p.is_relative_to(root / "data")
+            is_data_ext = p.suffix.casefold() in {".npy", ".npz", ".csv", ".zip"}
+            if is_data_path or is_data_ext:
+                if p not in resolved_allowlist:
+                    raise SafetyBlocked(f"EXECUTOR_READ_NOT_IN_ALLOWLIST: {p.name}")
+
+    sys.addaudithook(audit)
+
+
+def orchestrate_g10_worker_in_job(
+    root: Path,
+    run_id: str,
+    output_dir: Path,
+    allowlist: List[Path],
+    task_config: Dict[str, Any],
+    wall_seconds: int = 180,
+    ram_cap_bytes: int = 2048 * 1024 * 1024,
+    mode: str = "REAL",
+) -> Dict[str, Any]:
+    """Launch isolated worker subprocess under Windows Job Object with strict containment."""
+    from .g4_b1_windows import WindowsJob
+    from .g4_env_discovery import THREAD_ENV
+
+    output_dir = Path(output_dir).resolve()
+    root = Path(root).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    task_path = output_dir / "task_config.json"
+    task_path.write_bytes(json.dumps(task_config, indent=2).encode("utf-8"))
+
+    allowlist_path = output_dir / "allowlist.json"
+    allowlist_path.write_bytes(json.dumps([str(p) for p in allowlist], indent=2).encode("utf-8"))
+
+    result_path = output_dir / "worker_result.json"
+    if result_path.is_file():
+        result_path.unlink()
+
+    child_env = os.environ.copy()
+    child_env.update(THREAD_ENV)
+    child_env["PYTHONPATH"] = str(REPO_ROOT)
+    child_env.update(
+        SC_G10_RUN=run_id,
+        SC_G10_TASK_PATH=str(task_path),
+        SC_G10_ALLOWLIST_PATH=str(allowlist_path),
+        SC_G10_OUTPUT_DIR=str(output_dir),
+        SC_G10_ROOT_DIR=str(root),
+    )
+
+    argv = [sys.executable, "-B", "-X", "utf8", "-m", "src.scania.g10_worker"]
+    job = WindowsJob(argv, child_env, root, ram_cap_bytes, active_limit=2)
 
     t0 = time.perf_counter()
-    model = RandomForestClassifier(**FROZEN_RF_HYPERPARAMS)
-    model.fit(train_X, train_y)
-    fit_duration = time.perf_counter() - t0
-
-    fit_marker_completed = {
-        "fit_index": 1,
-        "trial_id": "g10_refit_001",
-        "status": "COMPLETED",
-        "timestamp_completed": time.time(),
-        "fit_duration_seconds": fit_duration,
-        "train_samples": len(train_y),
-    }
+    deadline = t0 + wall_seconds
+    exit_code = None
 
     try:
-        write_durable_marker(marker_dir, "fit_001_COMPLETED.json", fit_marker_completed)
-    except Exception as exc:
-        raise SafetyBlocked(f"DURABLE_FIT_COMPLETE_MARKER_FAILED: {exc}") from exc
+        job.resume()
+        while True:
+            exit_code = job.poll()
+            now = time.perf_counter()
+            if now >= deadline:
+                job.terminate()
+                failure_diag = {
+                    "status": "FAILED",
+                    "error_type": "TimeoutError",
+                    "reason": f"G10_WALL_TIMEOUT: Worker exceeded wall limit of {wall_seconds}s",
+                    "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+                (output_dir / "failure_diagnostics.json").write_text(
+                    json.dumps(failure_diag, indent=2), encoding="utf-8"
+                )
+                raise TimeoutError(f"G10_WALL_TIMEOUT: Worker exceeded wall limit of {wall_seconds}s")
+            if exit_code is not None:
+                break
+            time.sleep(0.05)
+    finally:
+        job.close()
 
-    telemetry = {
-        "fit_index": 1,
-        "fit_duration_seconds": fit_duration,
-        "train_samples": len(train_y),
-    }
-    return model, telemetry
+    if not result_path.is_file():
+        failure_diag = {
+            "status": "FAILED",
+            "error_type": "WorkerTerminatedNoResult",
+            "reason": f"Worker process terminated without writing worker_result.json (exit_code={exit_code})",
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        (output_dir / "failure_diagnostics.json").write_text(
+            json.dumps(failure_diag, indent=2), encoding="utf-8"
+        )
+        raise ExecutorFailure(f"G10_WORKER_CRASHED_NO_RESULT: Exit code {exit_code}")
+
+    worker_result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    if exit_code != 0 or worker_result.get("status") != "PASS":
+        err_msg = worker_result.get("reason", f"Exit code {exit_code}")
+        raise ExecutorFailure(f"G10_WORKER_EXECUTION_FAILED: {err_msg}")
+
+    return worker_result.get("summary", worker_result)
 
 
 def run_g10_preflight(
@@ -691,40 +779,38 @@ def execute_g10_evaluation(
     override_output_dir: Optional[Path] = None,
     synthetic_test_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
 ) -> Dict[str, Any]:
-    """Execute Gate G10 independent Official Test evaluation.
+    """Execute Gate G10 independent Official Test evaluation under supervised containment.
 
-    Step 1: Authorization validation (GitHub Owner comment check).
-    Step 2: Preflight integrity & G3 data verification.
-    Step 3: Deterministic Train refit (exactly 1 fit, atomic durable logging).
-    Step 4: Validation regression guard (verifies exact Trial 16 metrics).
-    Step 5: Unseal & parse Official Test CSV from zip (only in REAL mode when authorized).
-    Step 6: Transform test features using frozen tree_preprocessor.joblib.
-    Step 7: Evaluate frozen policy on Official Test (zero tuning).
-    Step 8: Save metrics, confusion matrix, manifest, and summaries.
+    Enforces all G10 execution blockers:
+    1. Preflight & Authorization verification occurs BEFORE creating directory, fitting, or accessing Test.
+    2. Final run directory is NOT created before authorization and preflight PASS.
+    3. Exactly 1 deterministic refit under Windows Job Object with 1 thread, 2048 MB RAM, 180s wall timeout.
+    4. Stop without retry on timeout or failure.
     """
     root = Path(root).resolve()
-    t_start = time.time()
 
-    cfg = load_g10_config(root)
-    cfg_sha = get_g10_config_sha(root)
-
-    output_dir = (
+    final_output_dir = (
         Path(override_output_dir).resolve()
         if override_output_dir
         else root / "results/scania_aps/g10" / TARGET_RUN_ID
     )
 
-    if output_dir.exists() and not override_output_dir:
+    # BLOCKER 3: Do NOT create the final run directory before successful authorization and preflight!
+    if final_output_dir.exists() and not override_output_dir:
         raise SafetyBlocked(
-            f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {output_dir}. Re-evaluation of existing run is prohibited."
+            f"OUTPUT_DIRECTORY_ALREADY_EXISTS: {final_output_dir}. Re-evaluation of existing run is prohibited."
         )
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    durable_dir = output_dir / "durable_fits"
+    # BLOCKER 2: Verification BEFORE creating directory, fitting or touching Official Test!
+    # 2a. Verify locked G10 configuration SHA-256
+    cfg = load_g10_config(root)
+    cfg_sha = get_g10_config_sha(root)
 
-    # -------------------------------------------------------------
-    # Step 1: Authorization Validation
-    # -------------------------------------------------------------
+    # 2b. Verify exact authorized Git HEAD
+    proc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True)
+    head_sha = proc.stdout.strip().lower()
+
+    # 2c. Verify authentic GitHub Owner comment
     auth_file = root / f"configs/scania/authorizations/{TARGET_RUN_ID}.json"
     auth_record: Dict[str, Any] = {}
 
@@ -738,6 +824,17 @@ def execute_g10_evaluation(
                 f"RUN_NOT_AUTHORIZED: Status is '{auth_record.get('authorization_status')}'. Requires authentic Owner approval on Issue #17."
             )
 
+        # Config SHA match
+        rec_config_sha = auth_record.get("locked_configuration", {}).get("config_sha256", "").lower()
+        if rec_config_sha != cfg_sha.lower():
+            raise ExecutorBlocked(f"CONFIG_SHA_MISMATCH: record {rec_config_sha} != actual {cfg_sha}")
+
+        # Git commit match
+        rec_commit = auth_record.get("source_integrity", {}).get("authorized_commit", "").lower()
+        if rec_commit != head_sha:
+            raise ExecutorBlocked(f"COMMIT_MISMATCH: authorized {rec_commit} != current HEAD {head_sha}")
+
+        # Live comment verification
         ref_url = auth_record.get("owner_approval", {}).get("reference", "")
         verify_g10_owner_approval_reference(ref_url, auth_record, mode="REAL")
     else:
@@ -747,197 +844,65 @@ def execute_g10_evaluation(
             "authorization_status": "SYNTHETIC_TEST",
             "permitted_operation": "G10_OFFICIAL_TEST_EVALUATION",
             "evaluation_mode": EVALUATION_MODE,
+            "source_integrity": {"authorized_commit": head_sha},
+            "locked_configuration": {"config_sha256": cfg_sha},
+            "budget": {"total_max_fits": 1, "max_trials": 1, "max_fits_per_trial": 1},
         }
 
-    # -------------------------------------------------------------
-    # Step 2: Load Processed Train and Validation Data
-    # -------------------------------------------------------------
-    train_x_path = root / cfg["data"]["train_processed_path"]
-    membership_path = root / cfg["data"]["membership_path"]
-    val_x_path = root / cfg["data"]["validation_processed_path"]
-    preproc_path = root / cfg["data"]["preprocessor_path"]
+    # 2d. Verify G3 integrity
+    allowlist, g3_summary = verify_g3_artifacts_and_build_allowlist(root, G3_ACCEPTED_RUN_ID)
 
-    if not (train_x_path.is_file() and membership_path.is_file() and val_x_path.is_file()):
-        raise SafetyBlocked("PROCESSED_DATA_FILES_MISSING")
-
-    X_train = np.load(train_x_path)
-    membership = np.load(membership_path)
-    y_train = membership["y_train"]
-    X_val = np.load(val_x_path)
-    y_val = membership["y_validation"]
-
-    if len(y_train) != 48000 or len(y_val) != 12000:
-        raise SafetyBlocked(
-            f"SPLIT_SIZE_MISMATCH: train={len(y_train)}, val={len(y_val)}"
+    # 2e. Verify frozen Trial 16 policy and authorized fit budget of exactly one
+    rec_budget = auth_record.get("budget", {})
+    if int(rec_budget.get("total_max_fits", 0)) != 1 or int(rec_budget.get("max_trials", 0)) != 1:
+        raise ExecutorBlocked(
+            f"INVALID_FIT_BUDGET: G10 requires exactly 1 fit, got budget={rec_budget}"
         )
 
-    # -------------------------------------------------------------
-    # Step 3: Exactly 1 Deterministic Train Refit
-    # -------------------------------------------------------------
-    model, fit_telemetry = execute_deterministic_train_refit(
-        X_train, y_train, durable_dir
-    )
+    # Build allowlist of permissible paths for worker I/O guard
+    allowlist_paths = list(allowlist)
+    allowlist_paths.extend([
+        root / "configs/scania/g10_evaluation.json",
+        auth_file,
+        root / cfg["data"]["raw_zip_path"],
+        final_output_dir,
+    ])
 
-    # -------------------------------------------------------------
-    # Step 4: Validation Regression Guard
-    # -------------------------------------------------------------
-    val_probs = model.predict_proba(X_val)[:, 1]
-    val_metrics = evaluate_policy_predictions(
-        y_val,
-        val_probs,
-        threshold=FROZEN_THRESHOLD,
-        capacity_limit_K=1200,  # 10% of 12,000 validation
-    )
+    # BLOCKER 3: Create final output directory ONLY AFTER successful authorization and preflight!
+    final_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check exact reproduction of Trial 16 metrics
-    mismatches = []
-    for k, expected_v in VALIDATION_REGRESSION_TARGET.items():
-        actual_v = val_metrics.get(k)
-        if k == "saving_pct":
-            if abs(actual_v - expected_v) > 0.05:
-                mismatches.append(f"{k}: expected {expected_v}, got {actual_v}")
-        elif actual_v != expected_v:
-            mismatches.append(f"{k}: expected {expected_v}, got {actual_v}")
-
-    if mismatches:
-        raise SafetyBlocked(
-            f"VALIDATION_REGRESSION_MISMATCH: Trained model deviates from Phase 2 Trial 16: {', '.join(mismatches)}"
-        )
-
-    # Save validation guard metrics
-    (output_dir / "validation_guard_metrics.json").write_text(
-        json.dumps(sanitize_for_strict_json(val_metrics), indent=2), encoding="utf-8"
-    )
-
-    # -------------------------------------------------------------
-    # Step 5 & 6: Official Test Set Ingestion & Transformation
-    # -------------------------------------------------------------
-    if mode == "REAL":
-        raw_zip_path = root / cfg["data"]["raw_zip_path"]
-        expected_zip_sha = cfg["data"]["raw_zip_sha256"]
-        test_filename = cfg["data"]["test_filename_in_zip"]
-        expected_rows = cfg["data"]["expected_test_rows"]
-
-        # Parse test set
-        X_test_raw, y_test = parse_official_test_set_from_zip(
-            raw_zip_path, expected_zip_sha, test_filename, expected_rows
-        )
-
-        # Transform using frozen preprocessor
-        import joblib
-        preprocessor = joblib.load(preproc_path)
-        X_test_transformed = preprocessor.transform(X_test_raw)
-    else:
-        if synthetic_test_data is not None:
-            X_test_transformed, y_test = synthetic_test_data
-        else:
-            # Generate deterministic synthetic data for testing
-            np.random.seed(42)
-            n_synth = 1000
-            X_test_transformed = np.random.randn(n_synth, 170)
-            y_test = np.random.choice([0, 1], size=n_synth, p=[0.98, 0.02])
-
-    # -------------------------------------------------------------
-    # Step 7: Zero-Tuning Test Evaluation
-    # -------------------------------------------------------------
-    t_eval_0 = time.perf_counter()
-    test_probs = model.predict_proba(X_test_transformed)[:, 1]
-    predict_seconds = time.perf_counter() - t_eval_0
-
-    test_metrics = evaluate_policy_predictions(
-        y_test,
-        test_probs,
-        threshold=FROZEN_THRESHOLD,
-        capacity_limit_K=CAPACITY_LIMIT_K_TEST if mode == "REAL" else int(0.10 * len(y_test)),
-    )
-    test_metrics["predict_seconds"] = predict_seconds
-
-    # -------------------------------------------------------------
-    # Step 8: Persistence of Evidence & Manifest
-    # -------------------------------------------------------------
-    # 1. test_metrics.json
-    (output_dir / "test_metrics.json").write_text(
-        json.dumps(sanitize_for_strict_json(test_metrics), indent=2), encoding="utf-8"
-    )
-
-    # 2. confusion_matrix_test.csv
-    cm_path = output_dir / "confusion_matrix_test.csv"
-    with open(cm_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["actual", "pred_neg", "pred_pos", "total"])
-        writer.writerow(["neg", test_metrics["TN"], test_metrics["FP"], test_metrics["TN"] + test_metrics["FP"]])
-        writer.writerow(["pos", test_metrics["FN"], test_metrics["TP"], test_metrics["FN"] + test_metrics["TP"]])
-        writer.writerow(["total", test_metrics["TN"] + test_metrics["FN"], test_metrics["M"], test_metrics["N"]])
-
-    # 3. best_policy.json
-    policy_doc = {
-        "gate": "G10_FINAL_OFFICIAL_TEST_EVALUATION",
+    # Prepare task configuration for supervised worker
+    task_config = {
         "run_id": TARGET_RUN_ID,
-        "evaluation_mode": EVALUATION_MODE,
-        "source_policy": {
-            "source_run": "scania_phase2_rf_optuna_002",
-            "selected_trial": 16,
-            "estimator": "RandomForestClassifier",
-            "hyperparameters": FROZEN_RF_HYPERPARAMS,
-            "frozen_threshold": FROZEN_THRESHOLD,
-        },
-        "validation_guard": {
-            "status": "PASSED_EXACT_REPRODUCTION",
-            "metrics": val_metrics,
-        },
-        "official_test_results": test_metrics,
-        "execution_telemetry": {
-            "fit_telemetry": fit_telemetry,
-            "predict_seconds": predict_seconds,
-            "total_wall_seconds": time.time() - t_start,
-        },
-    }
-    (output_dir / "best_policy.json").write_text(
-        json.dumps(sanitize_for_strict_json(policy_doc), indent=2), encoding="utf-8"
-    )
-
-    # 4. run_summary.json
-    run_summary = {
-        "run_id": TARGET_RUN_ID,
-        "gate": "G10",
         "mode": mode,
-        "status": "COMPLETED_SUCCESSFULLY",
-        "evaluation_mode": EVALUATION_MODE,
-        "fits_consumed": 1,
-        "validation_guard": "PASSED",
-        "official_test_metrics": {
-            "TP": test_metrics["TP"],
-            "FP": test_metrics["FP"],
-            "FN": test_metrics["FN"],
-            "TN": test_metrics["TN"],
-            "total_cost": test_metrics["total_cost"],
-            "capacity_M": test_metrics["M"],
-            "capacity_limit_K": test_metrics["K"],
-            "feasible": test_metrics["feasible"],
-            "saving_pct": test_metrics["saving_pct"],
-            "precision": test_metrics["precision"],
-            "recall": test_metrics["recall"],
-            "f1": test_metrics["f1"],
-            "roc_auc": test_metrics["roc_auc"],
-            "pr_auc": test_metrics["pr_auc"],
-        },
-        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "frozen_rf_params": FROZEN_RF_HYPERPARAMS,
+        "frozen_threshold": FROZEN_THRESHOLD,
+        "capacity_limit_K": CAPACITY_LIMIT_K_TEST if mode == "REAL" else 100,
+        "expected_test_rows": cfg["data"]["expected_test_rows"],
+        "cost_fp": cfg["cost_model"]["cost_fp"],
+        "cost_fn": cfg["cost_model"]["cost_fn"],
+        "raw_zip_path": cfg["data"]["raw_zip_path"],
+        "raw_zip_sha256": cfg["data"]["raw_zip_sha256"],
+        "test_filename_in_zip": cfg["data"]["test_filename_in_zip"],
+        "train_processed_path": cfg["data"]["train_processed_path"],
+        "membership_path": cfg["data"]["membership_path"],
+        "validation_processed_path": cfg["data"]["validation_processed_path"],
+        "preprocessor_path": cfg["data"]["preprocessor_path"],
     }
-    (output_dir / "run_summary.json").write_text(
-        json.dumps(sanitize_for_strict_json(run_summary), indent=2), encoding="utf-8"
+    if synthetic_test_data is not None:
+        task_config["synthetic_test_data"] = {
+            "X": sanitize_for_strict_json(synthetic_test_data[0]),
+            "y": sanitize_for_strict_json(synthetic_test_data[1]),
+        }
+
+    # BLOCKER 1: Enforce runtime limits via supervised worker under Windows Job Object
+    return orchestrate_g10_worker_in_job(
+        root=root,
+        run_id=TARGET_RUN_ID,
+        output_dir=final_output_dir,
+        allowlist=allowlist_paths,
+        task_config=task_config,
+        wall_seconds=180,
+        ram_cap_bytes=2048 * 1024 * 1024,
+        mode=mode,
     )
-
-    # 5. stable_manifest.json
-    manifest: Dict[str, str] = {}
-    for p in sorted(output_dir.glob("*")):
-        if p.is_file():
-            manifest[p.name] = digest(p.read_bytes().replace(b"\r\n", b"\n"))
-    for p in sorted(durable_dir.glob("*.json")):
-        if p.is_file():
-            manifest[f"durable_fits/{p.name}"] = digest(p.read_bytes().replace(b"\r\n", b"\n"))
-
-    (output_dir / "stable_manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
-    )
-
-    return run_summary

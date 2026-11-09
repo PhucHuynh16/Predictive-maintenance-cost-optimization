@@ -221,15 +221,32 @@ def test_durable_marker_atomic_write():
 
 
 def test_official_test_unsealed_fails_without_authorization():
-    """Verify that running REAL evaluation without authorization fails closed."""
+    """Verify that running REAL evaluation without authorization fails closed and does NOT create directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_output = Path(tmpdir) / TARGET_RUN_ID
+        tmp_output = Path(tmpdir) / "unauthorized_target_dir"
+        assert not tmp_output.exists()
         with pytest.raises((ExecutorBlocked, SafetyBlocked)):
             execute_g10_evaluation(
                 root=REPO_ROOT,
                 mode="REAL",
                 override_output_dir=tmp_output,
             )
+        # Directory must NOT be created when authorization fails!
+        assert not tmp_output.exists(), "Target run directory must NOT be created before authorization passes!"
+
+
+def test_runtime_containment_invariants():
+    """Verify that runtime limits enforce 1 thread, 2048 MB RAM, and 180s timeout."""
+    from src.scania.g4_env_discovery import THREAD_ENV
+    for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+        assert THREAD_ENV[k] == "1"
+    assert THREAD_ENV["OMP_DYNAMIC"] == "FALSE"
+    assert THREAD_ENV["MKL_DYNAMIC"] == "FALSE"
+
+    cfg = load_g10_config(REPO_ROOT)
+    assert cfg["resource_limits"]["max_native_threads"] == 1
+    assert cfg["resource_limits"]["max_ram_mb"] == 2048
+    assert cfg["resource_limits"]["max_wall_seconds"] == 180
 
 
 def test_synthetic_end_to_end_pipeline():
