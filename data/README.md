@@ -64,26 +64,60 @@ Nhằm ngăn chặn triệt để hiện tượng rò rỉ dữ liệu (data lea
 
 ---
 
-## 5. HƯỚNG DẪN TẢI & TÁI LẬP DỮ LIỆU LOCAL
+## 5. HƯỚNG DẪN TẢI, TÁI LẬP DỮ LIỆU & PHÂN ĐỊNH QUYỀN THỰC THI
 
-Toàn bộ dữ liệu thô và dữ liệu đã xử lý nằm trong `.gitignore` nhằm tuân thủ quy định không commit tệp nhị phân lớn lên GitHub. Để thiết lập lại dữ liệu local:
+Toàn bộ dữ liệu thô và dữ liệu mảng tiền xử lý nằm trong `.gitignore` nhằm tuân thủ quy định không commit tệp nhị phân lớn lên GitHub. Để tái lập môi trường dữ liệu:
 
-1. **Tải tệp nén từ UCI:**
+### 5.1. Yêu cầu tiên quyết (Prerequisites)
+- Hệ điều hành: Windows 10/11 hoặc Linux (Ubuntu 22.04+).
+- Python: **Phiên bản 3.11.x** (đã kiểm định thực tế trên Python 3.11.9).
+- Bộ nhớ RAM: Khuyến nghị tối thiểu 4 GB.
+- Thư viện phụ thuộc: Cài đặt qua `pip install -r requirements.txt`.
+
+### 5.2. Tải và giải nén tệp gốc UCI Scania APS
+1. **Tạo thư mục và tải tệp nén chính thức từ UCI:**
    ```powershell
-   Invoke-WebRequest -Uri "https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip" -OutFile "data/raw/aps_failure_at_scania_trucks.zip"
+   New-Item -ItemType Directory -Force -Path "data/raw/scania_aps"
+   Invoke-WebRequest -Uri "https://archive.ics.uci.edu/static/public/421/aps+failure+at+scania+trucks.zip" -OutFile "data/raw/scania_aps/aps+failure+at+scania+trucks.zip"
    ```
-2. **Kiểm tra mã băm SHA-256:**
+2. **Kiểm tra mã băm SHA-256 của tệp nén gốc:**
    ```powershell
-   Get-FileHash -Algorithm SHA256 "data/raw/aps_failure_at_scania_trucks.zip"
+   Get-FileHash -Algorithm SHA256 "data/raw/scania_aps/aps+failure+at+scania+trucks.zip"
    # Kỳ vọng: 5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89
    ```
-3. **Giải nén:**
-   Giải nén vào thư mục `data/raw/` để có `aps_failure_training_set.csv` và `aps_failure_test_set.csv`.
-4. **Tạo dữ liệu phân vùng G3:**
-   ```powershell
-   python scripts/run_data_pipeline.py
-   ```
-   Lệnh trên sẽ sinh `data/processed/train.parquet` và `data/processed/validation.parquet` với phân tầng ngẫu nhiên cố định tại `seed = 42`.
+3. **Giải nén dữ liệu huấn luyện:**
+   Giải nén vào thư mục `data/raw/scania_aps/` để có `aps_failure_training_set.csv` (SHA-256: `bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da`) và `aps_failure_description.txt` (SHA-256: `57b1eb3c551a678ffc1c8112e5b34c566dd16457642563f58aeb3ca65beeb820`).
+   *Lưu ý: Tệp `aps_failure_test_set.csv` chỉ được đọc trong lượt chạy nghiệm thu Gate G10 đã được cấp phép.*
+
+### 5.3. Phân vùng dữ liệu G3 & Tiền xử lý
+Giao thức G3 phân tầng 60.000 dòng huấn luyện gốc thành 48.000 mẫu Train và 12.000 mẫu Validation được lưu trữ trong tệp phân vùng chuẩn:
+- Tệp phân vùng: `data/processed/scania_aps/official_split.json` (Khớp mã băm `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb` trong G3 stable digest).
+- Các mảng tiền xử lý và pipeline chuyển đổi được lưu trữ dưới định dạng NumPy (`.npy`) và Joblib (`tree_preprocessor.joblib`), fit hoàn toàn trên 48.000 mẫu Train.
+
+### 5.4. Phân định quyền thực thi: Read-Only vs Execution có ủy quyền Owner
+Để đảm bảo tính toàn vẹn học thuật và an toàn tài nguyên máy:
+1. **Lệnh tái lập công khai (Read-Only / Verification — Không cần cấp phép):**
+   - Chạy script demo nghiệm thu và speaker notes:
+     ```powershell
+     python scripts/demo.py
+     python scripts/demo.py --summary
+     ```
+   - Xác thực toàn vẹn chữ ký số mật mã học SHA-256:
+     ```powershell
+     python scripts/demo.py --verify
+     python scripts/run_scania_g10.py verify
+     ```
+   - Chạy toàn bộ 42 bài kiểm thử tự động (Unit Tests):
+     ```powershell
+     pytest tests/scania/test_phase2_optimization.py tests/scania/test_g10_evaluation.py -v
+     ```
+   - Tái tạo hai đồ thị tối ưu hóa từ dữ liệu nghiệm thu gốc:
+     ```powershell
+     python -m scripts.run_scania_phase2 generate-figures --run-id scania_phase2_rf_optuna_002
+     ```
+2. **Lệnh thực thi thực nghiệm thật (Yêu cầu ủy quyền mật mã của Chủ dự án - Owner Authorization):**
+   - Các lệnh huấn luyện tối ưu hóa (`python scripts/run_scania_phase2.py execute`) và mở tập Test chính thức (`python scripts/run_scania_g10.py execute`) được bảo vệ bằng cơ chế xác thực chốt chặn hai lớp.
+   - Các script này kiểm tra token ủy quyền GitHub Issue #17 được ký băm gắn chặt với commit Git HEAD và cấu hình run. Nếu không có file ủy quyền hợp lệ, tiến trình sẽ tự động từ chối chạy (fail-closed) để ngăn chặn việc train lại ngoài kế hoạch hoặc truy cập trái phép vào tập dữ liệu kiểm thử.
 
 ---
 
