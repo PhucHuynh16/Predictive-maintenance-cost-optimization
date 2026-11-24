@@ -116,9 +116,11 @@ Dữ liệu trích xuất từ file gốc `results/scania_aps/phase2/scania_phas
 
 ---
 
-## 5. MÃ BĂM MẬT MÃ HỌC SHA-256 CỦA CÁC ARTIFACTS THỰC NGHIỆM
+## 5. MÃ BĂM KIỂM TRA TOÀN VẸN SHA-256 CỦA CÁC ARTIFACTS THỰC NGHIỆM
 
-Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` khớp chính xác chữ ký mã hóa SHA-256 LF-normalized:
+*(Lưu ý: SHA-256 được sử dụng làm mã băm kiểm tra tính toàn vẹn tệp — integrity checksum, không phải chữ ký số khóa công khai).*
+
+Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna_002/` khớp chính xác mã băm SHA-256 chuẩn hóa LF:
 
 ```json
 {
@@ -137,9 +139,9 @@ Toàn bộ 12 artifacts tại `results/scania_aps/phase2/scania_phase2_rf_optuna
 }
 ```
 
-### 5.2. Chữ ký băm mật mã học Gate G10 (Official Test Run 003)
+### 5.2. Mã băm toàn vẹn SHA-256 Gate G10 (Official Test Run 003)
 
-Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_003/` khớp chính xác chữ ký mã hóa SHA-256 LF-normalized:
+Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_003/` khớp chính xác mã băm toàn vẹn SHA-256 chuẩn hóa LF:
 
 ```json
 {
@@ -159,7 +161,7 @@ Toàn bộ 9 artifacts tại `results/scania_aps/g10/scania_g10_official_test_00
 
 ## 6. HƯỚNG DẪN KIỂM CHỨNG & TÁI LẬP (REPRODUCTION COMMANDS)
 
-### 6.1. Kiểm chứng chữ ký số và tính toàn vẹn của Run 002:
+### 6.1. Kiểm tra mã băm SHA-256 và tính toàn vẹn của Run 002:
 ```powershell
 python -c "
 from src.scania.phase2_executor import verify_phase2_run
@@ -175,7 +177,7 @@ python scripts/run_scania_g10.py verify
 
 ### 6.3. Kiểm thử tự động bộ test suite (Phase 2 + G10):
 ```powershell
-pytest tests/scania/test_phase2_optimization.py tests/scania/test_g10_evaluation.py -v
+python -m pytest tests/scania/test_phase2_optimization.py tests/scania/test_g10_evaluation.py -v
 ```
 
 ### 6.4. Tái tạo 02 đồ thị từ dữ liệu đã nghiệm thu:

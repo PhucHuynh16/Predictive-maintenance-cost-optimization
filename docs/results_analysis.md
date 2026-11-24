@@ -5,7 +5,7 @@
 **Giao thức G3:** Khóa cố định theo manifest digest `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`  
 **Giao thức G4:** Fail-closed baseline gate (B0, B1, B2)  
 **Tập Official Test (16.000 mẫu):** **ĐÃ ĐƯỢC MỞ VÀ ĐÁNH GIÁ ĐỘC LẬP TẠI G10 (Run `scania_g10_official_test_003`, Tiết kiệm 92.62% chi phí)**  
-**Trạng thái nghiệm thu:** Đã nghiệm thu toàn diện G4 Baselines, Phase 2 Constrained Optimization, và G10 Official Test Evaluation bằng chữ ký băm SHA-256.
+**Trạng thái nghiệm thu:** Đã hoàn tất và kiểm chứng toàn vẹn G4 Baselines, Phase 2 Constrained Optimization và G10 Official Test Evaluation bằng mã băm SHA-256 (SHA-256 integrity checksums).
 
 ---
 
@@ -82,11 +82,11 @@ Theo nguyên tắc liêm chính học thuật, lần chạy thất bại tiền 
 
 ---
 
-## 6. DANH MỤC & CHỮ KÝ BĂM SHA-256 CỦA CÁC ARTIFACT CHÍNH THỨC (RUN 002)
+## 6. DANH MỤC & MÃ BĂM KIỂM TRA TOÀN VẸN SHA-256 CỦA CÁC ARTIFACT CHÍNH THỨC (RUN 002)
 
 Toàn bộ 11 artifacts tại thư mục `results/scania_aps/g4/scania_g4_b2_real_002/` đã được kiểm chứng độc lập (`verify_run() == True`):
 
-| Tên tệp artifact | Kích thước (bytes) | Chữ ký băm SHA-256 (LF-normalized) | Mô tả nội dung |
+| Tên tệp artifact | Kích thước (bytes) | Mã băm toàn vẹn SHA-256 (LF-normalized) | Mô tả nội dung |
 |---|:---:|---|---|
 | `allowlist.json` | 1.059 | `ce4708b78b73bae08f087a40aa8336bca0ea01983298f2ab3219d7b265f059a5` | Danh mục đường dẫn dữ liệu được phép đọc |
 | `baseline_metrics.csv` | 1.537 | `8ca68da003385f4389f8448a77f286b65ba7fb9d07a3a4a1b54558f6604d39fd` | Bảng số liệu chi tiết 5 dòng chính sách |

@@ -1,4 +1,6 @@
-# Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)
+# [BẢN CHỤP DỰ THẢO LỊCH SỬ GIAI ĐOẠN G4] Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)
+
+> **LƯU Ý LƯU TRỮ LỊCH SỬ (HISTORICAL DRAFT SNAPSHOT):** Tài liệu này là bản dự thảo README lập ngay sau khi hoàn tất Gate G4 Baselines (trước Phase 2 và Gate G10) và được bảo lưu nguyên trạng để minh chứng tiến trình phát triển. Tài liệu tổng quan chính thức hiện hành nằm tại [`../../README.md`](../../README.md).
 
 [![Academic Project](https://img.shields.io/badge/Course-Introduction%20to%20Optimization-blue.svg)](https://www.vlu.edu.vn/)
 [![Institution](https://img.shields.io/badge/University-Van%20Lang%20University-red.svg)](https://www.vlu.edu.vn/)

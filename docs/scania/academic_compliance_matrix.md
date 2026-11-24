@@ -1,4 +1,6 @@
-# BẢNG ĐỐI CHIẾU TUÂN THỦ HỌC THUẬT (ACADEMIC COMPLIANCE AUDIT MATRIX)
+# [BẢN CHỤP LỊCH SỬ GIỮA KỲ — 2026-11-08] BẢNG ĐỐI CHIẾU TUÂN THỦ HỌC THUẬT
+
+> **LƯU Ý LƯU TRỮ LỊCH SỬ (HISTORICAL SNAPSHOT):** Tài liệu này được giữ nguyên làm bản chụp kiểm tra nội bộ tại thời điểm ngày `2026-11-08` (trước khi thực thi Phase 2 Run 002 và Gate G10 Run 003). Để xem ma trận đối chiếu tuân thủ học thuật hiện hành và báo cáo nghiệm thu cuối cùng, vui lòng xem tại [`FINAL_COMPLIANCE_MATRIX.md`](FINAL_COMPLIANCE_MATRIX.md) và [`ACCEPTANCE_REPORT.md`](ACCEPTANCE_REPORT.md).
 
 **Đề tài:** Tối ưu hóa Chi phí Bảo trì Dự đoán Hệ thống Khí nén trên Xe tải nặng Scania (UCI 421)  
 **Môn học:** Nhập môn Tối ưu hóa — Trường Đại học Văn Lang  

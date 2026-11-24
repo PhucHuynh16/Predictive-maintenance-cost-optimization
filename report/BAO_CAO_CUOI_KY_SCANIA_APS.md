@@ -1,353 +1,235 @@
-# BÁO CÁO TỔNG KẾT ĐỒ ÁN: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN HỆ THỐNG KHÍ NÉN TRÊN XE TẢI NẶNG SCANIA APS (UCI 421)
-
-> **TRẠNG THÁI TÀI LIỆU:** BÁO CÁO HOÀN CHỈNH CHÍNH THỨC — Đã tích hợp đầy đủ số liệu đo đạc thực tế chính thức từ G4 Baseline Run `scania_g4_b2_real_002` và Phase 2 Constrained Optimization Run `scania_phase2_rf_optuna_002`; kèm theo 02 đồ thị tối ưu hóa thực nghiệm đã kiểm chứng và mã băm SHA-256 toàn vẹn.
+# BÁO CÁO BÀI TẬP LỚN: TỐI ƯU HÓA CHI PHÍ BẢO TRÌ DỰ ĐOÁN HỆ THỐNG KHÍ NÉN XE TẢI NẶNG SCANIA APS (UCI 421)
 
 **Học phần:** Nhập môn Tối ưu hóa — Học kỳ 1, Năm học 2026–2027  
 **Đơn vị đào tạo:** Khoa Công nghệ Thông tin — Trường Đại học Văn Lang  
-**Sinh viên thực hiện:** Huỳnh Phúc  
-**Mã nguồn & Repository:** [PhucHuynh16/Predictive-maintenance-cost-optimization](https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization)  
-**Tập dữ liệu nghiên cứu:** UCI Machine Learning Repository — Dataset #421: *APS Failure at Scania Trucks* (Scania CV AB, 2016)  
+**Sinh viên thực hiện:** Huỳnh Phúc (MSSV: 2474802010314)  
+**Kho mã nguồn GitHub:** https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization  
+**Tập dữ liệu nghiên cứu:** *APS Failure at Scania Trucks* — UCI Machine Learning Repository #421 (Scania CV AB, 2016)
 
 ---
 
-> [!IMPORTANT]
-> **RANH GIỚI KHOA HỌC & NGHIỆM THU PHƯƠNG PHÁP TỐI ƯU HÓA:**
-> - Nghiên cứu đã hoàn thành toàn diện ba giai đoạn học thuật: (1) Xác lập hệ thống đường cơ sở chuẩn tắc G4 Baselines (B0, B1, B2), (2) Triển khai phương pháp tối ưu hóa toán học có ràng buộc cốt lõi Phase 2 (Random Forest kết hợp Bayesian Hyperparameter Optimization & Vectorized Threshold Tuning qua Optuna TPE), và (3) Đánh giá độc lập chính thức tại Gate G10 trên toàn bộ 16.000 mẫu tập Official Test.
-> - Toàn bộ dữ liệu thực nghiệm được đo đạc thật qua 20 lượt huấn luyện Optuna và 1 lượt refit đánh giá độc lập dưới sự kiểm soát tài nguyên nghiêm ngặt của Windows Job Object.
-> - Tập kiểm thử Official Test (16.000 mẫu) được giữ niêm phong tuyệt đối cho đến Gate G10, thực thi zero tuning, zero data leakage, đạt mức tiết kiệm chi phí **92.62%** và thỏa mãn 100% ràng buộc công suất xưởng.
+## TÓM TẮT ĐỀ TÀI
+
+Báo cáo trình bày việc mô hình hóa và giải bài toán tối ưu hóa chi phí quyết định kiểm tra hệ thống khí nén (Air Pressure System — APS) trên xe tải hạng nặng Scania dựa trên bộ dữ liệu công khai UCI #421 (60.000 mẫu phát triển, 16.000 mẫu kiểm thử độc lập, 170 thuộc tính cảm biến số). Bài toán mang hai đặc trưng cốt lõi của tối ưu hóa ứng dụng trong công nghiệp: (1) ma trận chi phí sai lầm bất đối xứng 50:1 theo chuẩn benchmark IDA 2016, trong đó bỏ sót một xe hỏng APS (False Negative — FN) chịu phạt 500 đơn vị chi phí còn kiểm tra thừa APS trên xe hỏng bộ phận khác (False Positive — FP) chịu phạt 10 đơn vị; và (2) giả định ràng buộc năng lực tiếp nhận của xưởng bảo dưỡng không vượt quá 10% tổng số xe trong chu kỳ đánh giá ($M = TP + FP \le \lfloor N/10 \rfloor$).
+
+Quy trình thực nghiệm tách biệt nghiêm ngặt ba phân vùng Train (48.000 mẫu), Validation (12.000 mẫu) và Official Test (16.000 mẫu). Trên tập Validation, ba mô hình đường cơ sở (G4 Baselines) thiết lập mốc tham chiếu tốt nhất là Logistic Regression tại ngưỡng lý thuyết Bayes $\tau = 10/510 \approx 0.0196$ với tổng chi phí **10.230 đơn vị** ($M = 509 \le 1.200$). Ở giai đoạn tối ưu hóa chính (Phase 2), thuật toán lấy mẫu Bayes Optuna TPE (`seed = 42`, ngân sách 20 trials tuần tự) kết hợp tối ưu hóa chính xác trên toàn bộ tập ngưỡng ứng viên xác suất duy nhất của Random Forest tìm được cấu hình khả thi tốt nhất quan sát được tại **Trial 16** ($\tau^* = 0.323244$), hạ chi phí Validation xuống **6.330 đơn vị** ($M = 578 \le 1.200$, giảm 38,12% so với Logistic Regression và tiết kiệm 93,67% so với không can thiệp). Khi đóng băng cấu hình này để đánh giá độc lập một lần trên 16.000 mẫu Official Test (Gate G10), chính sách đạt tổng chi phí **13.840 đơn vị**, tiết kiệm **92,62%** so với mốc không can thiệp (187.500 đơn vị), phát hiện 357/375 ca hỏng APS (Recall 95,20%) và sử dụng 841/1.600 lượt công suất xưởng.
 
 ---
 
-## TÓM TẮT ĐỀ TÀI (ABSTRACT)
+## 1. ĐẶT VẤN ĐỀ
 
-Bảo trì dự đoán (Predictive Maintenance - PdM) là bài toán kinh điển trong công nghiệp vận tải hạng nặng nhằm giảm thiểu rủi ro sự cố dọc đường và chi phí bảo dưỡng. Nghiên cứu này tiếp cận bài toán chẩn đoán hư hỏng hệ thống khí nén (Air Pressure System - APS) trên xe tải Scania (tập dữ liệu benchmark UCI 421 gồm 60.000 mẫu huấn luyện và 16.000 mẫu kiểm thử với 170 thuộc tính cảm biến) dưới góc nhìn **Tối ưu hóa toán học có ràng buộc**. 
+### 1.1. Bối cảnh bài toán bảo trì hệ thống khí nén APS
+Trên các dòng xe tải hạng nặng của Scania, hệ thống cấp khí nén (APS) tạo áp suất khí để vận hành phanh chính, phanh đỗ và cơ cấu sang số. Nếu một hư hỏng thuộc hệ thống APS không được phát hiện kịp thời khi xe vào trạm dịch vụ, sự cố mất áp suất giữa hành trình sẽ gây dừng xe đột xuất trên đường cao tốc, kéo theo chi phí cứu hộ, chậm trễ giao hàng và rủi ro mất an toàn. Ngược lại, nếu mở quy trình tháo kiểm tra chuyên sâu APS một cách tràn lan cho mọi xe vào xưởng, trạm dịch vụ sẽ tốn thêm giờ công kiểm tra không cần thiết và nhanh chóng bị quá tải cầu nâng cũng như thiết bị đo kiểm chuyên dụng.
 
-Đặc thù bài toán là hàm chi phí phi đối xứng nghiêm ngặt theo chuẩn benchmark công nghiệp: chi phí bỏ sót một xe hỏng APS dẫn đến chết máy dọc đường (False Negative - FN) là **500 đơn vị chi phí benchmark**, trong khi chi phí kiểm tra định kỳ không cần thiết tại xưởng (False Positive - FP) là **10 đơn vị chi phí benchmark** (tỷ số $50:1$). Đồng thời, nghiên cứu đặt ra **giả định ràng buộc năng lực xưởng** (Maintenance Capacity Constraint assumption) với mức tiếp nhận tối đa không quá 10% quy mô phân vùng bảo dưỡng ($M = TP + FP \le \lfloor N/10 \rfloor$, tương ứng 1.200 lượt xe trên tập Validation 12.000 xe và 1.600 lượt xe trên tập Official Test 16.000 xe).
+### 1.2. Bản chất dữ liệu và ngữ nghĩa lớp nhãn UCI #421
+Theo tài liệu gốc của Scania CV AB (IDA 2016 Industrial Challenge), bộ dữ liệu gồm các lượt xe vào xưởng dịch vụ với hai lớp nhãn:
+- **Lớp dương (`pos`, $y = 1$):** Xe gặp sự cố xuất phát từ một bộ phận cụ thể thuộc hệ thống khí nén APS (chiếm 1.000/60.000 mẫu, tương đương 1,67% trong tập phát triển; và 375/16.000 mẫu, tương đương 2,34% trong tập Official Test).
+- **Lớp âm (`neg`, $y = 0$):** Xe vào xưởng do hư hỏng ở **các bộ phận khác không liên quan đến APS** (như động cơ, hệ thống điện hoặc truyền động), không phải là xe hoàn toàn khỏe mạnh.
 
-Nghiên cứu tuân thủ nghiêm ngặt chuẩn mực khoa học và phòng chống rò rỉ dữ liệu (No Data Leakage):
-1. **Phân vùng dữ liệu:** Khóa cố định tập Train (48.000 mẫu) / Validation (12.000 mẫu) dựa trên hash G3 đã nghiệm thu (`efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`); niêm phong tập Official Test (16.000 mẫu) đến Gate G10.
-2. **Khung đường cơ sở (Baselines):** Xây dựng và kiểm chuẩn 3 mô hình: B0 (Majority Dummy — không can thiệp), B1 (Decision Stump — cây quyết định 1 tầng) và B2 (Logistic Regression chuẩn hóa L-BFGS `max_iter=2000`).
-3. **Mô hình hóa ngưỡng tối ưu:** Phân tích sự đánh đổi giữa ngưỡng xác suất chuẩn ($\tau = 0.5$) và ngưỡng lý thuyết Bayes tối ưu chi phí ($\tau = 10/510 \approx 0.0196$), chứng minh rằng trong điều kiện ràng buộc công suất xưởng có hiệu lực, ngưỡng tối ưu thực tế phải được tìm kiếm thông qua tối ưu hóa có điều kiện.
-4. **Nghiệm thu thực nghiệm Official Test (Gate G10):** Chính sách tối ưu đóng băng từ Trial 16 ($\tau^* = 0.323244$) khi kiểm thử trên 16.000 mẫu Official Test độc lập đạt tổng chi phí **13.840 đơn vị**, tiết kiệm **92.62%** chi phí so với không can thiệp (187.500 đơn vị), phát hiện đúng 357/375 ca lỗi ($Recall = 95.20\%$, $Precision = 42.45\%$), và kiểm soát số xe vào xưởng ở mức 841 xe ($5.26\% \le K = 1.600$), thỏa mãn trọn vẹn ràng buộc công suất.
+Mỗi quan sát gồm 170 thuộc tính cảm biến số đã được ẩn danh tên vật lý (ký hiệu từ `aa_000` đến `ee_000`, bao gồm cả các bộ đếm đơn lẻ và các bin tần suất dạng histogram) với tỷ lệ khuyết thiếu giá trị (`na`) đáng kể ở nhiều cột.
 
----
-
-## 1. ĐẶT VẤN ĐỀ & BỐI CẢNH CÔNG NGHIỆP
-
-### 1.1. Bối cảnh hệ thống khí nén (Air Pressure System - APS)
-Hệ thống khí nén (APS) trên xe tải hạng nặng đóng vai trò huyết mạch, cung cấp khí nén áp suất cao để vận hành hệ thống phanh an toàn, hỗ trợ ly hợp và điều khiển hệ thống treo khí nén. Một sự cố hư hỏng đột ngột của APS khi xe đang di chuyển trên cao tốc sẽ khiến phanh bị bó cứng khẩn cấp, gây mất an toàn giao thông nghiêm trọng, phát sinh chi phí kéo xe, sửa chữa đột xuất và đền bù hợp đồng logistics.
-
-### 1.2. Bản chất dữ liệu và diễn giải chính xác về các lớp dữ liệu (UCI 421)
-Tập dữ liệu *APS Failure at Scania Trucks* (UCI #421) được thu thập từ hoạt động bảo dưỡng thực tế của xe tải Scania. Cần đặc biệt lưu ý về **ngữ nghĩa chuẩn xác của lớp âm tính (Negative Class)** theo tài liệu gốc của UCI:
-- **Lớp dương tính (Positive class, $y=1$):** Các xe vào xưởng được xác định hư hỏng bắt nguồn từ một bộ phận cụ thể thuộc hệ thống khí nén APS ($1.67\%$ trong tập Train chính thức, 1.000/60.000 xe).
-- **Lớp âm tính (Negative class, $y=0$):** **Các xe gặp sự cố hỏng hóc ở các bộ phận KHÁC KHÔNG LIÊN QUAN ĐẾN APS** (ví dụ: động cơ, hệ thống điện, truyền động). Đây **KHÔNG PHẢI** là các xe "hoàn toàn khỏe mạnh" (healthy trucks). Toàn bộ xe trong tập dữ liệu đều phải vào xưởng sửa chữa; bài toán đặt ra cho kỹ thuật viên là phân loại xem hư hỏng có phải do APS hay không để quyết định quy trình tháo lắp kiểm tra chuyên sâu APS.
-
-### 1.3. Thách thức kỹ thuật và mục tiêu tối ưu
-- **Mất cân bằng dữ liệu cực đoan:** Tỷ lệ $y=1$ chỉ chiếm $1.67\%$ (800 ca dương trên 48.000 mẫu Train; 200 ca dương trên 12.000 mẫu Validation).
-- **Dữ liệu cảm biến khuyết thiếu diện rộng:** 170 thuộc tính cảm biến bị ẩn danh (`aa_000` đến `ee_000`) với tỷ lệ missing value cao, đòi hỏi đường ống tiền xử lý không gây rò rỉ dữ liệu.
-- **Mục tiêu tối ưu:** Xác định chính sách can thiệp kiểm tra nhằm **cực tiểu hóa tổng chi phí benchmark**, đồng thời **thỏa mãn giới hạn tiếp nhận của xưởng dịch vụ**.
+### 1.3. Mục tiêu và câu hỏi tối ưu hóa
+Nghiên cứu chuyển bài toán phân loại nhị phân mất cân bằng thành bài toán ra quyết định tối ưu có ràng buộc tài nguyên, nhằm trả lời câu hỏi trung tâm: *Với dữ liệu cảm biến lịch sử và giới hạn xưởng chỉ tiếp nhận kiểm tra chuyên sâu APS tối đa cho 10% số lượt xe, cần lựa chọn bộ siêu tham số mô hình học máy $\theta$ và ngưỡng xác suất hành động $\tau$ như thế nào để cực tiểu hóa tổng chi phí sai lầm benchmark mà không vi phạm trần công suất xưởng, đồng thời vẫn duy trì hiệu quả khi kiểm tra độc lập trên tập Official Test?*
 
 ---
 
-## 2. PHÁT BIỂU TOÁN HỌC & MÔ HÌNH HÓA BÀI TOÁN TỐI ƯU
+## 2. MÔ HÌNH HÓA BÀI TOÁN TỐI ƯU
 
-### 2.1. Biến quyết định và không gian tìm kiếm
-Cho tập dữ liệu gồm $N$ xe tải với ma trận thuộc tính $X \in \mathbb{R}^{N \times 170}$ và nhãn thực tế $Y \in \{0, 1\}^N$. Một mô hình phân loại với tập siêu tham số $\theta \in \Theta$ ước lượng xác suất hậu nghiệm $P(y_i = 1 \mid x_i; \theta)$. 
+### 2.1. Biến quyết định và miền tìm kiếm
+Xét một tập đánh giá gồm $N$ quan sát $\{(x_i, y_i)\}_{i=1}^N$ với $x_i \in \mathbb{R}^{170}$ và $y_i \in \{0, 1\}$. Mô hình phân loại rừng ngẫu nhiên (`RandomForestClassifier`) được huấn luyện trên tập Train với vector siêu tham số $\theta \in \Theta$ sẽ sinh ra điểm xác suất dự báo lớp dương $p_i(\theta) = P(y_i = 1 \mid x_i; \theta) \in [0, 1]$.
 
-Chính sách can thiệp đưa ra vector quyết định nhị phân $A = (a_1, a_2, \dots, a_N) \in \{0, 1\}^N$ thông qua ngưỡng phân loại $\tau \in [0, 1]$:
-$$a_i(\theta, \tau) = \mathbb{I}[P(y_i = 1 \mid x_i; \theta) \ge \tau]$$
-Trong đó:
-- $a_i = 1$: Kỹ thuật viên tiến hành mở quy trình kiểm tra chuyên sâu hệ thống APS tại xưởng.
-- $a_i = 0$: Không tiến hành kiểm tra APS; xe được xử lý các bộ phận khác và xuất xưởng.
+Quyết định đưa xe thứ $i$ vào kiểm tra APS được xác định qua ngưỡng phân loại $\tau \in [0, 1]$ theo quy ước hợp đồng ngưỡng `P02` (sử dụng dấu bất đẳng thức không ngặt để giữ nguyên nhóm các quan sát có cùng xác suất dự báo, không tách ngẫu nhiên):
 
-Như vậy, vector biến quyết định của bài toán tối ưu là cặp $(\theta, \tau) \in \Theta \times [0, 1]$.
+$$a_i(\theta, \tau) = \mathbb{I}\big(p_i(\theta) \ge \tau\big) \in \{0, 1\}$$
 
-### 2.2. Hàm mục tiêu chi phí benchmark phi đối xứng
-Theo đặc tả benchmark chính thức từ Scania CV AB và Hội nghị IDA 2016, chi phí cho từng kịch bản phân loại được quy định theo ma trận sau (tính bằng **đơn vị chi phí benchmark** / benchmark cost units):
+Trong đó $a_i = 1$ tương ứng với đề xuất kiểm tra chuyên sâu APS và $a_i = 0$ tương ứng với không kiểm tra APS. Vector biến quyết định của bài toán tối ưu là $x = (\theta, \tau) \in \Omega = \Theta \times [0, 1]$, với không gian siêu tham số $\Theta$ được khóa cố định tại tệp cấu hình `configs/scania/phase2_optimization.json`:
+- $n_{\text{estimators}} \in \{20, 30, 40, 50, 60\}$ (số lượng cây quyết định, nguyên, bước nhảy 10).
+- $\text{max\_depth} \in \{4, 5, \dots, 12\}$ (độ sâu tối đa của mỗi cây, nguyên, bước nhảy 1).
+- $\text{min\_samples\_split} \in \{2, 3, \dots, 10\}$ (số mẫu tối thiểu để phân tách nút trong, nguyên, bước nhảy 1).
+- $\text{max\_features} \in [0.20, 0.50]$ (tỷ lệ đặc trưng xét ngẫu nhiên tại mỗi nút tách, số thực liên tục).
 
-$$\mathcal{C}(y_i, a_i) = \begin{cases} 
-0 & \text{nếu } y_i = 0, a_i = 0 \quad (\text{True Negative - TN: Không kiểm tra nhầm APS}) \\
-10 & \text{nếu } y_i = 0, a_i = 1 \quad (\text{False Positive - FP: Kiểm tra thừa APS dù hỏng bộ phận khác}) \\
-500 & \text{nếu } y_i = 1, a_i = 0 \quad (\text{False Negative - FN: Bỏ sót lỗi APS, xe hỏng dọc đường}) \\
-0 & \text{nếu } y_i = 1, a_i = 1 \quad (\text{True Positive - TP: Kiểm tra đúng và khắc phục lỗi APS})
-\end{cases}$$
+Các tham số còn lại của mô hình được giữ cố định để đảm bảo tính tất định và xử lý mất cân bằng lớp: `class_weight = "balanced"`, `bootstrap = True`, `random_state = 42`, `n_jobs = 1`.
 
-Hàm mục tiêu chi phí tổng thể trên tập quan sát kích thước $N$:
-$$f(\theta, \tau) = 10 \cdot \sum_{i=1}^N (1 - y_i) a_i(\theta, \tau) + 500 \cdot \sum_{i=1}^N y_i (1 - a_i(\theta, \tau)) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau)$$
+### 2.2. Hàm mục tiêu chi phí bất đối xứng
+Theo chuẩn đánh giá IDA 2016 của Scania CV AB, ma trận chi phí sai lầm gán trọng số $c_{FP} = 10$ cho mỗi trường hợp kiểm tra thừa ($y_i = 0, a_i = 1$), $c_{FN} = 500$ cho mỗi trường hợp bỏ sót lỗi APS ($y_i = 1, a_i = 0$), và bằng $0$ cho các quyết định đúng ($TP, TN$). Tổng chi phí trên phân vùng $N$ quan sát là:
 
-> **Lưu ý khoa học:** Hàm chi phí $10 \cdot FP + 500 \cdot FN$ được định lượng bằng **đơn vị chi phí benchmark quy ước**, không phản ánh trực tiếp số tiền tệ thực tế (USD hay VND) và không cấu thành lời hứa hẹn về mức tiết kiệm tiền mặt thực tế trong môi trường sản xuất của Scania.
+$$f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) = 10 \sum_{i=1}^N (1 - y_i) a_i(\theta, \tau) + 500 \sum_{i=1}^N y_i \big(1 - a_i(\theta, \tau)\big)$$
 
-### 2.3. Ràng buộc năng lực xưởng bảo dưỡng (Capacity Constraint Assumption)
-Trong bối cảnh vận hành thực tế, xưởng dịch vụ có giới hạn về nhân lực, thiết bị đo áp suất và cầu nâng. Đề tài thiết lập **giả định kịch bản vận hành** với năng lực kiểm tra tối đa không vượt quá 10% tổng số lượng xe trong mỗi chu kỳ bảo dưỡng:
-$$M(\theta, \tau) = \sum_{i=1}^N a_i(\theta, \tau) = TP + FP \le K = \left\lfloor \frac{N}{10} \right\rfloor$$
+Đặt $P = \sum_{i=1}^N y_i$ là tổng số ca lỗi APS thực tế và $M(\theta, \tau) = \sum_{i=1}^N a_i(\theta, \tau) = TP + FP$ là tổng số lượt xe đưa vào kiểm tra APS, hàm mục tiêu có thể viết lại tương đương dưới dạng đại số $f(\theta, \tau) = 10 M(\theta, \tau) + 500 P - 510 \cdot TP(\theta, \tau)$. Đơn vị của $f(\theta, \tau)$ là **đơn vị chi phí benchmark quy ước**, không đại diện trực tiếp cho tiền tệ thanh toán thực tế.
 
-- Trên phân vùng Validation ($N = 12.000$ xe), giới hạn công suất tối đa là:
-  $$K_{\text{val}} = \left\lfloor \frac{12000}{10} \right\rfloor = 1200 \text{ lượt xe}$$
+### 2.3. Ràng buộc công suất xưởng và bài toán tối ưu tổng quát
+Để phản ánh giới hạn tiếp nhận của trạm bảo dưỡng, đồ án áp đặt giả định kịch bản vận hành: tổng số lượt xe đưa vào kiểm tra APS không vượt quá 10% kích thước phân vùng đánh giá:
 
-Nếu một cấu hình $(\theta, \tau)$ dẫn đến tổng lượt can thiệp $M > 1200$, chính sách đó bị coi là **Không khả thi (INFEASIBLE)** và bị loại bỏ khỏi không gian nghiệm hợp lệ.
+$$M(\theta, \tau) = TP(\theta, \tau) + FP(\theta, \tau) \le K = \left\lfloor \frac{N}{10} \right\rfloor$$
 
-### 2.4. Phát biểu bài toán tối ưu hóa tổng thể
-Bài toán quy về dạng quy hoạch tối ưu phi tuyến có ràng buộc:
-$$\begin{aligned}
-\min_{\theta \in \Theta, \, \tau \in [0, 1]} \quad & f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \\
-\text{subject to} \quad & g(\theta, \tau) = TP(\theta, \tau) + FP(\theta, \tau) - 1200 \le 0
-\end{aligned}$$
+Cụ thể, $K_{\text{val}} = \lfloor 12.000 / 10 \rfloor = 1.200$ lượt xe trên tập Validation và $K_{\text{test}} = \lfloor 16.000 / 10 \rfloor = 1.600$ lượt xe trên tập Official Test. Mọi cặp $(\theta, \tau)$ sinh ra $M(\theta, \tau) > K$ đều bị xếp vào trạng thái không khả thi (`INFEASIBLE`). Bài toán tối ưu hóa hoàn chỉnh trên tập Validation được viết thành:
+
+$$\min_{\theta \in \Theta,\; \tau \in [0, 1]} \; f(\theta, \tau) = 10 \cdot FP(\theta, \tau) + 500 \cdot FN(\theta, \tau) \quad \text{sao cho} \quad g(\theta, \tau) = TP(\theta, \tau) + FP(\theta, \tau) - 1.200 \le 0$$
+
+### 2.4. Mối liên hệ với ngưỡng tỷ lệ chi phí Bayes không ràng buộc
+Trong lý thuyết quyết định Bayes không có ràng buộc công suất và giả sử xác suất hậu nghiệm $P(y = 1 \mid x)$ được hiệu chuẩn hoàn hảo, hành động kiểm tra $a = 1$ có kỳ vọng chi phí thấp hơn $a = 0$ khi $10(1 - p) \le 500 p$, tương đương $p \ge \tau^*_{\text{Bayes}} = \frac{10}{510} \approx 0.019608$. Tuy nhiên, khi xác suất dự báo chưa hiệu chuẩn tuyệt đối (đặc biệt khi dùng `class_weight = "balanced"` khiến phân phối điểm xác suất dịch chuyển lên cao) hoặc khi ràng buộc $M \le K$ trở nên chặt, ngưỡng cố định $10/510$ có thể đẩy $M$ vượt quá $K$. Do đó, việc tối ưu đồng thời $(\theta, \tau)$ trực tiếp dưới ràng buộc $M \le K$ là cần thiết.
 
 ---
 
-## 3. PHÂN TÍCH LÝ THUYẾT VỀ NGƯỠNG TỶ LỆ CHI PHÍ BAYES
+## 3. PHƯƠNG PHÁP ĐƯỜNG CƠ SỞ & THUẬT TOÁN TỐI ƯU HÓA
 
-Trong bài toán phân loại nhị phân với ma trận chi phí phi đối xứng và xác suất hậu nghiệm $P(y=1 \mid x)$ được hiệu chuẩn lý tưởng (calibrated), theo lý thuyết quyết định Bayes (Bayesian Decision Theory), hành động $a=1$ được lựa chọn khi và chỉ khi kỳ vọng chi phí của việc can thiệp nhỏ hơn kỳ vọng chi phí khi không can thiệp:
-$$\mathbb{E}[\text{Cost} \mid a=1] \le \mathbb{E}[\text{Cost} \mid a=0]$$
-$$\iff 10 \cdot P(y=0 \mid x) + 0 \cdot P(y=1 \mid x) \le 0 \cdot P(y=0 \mid x) + 500 \cdot P(y=1 \mid x)$$
-$$\iff 10 \cdot (1 - P(y=1 \mid x)) \le 500 \cdot P(y=1 \mid x)$$
-$$\iff P(y=1 \mid x) \ge \frac{10}{10 + 500} = \frac{10}{510} \approx 0.0196078$$
+### 3.1. Hệ thống mô hình đường cơ sở (Gate G4 Baselines)
+Ba mô hình đường cơ sở được cài đặt tại `src/scania/baselines.py` và cấu hình khóa tại `configs/scania/g4_baselines.json`:
+1. **B0 — Majority Dummy:** Chính sách phản ứng thụ động $a_i = 0, \forall i$ (không đưa xe nào vào kiểm tra APS). Chi phí tham chiếu của B0 bằng $500 P$ ($100.000$ đơn vị trên Validation; $187.500$ đơn vị trên Official Test).
+2. **B1 — Decision Stump:** Cây quyết định một tầng `DecisionTreeClassifier(max_depth=1, random_state=42)` huấn luyện trên tập Train đã điền khuyết trung vị, chấm tại hai ngưỡng cố định: ngưỡng mặc định $\tau = 0.5000$ (chính sách chính) và ngưỡng tỷ lệ chi phí Bayes $\tau = 10/510 \approx 0.0196$ (chính sách phụ).
+3. **B2 — Logistic Regression:** Hồi quy tuyến tính `LogisticRegression(C=1.0, solver="lbfgs", max_iter=2000, random_state=42)` huấn luyện trên tập Train đã điền khuyết trung vị và chuẩn hóa `StandardScaler`, chấm tại cùng hai ngưỡng cố định $\tau = 0.5000$ và $\tau = 10/510 \approx 0.0196$.
 
-> **Phân định ranh giới khoa học quan trọng:**
-> - Ngưỡng $\tau^*_{\text{Bayes}} = \frac{10}{510} \approx 0.0196$ là **ngưỡng tối ưu lý thuyết trong điều kiện KHÔNG CÓ RÀNG BUỘC CÔNG SUẤT ($M \le K$)** và giả định xác suất dự báo hoàn toàn tiệm cận phân phối thực tế.
-> - Trong bài toán có ràng buộc $M \le 1200$, nếu hạ ngưỡng xuống $0.0196$, số lượng cảnh báo dương tính $M = TP + FP$ có thể bùng nổ vượt quá 1.200 lượt xe. Khi đó, ngưỡng lý thuyết Bayes sẽ **vi phạm ràng buộc khả thi**. Do đó, $\tau = 10/510$ không thể được coi là nghiệm tối ưu mặc định trong bài toán thực tế có ràng buộc tài nguyên.
-
----
-
-## 4. DỮ LIỆU & GIAO THỨC THỰC NGHIỆM NGHIÊM NGẶT (G3 & G4)
-
-### 4.1. Phân vùng dữ liệu đã khóa (Locked Partitions)
-Theo giao thức G3 đã được kiểm định toàn vẹn (`stable_manifest.json`, digest: `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`):
-- **Tập Train chính thức (60.000 mẫu):**
-  - **Phân vùng Train:** 48.000 mẫu (800 ca dương tính $1.67\%$, 47.200 ca âm tính).
-  - **Phân vùng Validation:** 12.000 mẫu (200 ca dương tính $1.67\%$, 11.800 ca âm tính).
-  - Hai phân vùng hoàn toàn tách biệt ($A \cap B = \emptyset, A \cup B = \{0, \dots, 59999\}$), bảo toàn đúng tỷ lệ phân bố lớp ban đầu.
-- **Tập Official Test (16.000 mẫu):**
-  - **Niêm phong độc lập trong tối ưu hóa (SEALED DURING PHASE 2)**: Được giữ niêm phong hoàn toàn trong suốt quá trình huấn luyện và tìm kiếm siêu tham số/ngưỡng Phase 2. Sau khi chính sách tối ưu hóa được khóa cố định tại Trial 16, tập Test được mở đánh giá độc lập duy nhất một lần tại Gate G10 (Run 003, zero tuning).
-  - **Minh bạch truy cập dữ liệu**: Trong hai lần chạy kiểm thử G10 bị gián đoạn trước đó (Run 001/002), tệp CSV kiểm thử được giải nén đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức tại chốt kiểm tra preprocessor, tuyệt đối không có bất kỳ bước dự đoán, suy diễn hay tinh chỉnh ngưỡng nào diễn ra trên dữ liệu Test.
-
-### 4.2. Đường ống tiền xử lý không rò rỉ (Strict Train-Only Fitting)
-1. **Điền khuyết thiếu:** `SimpleImputer(strategy='median')` fit tham số trung vị duy nhất trên 48.000 mẫu Train, sau đó thực hiện `transform` tĩnh trên Validation.
-2. **Co dãn thuộc tính:** `StandardScaler()` fit giá trị kỳ vọng và phương sai duy nhất trên 48.000 mẫu Train, sau đó áp dụng tĩnh lên Validation.
-
-### 4.3. Các mô hình đường cơ sở (Baselines - G4)
-Hệ thống thử nghiệm G4 thiết lập 3 mô hình cơ sở nhằm thiết lập mốc so sánh khoa học công bằng:
-
-| Mã | Tên mô hình | Cấu hình & Tham số khóa | Ý nghĩa trong phân tích tối ưu |
-|---|---|---|---|
-| **B0** | Majority Dummy | Dự đoán $a_i = 0 \quad \forall i$ (Không can thiệp gì) | Mốc chi phí trần khi bỏ mặc toàn bộ hư hỏng ($500 \times 200 = 100.000$ đơn vị chi phí) |
-| **B1** | Decision Stump | `DecisionTreeClassifier(max_depth=1, random_state=42)` | Mô hình cây phân tách 1 thuộc tính đơn lẻ quan trọng nhất |
-| **B2** | Logistic Regression | `LogisticRegression(penalty='l2', C=1.0, solver='lbfgs', max_iter=2000, random_state=42)` | Mô hình tuyến tính chuẩn tắc sau chuẩn hóa |
+### 3.2. Phương pháp tối ưu hóa chính (Phase 2: Random Forest + Optuna TPE hai tầng)
+Phương pháp tối ưu hóa chính (`src/scania/phase2_optimization.py`) giải bài toán hai tầng lồng nhau trong ngân sách 20 lượt đánh giá mô hình:
+- **Tầng ngoài — Tìm kiếm siêu tham số bằng Optuna TPE:** Bộ lấy mẫu `TPESampler(seed=42)` xây dựng ước lượng mật độ hạt nhân phân tách giữa nhóm cấu hình có hàm mục tiêu thấp và nhóm cấu hình còn lại để đề xuất tuần tự 20 bộ siêu tham số $\theta^{(0)}, \dots, \theta^{(19)} \in \Theta$. Mỗi trial chỉ được phép gọi đúng 1 lần `model.fit()` trên 48.000 mẫu Train (kiểm soát bởi bộ đếm bền vững `FitCounter` ghi nhận trạng thái xuống đĩa trước khi huấn luyện).
+- **Tầng trong — Tối ưu hóa chính xác ngưỡng quyết định có ràng buộc (không huấn luyện lại):**
+  - Với vector điểm xác suất dự báo $p = p(\theta^{(t)}) \in [0, 1]^{12000}$ trên tập Validation, hàm `enumerate_threshold_candidates(p)` liệt kê tập tất cả các giá trị ngưỡng ứng viên phân biệt $T(p) = \{0.0, 1.0\} \cup \text{unique}(p)$. Vì hàm bước $a_i = \mathbb{I}(p_i \ge \tau)$ chỉ đổi trạng thái tại đúng các giá trị $p_i$ xuất hiện trong dữ liệu, tập $T(p)$ bao phủ toàn bộ các vector quyết định khả dĩ trên $[0, 1]$.
+  - Hàm `evaluate_threshold_candidates_vectorized` sắp xếp mảng xác suất một lần duy nhất và dùng mảng tổng tích lũy kết hợp `np.searchsorted(..., side="left")` để tính chính xác $(TP, FP, FN, M, \text{Cost})$ cho mọi $\tau \in T(p)$. Các ứng viên vi phạm $M > 1.200$ bị loại; trong số các ứng viên thỏa mãn $M \le 1.200$, thuật toán chọn $\tau^*$ đạt chi phí nhỏ nhất theo thứ tự phá hòa tất định: `(total_cost, M, -threshold)`.
+- **Phân biệt với lưới trực quan hóa 101 điểm:** Song song với việc chọn nghiệm ứng viên chính xác $\tau^* \in T(p)$, hệ thống tính thêm các chỉ số trên lưới đều 101 điểm $\tau \in \{0.00, 0.01, \dots, 1.00\}$ lưu vào trường `threshold_curve` trong tệp kết quả JSON. Lưới 101 điểm này chỉ dùng để vẽ đồ thị đánh đổi và lập bảng khảo sát độ nhạy, hoàn toàn không làm giảm độ chính xác của bước chọn ngưỡng $\tau^*$.
 
 ---
 
-## 5. PHÂN BIỆT RÕ RÀNG BỐN CẤP ĐỘ DỮ LIỆU & THỰC NGHIỆM
+## 4. DỮ LIỆU & THIẾT KẾ THỰC NGHIỆM
 
-Để đảm bảo tính trung thực học thuật tuyệt đối, đề tài phân định rạch ròi 4 cấp độ dữ liệu và kết quả:
+### 4.1. Nguồn gốc dữ liệu, bản quyền và kiểm tra toàn vẹn
+Dữ liệu gốc tải từ UCI Machine Learning Repository #421 (DOI: `10.24432/C51S51`, giấy phép Creative Commons Attribution 4.0 — CC BY 4.0). Tệp nén gốc `aps+failure+at+scania+trucks.zip` (56.618.034 bytes) có mã băm kiểm tra toàn vẹn SHA-256 là `5504d0402f54faaf97ac0ca085a621645763f5cfea2eb29c592b057d43d4db89`; tệp huấn luyện `aps_failure_training_set.csv` (44.669.194 bytes) có mã băm SHA-256 là `bb484302e3a3a1c8ef5e1f0129c4dc7cbd58f350867f95b575461ca21ab6b9da`.
 
-1. **Cấp độ Lý thuyết (Analytical / Theoretical Tier):**
-   - Công thức giải tích ngưỡng Bayes $\tau = 10/510 \approx 0.0196$.
-   - Chi phí tối đa trên lý thuyết của B0 ($500 \times 200 = 100.000$).
-2. **Cấp độ Kiểm thử tổng hợp (Synthetic Fixtures Tier):**
-   - Dữ liệu giả lập ngẫu nhiên ($N=260, d=10$) sinh ra trong `test_g4_b2_executor.py` để kiểm thử tự động quy trình điều phối supervisor/worker, cơ chế timeout và I/O guard. **Không đại diện cho kết quả của xe tải Scania.**
-3. **Cấp độ Thực nghiệm Validation thật (Real Validation Tier - Scania APS):**
-   - Kết quả đo đạc thực tế chính thức trên 12.000 mẫu Validation từ bộ dữ liệu UCI 421 sau khi huấn luyện trên 48.000 mẫu Train theo đúng ủy quyền Gate B2 của Chủ dự án (Run `scania_g4_b2_real_002`).
-   - Đã kiểm chứng độc lập tính toàn vẹn 11 artifacts bằng `verify_run() == True` và chữ ký băm SHA-256.
-4. **Cấp độ Đánh giá kiểm thử cuối (Official Test Tier - 16.000 xe):**
-   - Được giữ niêm phong độc lập trong suốt quá trình huấn luyện và tối ưu hóa tham số (Phase 2). Sau khi chính sách tối ưu hóa được khóa cố định tại Trial 16, tập Official Test được giải phóng và đánh giá độc lập duy nhất một lần tại Gate G10 (Run 003) theo đúng ủy quyền của Chủ dự án (zero tuning, zero data leakage). Minh bạch toàn diện: ở các lượt chạy thử nghiệm G10 thất bại trước đó (Run 001/002), tệp CSV kiểm thử được giải nén đọc vào bộ nhớ, nhưng tiến trình bị dừng ngay lập tức do cơ chế bảo vệ kiểm tra preprocessor trước khi bất kỳ suy diễn dự đoán hay tinh chỉnh ngưỡng nào diễn ra.
+### 4.2. Phân vùng dữ liệu và quy trình tiền xử lý chống rò rỉ (Giao thức G3)
+Theo pipeline G3 (`scripts/run_scania_pipeline.py`, mã băm đối tượng ổn định `efe781b7e564073a2a764e70a41cfe5c3e8975d33cc38b0fa297ef09f51767bb`):
+- **Phân vùng Train (48.000 mẫu — 80%):** Gồm 800 ca `pos` (1,67%) và 47.200 ca `neg` (98,33%). Bộ tiền xử lý nhánh cây (`SimpleImputer(strategy="median")`) và nhánh tuyến tính (`SimpleImputer(strategy="median")` + `StandardScaler()`) chỉ được `fit` trên 48.000 mẫu Train này.
+- **Phân vùng Validation (12.000 mẫu — 20%):** Gồm 200 ca `pos` (1,67%) và 11.800 ca `neg` (98,33%), tách phân tầng với `seed = 42`, rời nhau hoàn toàn với Train. Chỉ áp dụng phép biến đổi tĩnh `transform` từ bộ tiền xử lý đã học trên Train.
+- **Phân vùng Official Test (16.000 mẫu):** Gồm 375 ca `pos` (2,34%) và 15.625 ca `neg` (97,66%). Giữ nguyên trong tệp nén, bị chặn truy cập bằng I/O guard trong suốt G3, G4 và Phase 2; chỉ được đọc và biến đổi bằng `tree_preprocessor.joblib` đã khóa để đánh giá một lần tại Gate G10 Run 003.
+
+### 4.3. Môi trường tính toán và giám sát tài nguyên
+Thực nghiệm chạy trên hệ điều hành Windows 11 x64, Python `3.11.9`, với các phiên bản thư viện khóa tại `configs/scania/phase2_requirements.lock.txt`: `numpy==2.4.6`, `scipy==1.17.1`, `scikit-learn==1.9.1`, `optuna==5.0.0`, `joblib==1.6.0`, `threadpoolctl==3.7.0`. Mọi tiến trình thực nghiệm thật đều khởi chạy bên trong **Windows Job Object** với giới hạn cứng: `1` luồng tính toán bản địa (`OMP_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1`, kiểm tra qua `NativeSession`), trần bộ nhớ `2048 MB`, và giới hạn thời gian `900 giây` cho Phase 2 (`180 giây` cho Gate G10).
 
 ---
 
-## 6. BẢNG KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC THỰC TẾ (5 CHÍNH SÁCH VALIDATION G4)
+## 5. KẾT QUẢ THỰC NGHIỆM
 
-Dưới đây là số liệu đo đạc thực tế chính thức của **5 chính sách cố định** trên 12.000 mẫu Validation (200 ca dương tính $y=1$, 11.800 ca âm tính $y=0$), trích xuất từ run `scania_g4_b2_real_002` đã niêm phong:
+### 5.1. Kết quả đường cơ sở G4 trên tập Validation (Run `scania_g4_b2_real_002`)
+Bảng dưới đây trình bày kết quả đo đạc thực tế của 5 chính sách đường cơ sở trên 12.000 mẫu Validation (200 ca lỗi APS thực tế, trần công suất $K_{\text{val}} = 1.200$):
 
-| STT | Mô hình | Ngưỡng $\tau$ | TP | FP | TN | FN | Precision | Recall | Tổng chi phí benchmark | Số xe vào xưởng ($M \le 1200$) | Mức tiết kiệm vs B0 (%) | Trạng thái ràng buộc |
+| Mã | Mô hình cơ sở | Ngưỡng $\tau$ | TP | FP | TN | FN | Precision | Recall | Chi phí | Xe vào $M$ | Tiết kiệm vs B0 | Trạng thái |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **P1** | **B0:** Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | N/A | 0.00% | **100.000** | $0$ | 0.00% (Mốc chuẩn) | **FEASIBLE** |
-| **P2** | **B1:** Decision Stump | 0.5000 | 0 | 0 | 11.800 | 200 | N/A | 0.00% | **100.000** | $0$ | 0.00% | **FEASIBLE** |
-| **P3** | **B1:** Decision Stump | 0.0196 | 160 | 253 | 11.547 | 40 | 38.74% | 80.00% | **22.530** | $413$ | **77.47%** | **FEASIBLE** |
-| **P4** | **B2:** Logistic Regression | 0.5000 | 129 | 48 | 11.752 | 71 | 72.88% | 64.50% | **35.980** | $177$ | **64.02%** | **FEASIBLE** |
-| **P5** | **B2:** Logistic Regression | 0.0196 | 186 | 323 | 11.477 | 14 | 36.54% | 93.00% | **10.230** | $509$ | **89.77%** | **FEASIBLE** |
+| P1 | B0: Majority Dummy | N/A | 0 | 0 | 11.800 | 200 | N/A | 0,00% | 100.000 | 0 | 0,00% | FEASIBLE |
+| P2 | B1: Decision Stump | 0,5000 | 0 | 0 | 11.800 | 200 | N/A | 0,00% | 100.000 | 0 | 0,00% | FEASIBLE |
+| P3 | B1: Decision Stump | 0,0196 | 160 | 253 | 11.547 | 40 | 38,74% | 80,00% | 22.530 | 413 | 77,47% | FEASIBLE |
+| P4 | B2: Logistic Regression | 0,5000 | 129 | 48 | 11.752 | 71 | 72,88% | 64,50% | 35.980 | 177 | 64,02% | FEASIBLE |
+| **P5** | **B2: Logistic Regression** | **0,0196** | **186** | **323** | **11.477** | **14** | **36,54%** | **93,00%** | **10.230** | **509** | **89,77%** | **FEASIBLE** |
 
-> [!NOTE]
-> **PHÂN BIỆT RANH GIỚI KHOA HỌC & CẢNH BÁO THIÊN VỊ LỰA CHỌN (SELECTION BIAS DISCLOSURE):**
-> 1. **Phân biệt kết quả Validation với đánh giá học thuật độc lập:** Kết quả trên phân vùng Validation phản ánh sự mô phỏng chính sách trong quy trình nội bộ, tách bạch hoàn toàn với đánh giá độc lập của hội đồng chấm đồ án và chưa chạm tới tập Official Test được niêm phong tới G10.
-> 2. **Thiên vị lựa chọn (Selection Bias):** Việc lựa chọn siêu tham số và ngưỡng quyết định trên cùng phân vùng Validation vốn chứa đựng thiên vị lựa chọn (selection bias). Do đó, chi phí Validation tốt nhất ($10.230$) **không đại diện cho ước lượng không thiên lệch (unbiased estimate)** về năng lực tổng quát hóa trên dữ liệu thực địa tương lai.
-> 3. **Bảo tồn lần chạy lỗi:** Lần chạy thất bại tiền kiểm tra `scania_g4_b2_real_001` (do thiếu gói môi trường tại bước supervisor) được lưu giữ đầy đủ tại `results/scania_aps/g4/scania_g4_b2_real_001/` theo đúng chuẩn mực minh bạch khoa học.
+Tại ngưỡng mặc định $0,5000$, cây quyết định 1 tầng (P2) không gán lá nào có xác suất $\ge 0,5$ nên suy biến về B0 ($100.000$ đơn vị), còn Logistic Regression (P4) bỏ sót tới 71 ca lỗi ($35.980$ đơn vị). Khi hạ xuống ngưỡng tỷ lệ chi phí Bayes $\tau = 10/510 \approx 0,0196$, chính sách P5 của Logistic Regression giảm chi phí xuống **10.230 đơn vị** ($M = 509 \le 1.200$), trở thành mốc tham chiếu tốt nhất của giai đoạn G4.
 
----
+### 5.2. Kết quả 20 Trials tối ưu hóa Phase 2 (Run `scania_phase2_rf_optuna_002`)
+Toàn bộ 20 trials tuần tự của Optuna TPE hoàn tất trong `543,06 giây` (20/20 lượt `fit` thành công, đỉnh RAM `159,82 MB`). Dữ liệu trích xuất từ `trials_summary.csv` như sau:
 
-## 7. KẾT QUẢ TỐI ƯU HÓA RÀNG BUỘC PHASE 2 (RANDOM FOREST + OPTUNA TPE)
-
-### 7.1. Cấu trúc bài toán tối ưu hóa có ràng buộc Phase 2
-Nhằm vượt qua ranh giới của các mô hình tuyến tính đơn giản ở giai đoạn G4, Phase 2 triển khai mô hình học máy phi tuyến mạnh mẽ **Random Forest** kết hợp thuật toán tối ưu hóa Bayes **Optuna TPESampler** (Tree-structured Parzen Estimator) và phương pháp tìm kiếm ngưỡng vector hóa không tốn thêm fit (zero-fit vectorized threshold optimization).
-
-- **Thuật toán tối ưu hóa:** Optuna TPESampler với seed cố định `seed = 42`.
-- **Ngân sách huấn luyện được duyệt:** Đúng 20 trials tuần tự, tương ứng tối đa 20 lượt fit mô hình thật (`max_trials = 20`, `total_max_fits = 20`, `max_fits_per_trial = 1`).
-- **Không gian tìm kiếm siêu tham số $\Theta$:**
-  - $n\_estimators \in [30, 80]$, bước nhảy (step) 10.
-  - $max\_depth \in [6, 16]$, bước nhảy 2.
-  - $min\_samples\_split \in [2, 10]$, bước nhảy 2.
-  - $max\_features \in [0.2, 0.6]$, liên tục (float).
-  - Khóa cố định: `class_weight = 'balanced'`, `random_state = 42`, `n_jobs = 1`, `bootstrap = True`.
-- **Không gian tìm kiếm ngưỡng can thiệp $\tau$:**
-  - Quét 101 điểm phân vị xác suất vector hóa $\tau \in [0.01, 0.60]$ trên tập Validation độc lập sau khi đã huấn luyện xong cây rừng.
-  - Chọn ngưỡng $\tau^*$ đạt cực tiểu hàm chi phí $f(\theta, \tau) = 10 \cdot FP + 500 \cdot FN$ thỏa mãn điều kiện khả thi về năng lực xưởng: $M(\theta, \tau) = TP + FP \le 1200$.
-
-### 7.2. Bảng kết quả đo đạc thực nghiệm 20 Trials từ Run `scania_phase2_rf_optuna_002`
-
-Dưới đây là dữ liệu thực nghiệm đo đạc chính thức từ 20 lượt huấn luyện thực tế trên phân vùng Validation (12.000 mẫu: 200 ca dương tính, 11.800 ca âm tính) trích xuất trực tiếp từ `results/scania_aps/phase2/scania_phase2_rf_optuna_002/trials_summary.csv`:
-
-| Trial # | Chi phí | $M$ | Ngưỡng $\tau^*$ | TP | FP | FN | $n_{\text{est}}$ | depth | split | feat | Thời gian fit (s) | Trạng thái |
+| Trial | Chi phí | $M$ | Ngưỡng $\tau^*$ | TP | FP | FN | $n_{\text{est}}$ | depth | split | feat | Fit (s) | Trạng thái |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 | 7.840 | 576 | 0.2588 | 192 | 384 | 8 | 30 | 12 | 8 | 0.380 | 18.80 | FEASIBLE |
-| 1 | 7.790 | 724 | 0.4363 | 195 | 529 | 5 | 20 | 5 | 2 | 0.460 | 7.00 | FEASIBLE |
-| 2 | 6.750 | 569 | 0.3154 | 194 | 375 | 6 | 50 | 10 | 2 | 0.491 | 34.68 | FEASIBLE |
-| 3 | 7.880 | 682 | 0.5201 | 194 | 488 | 6 | 60 | 5 | 3 | 0.255 | 11.76 | FEASIBLE |
-| 4 | 7.800 | 572 | 0.3978 | 192 | 380 | 8 | 30 | 8 | 5 | 0.287 | 10.13 | FEASIBLE |
-| 5 | 7.310 | 625 | 0.5609 | 194 | 431 | 6 | 50 | 5 | 4 | 0.310 | 11.73 | FEASIBLE |
-| 6 | 6.490 | 594 | 0.2417 | 195 | 399 | 5 | 40 | 11 | 3 | 0.354 | 21.62 | FEASIBLE |
-| 7 | 7.520 | 697 | 0.5887 | 195 | 502 | 5 | 40 | 4 | 7 | 0.251 | 6.21 | FEASIBLE |
-| 8 | 6.970 | 693 | 0.1801 | 196 | 497 | 4 | 20 | 12 | 10 | 0.443 | 14.61 | FEASIBLE |
-| 9 | 7.540 | 699 | 0.5696 | 195 | 504 | 5 | 30 | 4 | 8 | 0.332 | 6.14 | FEASIBLE |
-| 10 | 6.340 | 579 | 0.2408 | 195 | 384 | 5 | 60 | 12 | 7 | 0.433 | 71.20 | FEASIBLE |
-| 11 | 6.790 | 675 | 0.1739 | 196 | 479 | 4 | 50 | 11 | 4 | 0.388 | 32.75 | FEASIBLE |
-| 12 | 7.060 | 600 | 0.2261 | 194 | 406 | 6 | 60 | 12 | 7 | 0.435 | 44.51 | FEASIBLE |
-| 13 | 6.880 | 633 | 0.2428 | 195 | 438 | 5 | 20 | 10 | 2 | 0.484 | 14.20 | FEASIBLE |
-| 14 | 7.280 | 622 | 0.2200 | 194 | 428 | 6 | 40 | 12 | 6 | 0.500 | 32.49 | FEASIBLE |
-| 15 | 6.890 | 634 | 0.3268 | 195 | 439 | 5 | 60 | 8 | 7 | 0.370 | 27.30 | FEASIBLE |
-| **16** | **6.330** | **578** | **0.3232** | **195** | **383** | **5** | **50** | **10** | **10** | **0.427** | **38.61** | **FEASIBLE (BEST)** |
-| 17 | 6.650 | 610 | 0.2858 | 195 | 415 | 5 | 60 | 10 | 8 | 0.441 | 70.21 | FEASIBLE |
-| 18 | 7.070 | 652 | 0.2589 | 195 | 457 | 5 | 50 | 9 | 9 | 0.497 | 31.83 | FEASIBLE |
-| 19 | 7.240 | 618 | 0.2392 | 194 | 424 | 6 | 50 | 11 | 10 | 0.440 | 33.46 | FEASIBLE |
+| 0 | 7.840 | 576 | 0,2588 | 192 | 384 | 8 | 30 | 12 | 8 | 0,380 | 18,80 | FEASIBLE |
+| 1 | 7.790 | 724 | 0,4363 | 195 | 529 | 5 | 20 | 5 | 2 | 0,460 | 7,00 | FEASIBLE |
+| 2 | 6.750 | 569 | 0,3154 | 194 | 375 | 6 | 50 | 10 | 2 | 0,491 | 34,68 | FEASIBLE |
+| 3 | 7.880 | 682 | 0,5201 | 194 | 488 | 6 | 60 | 5 | 3 | 0,255 | 11,76 | FEASIBLE |
+| 4 | 7.800 | 572 | 0,3978 | 192 | 380 | 8 | 30 | 8 | 5 | 0,287 | 10,13 | FEASIBLE |
+| 5 | 7.310 | 625 | 0,5609 | 194 | 431 | 6 | 50 | 5 | 4 | 0,310 | 11,73 | FEASIBLE |
+| 6 | 6.490 | 594 | 0,2417 | 195 | 399 | 5 | 40 | 11 | 3 | 0,354 | 21,62 | FEASIBLE |
+| 7 | 7.520 | 697 | 0,5887 | 195 | 502 | 5 | 40 | 4 | 7 | 0,251 | 6,21 | FEASIBLE |
+| 8 | 6.970 | 693 | 0,1801 | 196 | 497 | 4 | 20 | 12 | 10 | 0,443 | 14,61 | FEASIBLE |
+| 9 | 7.540 | 699 | 0,5696 | 195 | 504 | 5 | 30 | 4 | 8 | 0,332 | 6,14 | FEASIBLE |
+| 10 | 6.340 | 579 | 0,2408 | 195 | 384 | 5 | 60 | 12 | 7 | 0,433 | 71,20 | FEASIBLE |
+| 11 | 6.790 | 675 | 0,1739 | 196 | 479 | 4 | 50 | 11 | 4 | 0,388 | 32,75 | FEASIBLE |
+| 12 | 7.060 | 600 | 0,2261 | 194 | 406 | 6 | 60 | 12 | 7 | 0,435 | 44,51 | FEASIBLE |
+| 13 | 6.880 | 633 | 0,2428 | 195 | 438 | 5 | 20 | 10 | 2 | 0,484 | 14,20 | FEASIBLE |
+| 14 | 7.280 | 622 | 0,2200 | 194 | 428 | 6 | 40 | 12 | 6 | 0,500 | 32,49 | FEASIBLE |
+| 15 | 6.890 | 634 | 0,3268 | 195 | 439 | 5 | 60 | 8 | 7 | 0,370 | 27,30 | FEASIBLE |
+| **16** | **6.330** | **578** | **0,3232** | **195** | **383** | **5** | **50** | **10** | **10** | **0,427** | **38,61** | **BEST** |
+| 17 | 6.650 | 610 | 0,2858 | 195 | 415 | 5 | 60 | 10 | 8 | 0,441 | 70,21 | FEASIBLE |
+| 18 | 7.070 | 652 | 0,2589 | 195 | 457 | 5 | 50 | 9 | 9 | 0,497 | 31,83 | FEASIBLE |
+| 19 | 7.240 | 618 | 0,2392 | 194 | 424 | 6 | 50 | 11 | 10 | 0,440 | 33,46 | FEASIBLE |
 
-### 7.3. Phân tích chính sách khả thi tốt nhất quan sát được (Trial 16)
-Trong ngân sách 20 trials thực nghiệm được phê duyệt, thuật toán Optuna TPE đã tìm thấy chính sách khả thi tốt nhất quan sát được tại **Trial 16** với các thông số:
-- **Bộ siêu tham số rừng ngẫu nhiên:** `n_estimators = 50`, `max_depth = 10`, `min_samples_split = 10`, `max_features = 0.426866`.
-- **Ngưỡng quyết định can thiệp tối ưu:** $\tau^* = 0.323244$.
-- **Ma trận nhầm lẫn đo đạc:**
-  - $TP = 195$ (Phát hiện chính xác 195/200 xe hỏng APS thực tế, Recall đạt $97.50\%$).
-  - $FP = 383$ (383 xe hỏng bộ phận khác bị kiểm tra thêm APS tại xưởng).
-  - $FN = 5$ (Chỉ bỏ sót đúng 5 ca hỏng APS dẫn đến sự cố dọc đường).
-  - $TN = 11.417$ (11.417 xe hỏng bộ phận khác được cho xuất xưởng an toàn).
-- **Tổng chi phí benchmark quan sát được:**
-  $$f^* = 10 \cdot 383 + 500 \cdot 5 = 3.830 + 2.500 = \mathbf{6.330} \text{ đơn vị chi phí benchmark}$$
-- **Kiểm định ràng buộc công suất xưởng:**
-  $$M^* = TP + FP = 195 + 383 = 578 \text{ xe} \le 1.200 \text{ xe} \quad (\text{Thỏa mãn ràng buộc khả thi, dư thừa năng lực tiếp nhận } 622 \text{ xe})$$
+Cả 20/20 trials đều tìm được ngưỡng khả thi ($M \in [569, 724] \le 1.200$) với chi phí dao động trong khoảng $[6.330, 7.880]$, thấp hơn đáng kể so với mốc B2 ($10.230$). Đường chi phí khả thi tốt nhất lũy tiến (`best-so-far`) giảm qua các mốc: $7.840$ (Trial 0) $\to 7.790$ (Trial 1) $\to 6.750$ (Trial 2) $\to 6.490$ (Trial 6) $\to 6.340$ (Trial 10) $\to \mathbf{6.330}$ (**Trial 16** theo đánh số từ 0 của Optuna, tức lượt thử thứ **17/20** trên trục hoành 1–20 của Hình 1).
 
-### 7.4. Phân tích trực quan hóa hai đồ thị tối ưu hóa thực nghiệm
+![Hình 1](figures/optimization/optimization_convergence.png)
 
-#### Đồ thị 1: Lịch sử hội tụ của thuật toán tối ưu hóa (Optuna TPE Convergence History)
-Đồ thị `figures/optimization/optimization_convergence.png` trực quan hóa tiến trình tìm kiếm của Optuna TPE qua 20 trials trên 2 khung nhìn:
-- **Khung nhìn toàn cảnh (Global Perspective):** So sánh mức chi phí đạt được so với mốc trần không can thiệp B0 Majority Dummy ($100.000$) và mốc cơ sở B2 Logistic Regression ($10.230$). Toàn bộ 20/20 trials của Random Forest đều đạt chi phí thấp hơn đáng kể so với B2 (dao động từ $6.330$ đến $7.880$).
-- **Khung nhìn chi tiết thu phóng (Zoomed Convergence):** Chi phí khả thi tốt nhất lũy tiến khởi đầu ở mức $7.840$ tại Trial 0, liên tục được cải thiện qua các mốc: $7.790$ (Trial 1), $6.750$ (Trial 2), $6.490$ (Trial 6), $6.340$ (Trial 10), và đạt mức chi phí thấp nhất **$6.330$** tại Trial 16.
+![Hình 2](figures/optimization/cost_vs_capacity_tradeoff.png)
 
-#### Đồ thị 2: Đánh đổi Chi phí - Năng lực xưởng và đường cong quét ngưỡng (Cost vs Capacity Trade-off)
-Đồ thị `figures/optimization/cost_vs_capacity_tradeoff.png` trực quan hóa không gian tìm kiếm giữa Chi phí benchmark và Số lượng xe kiểm tra ($M$):
-- **Vùng khả thi (Feasible Domain):** Miền tiếp nhận của xưởng dịch vụ ($M \le 1.200$).
-- **Đường quét ngưỡng thực nghiệm 101 điểm của Trial 16:**
-  - Được tính toán bằng phương pháp vector hóa trên các dự báo xác suất cố định của Trial 16 với 101 điểm ngưỡng $\tau \in \{0.00, 0.01, \dots, 1.00\}$.
-  - Khi $\tau < 0.05$: Số xe kiểm tra $M$ vượt ngưỡng $1.200$ (ví dụ: $\tau=0.04$ có $M=1.314$, $\tau=0.00$ có $M=12.000$), chính sách rơi vào vùng **Không khả thi (Infeasible)**.
-  - Khi $\tau \ge 0.05$: Chính sách trở nên khả thi ($M \le 1.200$). Chi phí giảm dần khi $\tau$ tăng và đạt giá trị cực tiểu thực nghiệm tại $\mathbf{M = 578, \text{Cost} = 6.330}$ ứng với $\tau^* = 0.3232$.
-  - Khi $\tau > 0.33$: Số ca bỏ sót $FN$ tăng dần làm chi phí tăng trở lại và đạt mức trần $100.000$ khi $\tau = 1.0$ ($M=0, FN=200$).
-- **Ngôi sao cam:** Vị trí chính sách khả thi tốt nhất quan sát được tại Trial 16 ($M = 578, \text{Cost} = 6.330$).
-- **Hình thoi xanh lục:** Vị trí mốc cơ sở G4 B2 Logistic Regression ($M = 509, \text{Cost} = 10.230$).
-- **Phân bố 20 trials:** Toàn bộ 20 cấu hình đều nằm trọn trong vùng khả thi ($M \in [569, 724]$) với chi phí thấp hơn $B_2$.
+### 5.3. Kết quả đánh giá độc lập trên tập Official Test (Gate G10 — Run `scania_g10_official_test_003`)
+Chính sách tốt nhất quan sát được tại Trial 16 ($n_{\text{estimators}} = 50$, $\text{max\_depth} = 10$, $\text{min\_samples\_split} = 10$, $\text{max\_features} = 0,426866$, $\tau^* = 0,3232440937634324$) được đóng băng hoàn toàn. Do Phase 2 không lưu tệp nhị phân của mô hình ra đĩa, Gate G10 thực hiện đúng 1 lần huấn luyện lại tất định trên 48.000 mẫu Train (`31,05s`), kiểm tra chốt chặn hồi quy Validation khớp chính xác 100% các chỉ số của Trial 16 ($TP = 195, FP = 383, FN = 5, TN = 11.417, \text{Cost} = 6.330, M = 578$), sau đó suy luận một lượt duy nhất (`0,039s`) trên 16.000 mẫu Official Test:
 
-### 7.5. Bảng tổng hợp so sánh hiệu quả giữa các giai đoạn nghiên cứu
-
-| Thuộc tính so sánh | G4 B0: Majority Dummy | G4 B1: Decision Stump | G4 B2: Logistic Regression | Phase 2: Random Forest + TPE |
-|---|:---:|:---:|:---:|:---:|
-| **Ngưỡng quyết định $\tau$** | Không áp dụng | $0.0196$ | $0.0196$ | $\mathbf{0.3232}$ |
-| **Số xe hỏng phát hiện (TP)** | $0$ | $160$ | $186$ | $\mathbf{195}$ |
-| **Số ca kiểm tra nhầm (FP)** | $0$ | $253$ | $323$ | $383$ |
-| **Số ca bỏ sót nguy hiểm (FN)** | $200$ | $40$ | $14$ | $\mathbf{5}$ |
-| **Độ nhạy (Recall)** | $0.00\%$ | $80.00\%$ | $93.00\%$ | $\mathbf{97.50\%}$ |
-| **Độ chính xác (Precision)** | N/A | $38.74\%$ | $36.54\%$ | $33.74\%$ |
-| **F1-Score** | N/A | $52.20\%$ | $52.47\%$ | $50.13\%$ |
-| **Lượt xe vào xưởng ($M \le 1200$)** | $0$ | $413$ | $509$ | $578$ |
-| **Tổng chi phí benchmark** | $100.000$ | $22.530$ | $10.230$ | $\mathbf{6.330}$ |
-| **Mức tiết kiệm vs B0 Dummy** | $0.00\%$ (Gốc) | $77.47\%$ | $89.77\%$ | $\mathbf{93.67\%}$ |
-| **Mức giảm chi phí vs B2 Baseline** | Không giảm | Tăng $+12.300$ | $0.00\%$ (Gốc B2) | **Giảm $-3.900$ ($-38.12\%$)** |
-| **Trạng thái ràng buộc** | FEASIBLE | FEASIBLE | FEASIBLE | **FEASIBLE** |
-
-### 7.6. Đo đạc tài nguyên, cơ chế an toàn và bảo tồn dữ liệu
-- **Kiểm soát luồng & Bộ nhớ:** Tiến trình chạy đơn luồng bản địa (`max_native_threads = 1`), đỉnh tiêu thụ RAM thực tế ghi nhận qua Windows Job Object chỉ đạt **159.82 MB** (nằm sâu dưới trần cho phép 2048 MB).
-- **Thời gian thực thi:** Hoàn thành toàn bộ 20 trials trong **543.06 giây** (trung bình ~27.1 giây/trial), nằm hoàn toàn trong hạn ngạch thời gian tối đa 900 giây được Chủ dự án cấp quyền.
-- **Số lượt huấn luyện thật (Estimator Fits):** Ghi nhận chính xác **20/20 fits STARTED và COMPLETED**, $0$ fit thất bại, $0$ fit gián đoạn.
-- **Đánh giá độc lập Gate G10:** Sau khi hoàn tất Phase 2 và khóa chính sách tại Trial 16, tập dữ liệu Official Test 16.000 mẫu được mở niêm phong và đánh giá một lần duy nhất tại Gate G10 Run 003 theo đúng phê duyệt của Chủ dự án.
-- **Bảo tồn khoa học các lần chạy lỗi:** Lần chạy trước `scania_phase2_rf_optuna_001` bị timeout ở giây 300 và các lần chạy gián đoạn G10 (`scania_g10_official_test_001`, `002` — trong đó tệp test CSV được giải nén đọc vào bộ nhớ nhưng tiến trình dừng ngay tại chốt kiểm tra preprocessor, không có dự đoán hay tinh chỉnh nào) đều được lưu trữ nguyên vẹn tại `results/scania_aps/` kèm biên bản pháp y độc lập.
-
----
-
-## 8. ĐÁNH GIÁ ĐỘC LẬP TRÊN TẬP OFFICIAL TEST (GATE G10)
-
-### 8.1. Quy trình thực thi Gate G10
-Để chứng minh năng lực tổng quát hóa thực sự và ngăn chặn triệt để hiện tượng thiên lệch lựa chọn (selection bias) khi tối ưu trên tập Validation, chính sách tốt nhất từ Phase 2 (Trial 16) được đưa vào quy trình kiểm thử độc lập tại Gate G10:
-- **Chính sách đóng băng:** Random Forest ($n_{\text{est}}=50, \text{depth}=10, \text{split}=10, \text{feat}=0.426866, \text{class\_weight}=\text{'balanced'}$), ngưỡng quyết định $\tau^* = 0.3232440937634324$.
-- **Ngân sách thực nghiệm:** Đúng 1 lần tái huấn luyện duy nhất trên 48.000 mẫu Train (`DETERMINISTIC_TRAIN_REFIT_EVALUATION`), 0 lần huấn luyện trên Test.
-- **Validation Regression Guard:** Tái lập chính xác 100% các chỉ số mục tiêu trên tập Validation ($TP=195, FP=383, FN=5, TN=11.417, \text{Cost}=6.330, M=578$) trước khi mở dữ liệu Test.
-- **Quy mô tập Official Test:** 16.000 mẫu hoàn toàn chưa từng xuất hiện trong quá trình huấn luyện hay tìm kiếm siêu tham số, gồm 375 ca lỗi APS thực tế ($2.34\%$) và 15.625 ca âm tính ($97.66\%$).
-- **Ràng buộc công suất xưởng trên tập Test:** $K = \lfloor 16.000 / 10 \rfloor = 1.600$ xe.
-
-### 8.2. Kết quả đo đạc thực tế trên tập Official Test (Run `scania_g10_official_test_003`)
-
-| Tiêu chí đo đạc | Mặc định B0 (Không can thiệp) | Validation Guard (12.000 mẫu) | **Official Test Độc lập (16.000 mẫu)** |
+| Chỉ số đánh giá | B0 Dummy (Test) | Validation Guard (12.000 mẫu) | **Official Test Độc lập (16.000 mẫu)** |
 |---|:---:|:---:|:---:|
-| **Quy mô mẫu ($N$)** | 16.000 | 12.000 | **16.000** |
-| **Số ca lỗi APS thực tế ($P$)** | 375 | 200 | **375** ($2.34\%$) |
-| **True Positives (TP)** | 0 | 195 | **357** |
-| **False Positives (FP)** | 0 | 383 | **484** |
-| **False Negatives (FN)** | 375 | 5 | **18** |
-| **True Negatives (TN)** | 15.625 | 11.417 | **15.141** |
-| **Độ nhạy (Recall)** | 0.00% | 97.50% | **95.20%** ($357 / 375$) |
-| **Độ chính xác (Precision)** | N/A | 33.74% | **42.45%** ($357 / 841$) |
-| **Độ đặc hiệu (Specificity)** | 100.00% | 96.75% | **96.90%** ($15.141 / 15.625$) |
-| **F1-Score** | 0.0000 | 0.5013 | **0.5872** |
-| **ROC-AUC** | N/A | 0.9903 | **0.9861** |
-| **PR-AUC** | N/A | 0.7059 | **0.7495** |
-| **Chi phí kiểm tra ($10 \times FP$)** | 0 | 3.830 | **4.840** |
-| **Chi phí sự cố dọc đường ($500 \times FN$)** | 187.500 | 2.500 | **9.000** |
+| Số ca lỗi APS thực tế ($P$) | 375 (2,34%) | 200 (1,67%) | **375 (2,34%)** |
+| True Positives (TP) / False Positives (FP) | 0 / 0 | 195 / 383 | **357 / 484** |
+| False Negatives (FN) / True Negatives (TN) | 375 / 15.625 | 5 / 11.417 | **18 / 15.141** |
+| Độ nhạy (Recall) / Độ chính xác (Precision) | 0,00% / N/A | 97,50% / 33,74% | **95,20% / 42,45%** |
+| Độ đặc hiệu (Specificity) / F1-Score | 100,00% / 0,0000 | 96,75% / 0,5013 | **96,90% / 0,5872** |
+| ROC-AUC / PR-AUC | N/A | 0,9903 / 0,7059 | **0,9861 / 0,7495** |
+| Chi phí thành phần ($10 \cdot FP$ + $500 \cdot FN$) | 0 + 187.500 | 3.830 + 2.500 | **4.840 + 9.000** |
 | **Tổng chi phí benchmark** | **187.500** | **6.330** | **13.840** |
-| **Chi phí trung bình / xe** | 11.719 | 0.528 | **0.865** |
-| **Lượt xe vào xưởng ($M = TP + FP$)** | 0 | 578 | **841** (Giới hạn $K = 1.600$) |
-| **Tỷ lệ bảo dưỡng ($M / N$)** | 0.00% | 4.82% | **5.26%** |
-| **Trạng thái ràng buộc** | FEASIBLE | FEASIBLE | **FEASIBLE (Dư 759 chỗ)** |
-| **Mức tiết kiệm chi phí vs B0** | 0.00% (Mốc chuẩn) | 93.67% | **92.62%** (Tiết kiệm 173.660 đơn vị) |
-
-### 8.3. Thảo luận khoa học về năng lực tổng quát hóa
-1. **Khả năng khái quát hóa bền vững:** Kết quả trên tập Official Test cho thấy tổng chi phí chỉ là **13.840 đơn vị benchmark**, tiết kiệm tới **92.62%** so với việc không có hệ thống bảo trì dự đoán ($187.500$ đơn vị chi phí).
-2. **Kiểm soát tuyệt đối tổn thất nghiêm trọng:** Mô hình bắt trúng $357 / 375$ ca hư hỏng thực tế ($Recall = 95.20\%$), chỉ lọt 18 trường hợp trong 16.000 xe.
-3. **Độ chuẩn xác được cải thiện trên dữ liệu thực:** Precision đạt **42.45%** (cao hơn mức 33.74% trên Validation), đồng thời độ đặc hiệu duy trì ở mức cao **96.90%**, cho thấy mô hình không bị dự đoán phóng đại bừa bãi.
-4. **Bảo toàn ràng buộc công suất xưởng:** Tổng số lượt xe cần đưa vào kiểm tra thực tế là 841 xe ($5.26\%$), hoàn toàn nằm trong giới hạn trần $K = 1.600$ xe ($10\%$). Xưởng dịch vụ còn dư 759 chỗ tiếp nhận, không bao giờ rơi vào trạng thái quá tải.
-5. **Phân biệt hiệu năng benchmark và triển khai thực tế:** Mức chi phí 13.840 đơn vị và mức tiết kiệm 92.62% được định lượng dựa trên hàm mục tiêu chuẩn tắc tĩnh của bài toán benchmark Scania IDA 2016 ($10 \cdot FP + 500 \cdot FN$). Trong môi trường công nghiệp thực tế, chi phí thực tế sẽ phụ thuộc vào nhiều yếu tố động phức tạp như chi phí nhân công xưởng theo giờ, sự biến động về nguồn cung phụ tùng thay thế, chi phí cứu hộ dọc đường thay đổi theo khoảng cách địa lý, lịch trình luân chuyển xe của đội vận tải, và thời gian xe phải nằm chờ tại trạm bảo dưỡng.
+| Lượt xe vào xưởng ($M \le K$) | $0 \le 1.600$ | $578 \le 1.200$ | **841 $\le$ 1.600 (Dư 759 lượt)** |
+| **Tỷ lệ tiết kiệm so với B0** | 0,00% | 93,67% | **92,62% (Giảm 173.660 đơn vị)** |
 
 ---
 
-## 9. ĐÁNH GIÁ TÍNH TÁI LẬP, GIỚI HẠN & KẾT LUẬN
+## 6. THẢO LUẬN, PHÂN TÍCH ĐỘ NHẠY & HẠN CHẾ NGHIÊN CỨU
 
-### 9.1. Khả năng tái lập khoa học (Reproducibility Protocol)
-- **Môi trường độc lập:** Python 3.11.9, scikit-learn 1.9.1, NumPy 2.4.6, SciPy 1.17.1, Optuna 5.0.0.
-- **Khóa hạt giống ngẫu nhiên:** `random_state = 42` cố định trên mọi mô hình, phép phân chia Train/Validation và bộ lấy mẫu Optuna TPESampler.
-- **Kiểm soát tài nguyên hệ điều hành:** Giới hạn 1 native thread (`threadpoolctl`), trần RAM 2048 MB và thời gian tối đa kiểm soát qua Windows Job Object.
-- **Bảo toàn toàn vẹn:** Mọi artifact xuất xưởng từ cả ba giai đoạn G4 (`scania_g4_b2_real_002`), Phase 2 (`scania_phase2_rf_optuna_002`), và Gate G10 (`scania_g10_official_test_003`) đều được ký băm SHA-256 trong `checksums.json` / `stable_manifest.json` và nghiệm thu độc lập.
+### 6.1. Phân tích đánh đổi và độ nhạy theo ngưỡng quyết định $\tau$
+Bảng dưới đây trích xuất các điểm đặc trưng từ đường cong 101 điểm `threshold_curve` của cấu hình Trial 16 trên tập Validation (`best_policy.json`):
 
-### 9.2. Giới hạn nghiên cứu (Limitations)
-1. **Phân biệt giữa mô phỏng benchmark tĩnh và triển khai thực địa:** Nghiên cứu đánh giá chính sách dựa trên tập dữ liệu tĩnh lịch sử chuẩn hóa theo quy ước IDA 2016 ($10 \cdot FP + 500 \cdot FN$). Triển khai thực tế trên đội xe vận tải đòi hỏi tích hợp thêm mô hình điều độ động (dynamic scheduling), tính sẵn sàng của phụ tùng thay thế, biến động chi phí nhân công xưởng, và hành vi lái xe trong điều kiện thời tiết thực tế.
-2. **Giả định về năng lực xưởng:** Giới hạn 10% ($M \le 1200$ trên Validation, $M \le 1600$ trên Test) là một giả định kịch bản vận hành thực nghiệm để phục vụ bài toán tối ưu hóa có ràng buộc.
-3. **Phạm vi không gian tìm kiếm:** Ngân sách thực nghiệm được giới hạn ở 20 trials tuần tự do kiểm soát an toàn tài nguyên.
+| Ngưỡng $\tau$ | 0,04 | 0,05 | 0,09 | 0,20 | 0,30 | 0,32 | **0,3232 ($\tau^*$)** | 0,33 | 0,34 | 0,35 | 0,50 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Số ca TP | 198 | 197 | 197 | 196 | 195 | 195 | **195** | 193 | 191 | 190 | 184 |
+| Số ca FP | 1.116 | 998 | 758 | 505 | 400 | 385 | **383** | 379 | 373 | 367 | 295 |
+| Số ca FN | 2 | 3 | 3 | 4 | 5 | 5 | **5** | 7 | 9 | 10 | 16 |
+| Lượt xe $M$ | 1.314 | 1.195 | 955 | 701 | 595 | 580 | **578** | 572 | 564 | 557 | 479 |
+| Tổng chi phí | 12.160 | 11.480 | 9.080 | 7.050 | 6.500 | 6.350 | **6.330** | 7.290 | 8.230 | 8.670 | 10.950 |
+| Khả thi ($M \le 1200$) | Không | Có | Có | Có | Có | Có | **Có** | Có | Có | Có | Có |
 
-### 9.3. Kết luận
-Đề tài đã hoàn thành xuất sắc việc giải quyết bài toán bảo trì kỹ thuật công nghiệp phức tạp dưới lăng kính toán học tối ưu hóa có ràng buộc:
-1. Thiết lập hệ thống cơ sở chuẩn tắc khoa học vững chắc từ G4 baselines ($C^*_{\text{G4}} = 10.230$).
-2. Triển khai thành công mô hình tối ưu hóa cốt lõi Phase 2 kết hợp Random Forest và Optuna TPE, xác định chính sách can thiệp khả thi tốt nhất quan sát được tại Trial 16 trong 20 trials Optuna với chi phí Validation chỉ **6.330 đơn vị benchmark**, tiết kiệm **93.67%** chi phí.
-3. Đánh giá độc lập thành công trên toàn bộ 16.000 mẫu tập Official Test tại Gate G10, đạt chi phí chỉ **13.840 đơn vị**, tiết kiệm **92.62%** chi phí so với mặc định, phát hiện 95.20% sự cố và hoàn toàn thỏa mãn ràng buộc năng lực xưởng ($M = 841 \le 1600$).
-4. Bảo đảm tính trung thực học thuật tuyệt đối: không rò rỉ dữ liệu, minh bạch hóa lịch sử sự cố và xác thực 100% kết quả qua chữ ký mật mã học SHA-256.
+Từ dữ liệu thực nghiệm trên, rút ra ba nhận xét quan trọng:
+1. **Ranh giới vi phạm công suất xưởng nằm giữa $\tau = 0,04$ và $\tau = 0,05$:** Do Random Forest sử dụng `class_weight = "balanced"`, điểm xác suất dự báo của lớp thiểu số được đẩy cao hơn xác suất tiên nghiệm. Nếu áp dụng ngưỡng lý thuyết Bayes $\tau \approx 0,0196$ cho mô hình này, số xe kiểm tra vượt quá 2.300 xe (`INFEASIBLE`). Trên lưới 101 điểm, chỉ các mức $\tau \le 0,04$ mới vi phạm trần $1.200$ xe ($\tau = 0,04$ có $M = 1.314$), trong khi từ $\tau = 0,05$ ($M = 1.195$) và $\tau = 0,09$ ($M = 955$) trở lên chính sách đã hoàn toàn khả thi.
+2. **Vùng chi phí thấp $\tau \in [0,20; 0,32]$:** Trong khoảng này, số ca bỏ sót $FN$ chỉ dao động từ 4 đến 5 ca trong khi $FP$ giảm đều từ 505 xuống 385, giữ tổng chi phí trong dải $[6.350; 7.050]$ và đạt cực tiểu quan sát được $6.330$ tại ngưỡng ứng viên xác suất chính xác $\tau^* = 0,323244$.
+3. **Độ nhạy bất đối xứng sắc nét khi $\tau \ge 0,33$:** Chỉ cần tăng nhẹ ngưỡng từ $0,3232$ lên $0,33$, mô hình bỏ sót thêm 2 xe hỏng APS ($FN$ tăng từ 5 lên 7, cộng thêm $1.000$ đơn vị phạt), làm tổng chi phí nhảy vọt lên $7.290$, tiếp tục tăng lên $8.230$ ($\tau = 0,34$) và $8.670$ ($\tau = 0,35$). Vì vậy, phía bên phải của $\tau^*$ không phẳng mà rất nhạy với sai số ước lượng xác suất.
+
+### 6.2. Phân tích các trường hợp chạy lỗi kỹ thuật được bảo lưu
+Theo đúng nguyên tắc lưu vết trung thực của học phần, toàn bộ các lượt chạy gặp lỗi kỹ thuật đều được giữ nguyên trong `results/scania_aps/`:
+- `scania_g4_b2_real_001`: Dừng ở bước tiền kiểm tra môi trường do thiếu gói `pytest` khi gọi nhầm trình thông dịch Python hệ thống (0 lượt fit).
+- `scania_phase2_rf_optuna_001`: Hoàn thành 9/20 trials hợp lệ thì chạm giới hạn thời gian ban đầu 300 giây; nhờ cơ chế lưu bền vững từng trial, cấu hình Run 002 đã nâng trần thời gian lên 900 giây theo phê duyệt của Chủ dự án và hoàn tất trọn vẹn 20/20 trials.
+- `scania_g10_official_test_001` và `002`: Tệp CSV Official Test đã được giải nén đọc vào bộ nhớ RAM nhưng tiến trình dừng ngay tại chốt kiểm tra danh sách cho phép (`allowlist`) và chốt chặn nạp muộn thư viện (`LATE_NUMERIC_IMPORT`) khi tải `tree_preprocessor.joblib`. Tuyệt đối không có phép biến đổi hoàn chỉnh, dự đoán xác suất hay điều chỉnh tham số nào diễn ra trên tập Test trong hai lượt lỗi này.
+
+### 6.3. Hạn chế của nghiên cứu (Limitations)
+1. **Thực nghiệm đơn hạt giống (`seed = 42`):** Bộ tối ưu hóa Optuna TPE và mô hình Random Forest trong Phase 2 mới được thực thi với một hạt giống ngẫu nhiên cố định (`seed = 42`) và ngân sách 20 trials; chưa thực hiện lặp lại trên nhiều hạt giống độc lập để báo cáo trung bình và độ lệch chuẩn (`mean ± std`), đồng thời nghiệm Trial 16 chỉ là nghiệm khả thi tốt nhất quan sát được trong 20 trials chứ không phải nghiệm tối ưu toàn cục được chứng minh toán học.
+2. **Chênh lệch ngân sách tính toán và thiếu baseline Random Forest mặc định:** Các baseline G4 (Decision Stump, Logistic Regression) chỉ chạy 2 lượt `fit` (`1,42s`) ở hai ngưỡng cố định mà không quét ngưỡng tối ưu trên Validation, đồng thời nghiên cứu chưa tách riêng một baseline `RandomForestClassifier` cấu hình mặc định chưa qua Optuna. Do đó, mức cải thiện 38,12% so với B2 là kết quả kết hợp của việc thay đổi họ mô hình phi tuyến, tìm kiếm siêu tham số TPE và tối ưu ngưỡng có ràng buộc.
+3. **Khoảng cách giữa mô hình benchmark tĩnh và vận hành thực tế:** Hàm chi phí $10 \cdot FP + 500 \cdot FN$ và trần công suất $10\%$ là mô hình tĩnh trên các bản ghi ẩn danh (không có mã định danh từng xe hay dấu thời gian liên tục), chưa phản ánh chi phí phụ tùng, ca kíp nhân công hay điều độ hàng đợi động tại trạm bảo dưỡng.
+4. **Không lưu trữ sẵn tệp trọng số mô hình `.joblib` và tiến trình Git thực tế:** Dự án lưu đầy đủ cấu hình, ngưỡng và mã băm SHA-256 kiểm tra toàn vẹn cho toàn bộ kết quả nhưng không xuất tệp `.joblib` của mô hình Random Forest ra đĩa (muốn suy luận trên dữ liệu mới cần chạy 1 bước huấn luyện lại từ cấu hình đóng băng). Về lịch sử phát triển, kho Git được khởi tạo ngày `21/10/2026` (tuần đầu khảo sát bộ dữ liệu mẫu AI4I trước khi chuyển sang bộ dữ liệu Scania APS UCI #421 từ ngày `25/10/2026`) và triển khai tập trung qua chuỗi cổng kiểm định G1–G10.
 
 ---
 
-## 10. PHỤ LỤC & KHAI BÁO CÔNG CỤ HỖ TRỢ (AI ASSISTANCE DISCLOSURE)
+## 7. KẾT LUẬN
 
-Theo quy định tại Mục 10 của `DE_BAI_TAP_LON_CA_NHAN_5_TUAN_GITHUB_PORTFOLIO.pdf`:
-- **Công cụ AI hỗ trợ:** Đề tài có sử dụng các trợ lý lập trình trí tuệ nhân tạo (Codex và Google Antigravity) để hỗ trợ rà soát mã nguồn, thiết kế các ca kiểm thử biên (unit tests), hỗ trợ lập trình khung pipeline và soạn thảo tài liệu.
-- **Phần sinh viên tự kiểm chứng và chịu trách nhiệm hoàn toàn:**
-  - Thiết lập công thức toán học hàm mục tiêu và định nghĩa ràng buộc năng lực xưởng.
-  - Phân tích ngữ nghĩa lớp âm tính theo tài liệu gốc UCI Scania #421.
-  - Kiểm tra và đảm bảo không rò rỉ tập dữ liệu kiểm thử Official Test.
-  - Toàn bộ kết quả thử nghiệm được đối chiếu và xác nhận tính toàn vẹn thông qua các chữ ký băm SHA-256 trên repository công khai.
+Nghiên cứu đã hoàn thành chuỗi quy trình tối ưu hóa ứng dụng từ phát biểu bài toán công nghiệp, lập mô hình toán học có ràng buộc, xây dựng đường cơ sở, cài đặt thuật toán tối ưu hóa hai tầng đến kiểm định độc lập trên tập Official Test:
+1. **Nghiệm và cấu hình được chọn cuối cùng:** Bộ siêu tham số `RandomForestClassifier` tại **Trial 16** (`n_estimators = 50`, `max_depth = 10`, `min_samples_split = 10`, `max_features = 0,426866`, `class_weight = "balanced"`, `random_state = 42`) kết hợp ngưỡng quyết định đóng băng **$\tau^* = 0,3232440937634324$**.
+2. **Căn cứ lựa chọn bằng số liệu:** Trên tập Validation 12.000 mẫu, cấu hình này đạt chi phí thấp nhất trong 20 trials là **6.330 đơn vị** (giảm 38,12% so với baseline tốt nhất Logistic Regression 10.230 đơn vị), bắt đúng 195/200 ca lỗi APS (Recall 97,50%) và chỉ sử dụng 578/1.200 lượt công suất xưởng. Trên tập Official Test độc lập 16.000 mẫu (Gate G10), chính sách đóng băng đạt chi phí **13.840 đơn vị** (tiết kiệm **92,62%** so với không can thiệp), Recall đạt **95,20%** (357/375 ca lỗi) và sử dụng **841/1.600** lượt công suất xưởng.
+3. **Điều kiện áp dụng:** Chính sách phù hợp làm bộ lọc hỗ trợ quyết định sơ cấp khi phân phối dữ liệu cảm biến đầu vào tương thích với quy trình thu thập của Scania UCI #421 và tỷ lệ chi phí bỏ sót lỗi cao gấp nhiều lần chi phí kiểm tra tại xưởng; khi triển khai thực tế cần hiệu chuẩn lại theo đơn giá bảo dưỡng và năng lực xưởng theo từng ca làm việc.
+
+---
+
+## PHỤ LỤC & KHAI BÁO CÔNG CỤ HỖ TRỢ AI
+
+### Phụ lục A. Tóm tắt giả mã quy trình tối ưu hóa hai tầng (Phase 2)
+1. **Đầu vào:** Tập Train $(X_{\text{train}}, y_{\text{train}})$ kích thước $48.000 \times 170$ đã điền khuyết trung vị; tập Validation $(X_{\text{val}}, y_{\text{val}})$ kích thước $12.000 \times 170$; trần công suất $K = 1.200$; ngân sách $B = 20$ trials; hạt giống `seed = 42`.
+2. **Lặp $t = 0, 1, \dots, 19$ với `Optuna TPESampler(seed=42)`:**
+   - Lấy mẫu $\theta^{(t)} = (n_{\text{estimators}}, \text{max\_depth}, \text{min\_samples\_split}, \text{max\_features}) \in \Theta$.
+   - Ghi nhận trạng thái bắt đầu vào `FitCounter`, huấn luyện `model = RandomForestClassifier(theta^(t))` trên $(X_{\text{train}}, y_{\text{train}})$ và tính xác suất $p = \text{model.predict\_proba}(X_{\text{val}})[:, 1]$.
+   - Tạo tập ngưỡng ứng viên $T(p) = \{0, 1\} \cup \text{unique}(p)$, tính vector hóa $(TP(\tau), FP(\tau), FN(\tau), M(\tau), \text{Cost}(\tau))$ cho mọi $\tau \in T(p)$.
+   - Chọn $\tau^{*(t)} = \arg\min_{\tau \in T(p):\, M(\tau) \le 1200} \big(\text{Cost}(\tau),\, M(\tau),\, -\tau\big)$, lưu bền vững kết quả trial kèm lưới 101 điểm `threshold_curve` và trả $\text{Cost}(\tau^{*(t)})$ về cho Optuna.
+3. **Đầu ra:** Nghiệm khả thi có chi phí thấp nhất $(\theta^*, \tau^*)$ qua 20 trials, được kiểm tra toàn vẹn bằng mã băm SHA-256 trước khi khóa cho bước đánh giá độc lập Gate G10.
+
+### Phụ lục B. Liên kết kho mã nguồn & Lệnh kiểm tra nhanh
+- **GitHub Repository:** https://github.com/PhucHuynh16/Predictive-maintenance-cost-optimization
+- **Lệnh trình diễn kết quả đã lưu và kiểm tra mã băm toàn vẹn SHA-256 (Read-Only):**
+  - `python scripts/demo.py` (trình bày đầy đủ kết quả, kiểm định nhất quán toán học và mã băm SHA-256 của 32 tệp kết quả).
+  - `python scripts/demo.py --verify` (kiểm tra độc lập mã băm toàn vẹn SHA-256, trả mã thoát khác 0 nếu thiếu hoặc sai lệch dữ liệu).
+
+### Phụ lục C. Khai báo công cụ hỗ trợ AI (AI Assistance Disclosure)
+Thực hiện quy định tại Mục 10 của Đề bài tập lớn cá nhân (`DE_BAI_TAP_LON_CA_NHAN_5_TUAN_GITHUB_PORTFOLIO.pdf`):
+- **Công cụ AI đã sử dụng:** Sinh viên có sử dụng công cụ trợ lý AI (Codex và Google Antigravity) để hỗ trợ lập trình khung điều phối tiến trình con an toàn (Windows Job Object, I/O guard), viết các bài kiểm thử đơn vị tự động (`pytest`), tạo script xuất biểu đồ/tài liệu báo cáo và đối soát lỗi trình bày.
+- **Phần sinh viên tự thực hiện, kiểm chứng và chịu trách nhiệm hoàn toàn:** Xác lập mô hình toán học (biến quyết định, hàm mục tiêu $10 \cdot FP + 500 \cdot FN$, ràng buộc công suất $M \le K$), giải thích đúng ngữ nghĩa nhãn `pos`/`neg` từ tài liệu gốc UCI #421, kiểm soát quy trình chống rò rỉ dữ liệu Test, trực tiếp đối chiếu từng con số trong bảng/biểu đồ với các tệp kết quả JSON/CSV gốc và chịu trách nhiệm toàn diện về nội dung báo cáo cũng như phần bảo vệ cá nhân.
